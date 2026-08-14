@@ -5,7 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
+import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
+import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
+import 'package:trading_mobile/features/chart/data/chart_market_warmup_provider.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
 import 'package:trading_mobile/features/market_watch/presentation/screens/market_watch_screen.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/account_detail_screen.dart';
@@ -196,6 +200,125 @@ void main() {
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/settings');
       expect(find.byKey(const Key('settings-account')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'server account flow resets to settings after switching bottom tabs',
+    (tester) async {
+      useVideoViewport(tester);
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          exV2AccountProvider.overrideWithBuild(
+            (ref, controller) => _serverAccountState,
+          ),
+          chartMarketWarmupProvider.overrideWith((ref) async {}),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = GoRouter(
+        initialLocation: '/settings',
+        routes: [
+          StatefulShellRoute.indexedStack(
+            builder: (context, state, navigationShell) =>
+                AppShell(navigationShell: navigationShell),
+            branches: [
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/market',
+                    builder: (context, state) =>
+                        const Scaffold(body: Text('MARKET DESTINATION')),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/chart',
+                    builder: (context, state) =>
+                        const Scaffold(body: Text('CHART DESTINATION')),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/trade',
+                    builder: (context, state) =>
+                        const Scaffold(body: Text('TRADE DESTINATION')),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/history',
+                    builder: (context, state) =>
+                        const Scaffold(body: Text('HISTORY DESTINATION')),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/settings',
+                    builder: (context, state) => const SettingsScreen(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/profile',
+            builder: (context, state) => const ProfileScreen(),
+          ),
+          GoRoute(
+            path: '/account-detail',
+            builder: (context, state) => const AccountDetailScreen(),
+          ),
+          GoRoute(
+            path: '/register',
+            builder: (context, state) =>
+                const Scaffold(body: Text('REGISTER DESTINATION')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('settings-account')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('account-broker-mark')), findsOneWidget);
+      expect(find.byKey(const ValueKey('account-109740422')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('account-109740422')));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/account-detail');
+
+      await tester.tap(find.byKey(const Key('account-detail-back')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('accounts-back')));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/settings');
+
+      await tester.tap(find.byKey(const ValueKey('bottom-nav-icon-quotes')));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/market');
+
+      await tester.tap(find.byKey(const ValueKey('bottom-nav-icon-settings')));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/settings');
+      expect(find.byKey(const Key('settings-account')), findsOneWidget);
+      expect(find.byKey(const Key('account-detail-screen')), findsNothing);
     },
   );
 
@@ -493,3 +616,51 @@ void main() {
     expect(positions[1].side, 'SELL');
   });
 }
+
+final _serverAccountState = ExV2AccountViewState.fromBootstrap(
+  ExV2Bootstrap.fromJson(_serverBootstrap),
+);
+
+final _serverBootstrap = <String, Object?>{
+  'serverTime': '2026-08-14T08:00:00Z',
+  'version': 1,
+  'device': {'id': 'device-1', 'name': 'Phone'},
+  'activeAccount': {
+    'id': 'account-1',
+    'accountCode': '109740422',
+    'name': 'Mỗi Ngày Một Tỷ 🍀',
+    'currency': 'USD',
+    'status': 'active',
+  },
+  'summary': {
+    'accountId': 'account-1',
+    'currency': 'USD',
+    'balance': 154763.90,
+    'equity': 154763.90,
+    'profit': 0,
+    'margin': 0,
+    'freeMargin': 154763.90,
+    'marginLevel': 0,
+    'updatedAt': '2026-08-14T08:00:00Z',
+  },
+  'positions': <Object?>[],
+  'pendingOrders': <Object?>[],
+  'recentDeals': <Object?>[],
+  'wallet': {
+    'currency': 'USD',
+    'availableBalance': 0,
+    'lockedBalance': 0,
+    'totalBalance': 0,
+  },
+  'performance': {
+    'netProfit': 0,
+    'grossProfit': 0,
+    'grossLoss': 0,
+    'floatingProfit': 0,
+    'tradingVolume': 0,
+    'updatedAt': null,
+    'integrityWarnings': 0,
+  },
+  'connection': {'marketFeedStatus': 'connected', 'lastMarketTickAt': null},
+  'integrityWarnings': 0,
+};
