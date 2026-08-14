@@ -14,6 +14,9 @@ abstract final class AppColors {
   static const brokerExness = Color(0xFFF8DF09);
   static const brokerVantage = Color(0xFF0B4347);
   static const brokerMarkInk = Color(0xFF171717);
+  static const connectedIndicatorTop = Color(0xFF347EAA);
+  static const connectedIndicatorBottom = Color(0xFF008FD0);
+  static const connectedIndicatorGlyph = Color(0xFFC8F0FF);
   static const textPrimary = Color(0xFFF5F5F7);
   static const textSecondary = Color(0xFFA1A1A6);
   static const textTertiary = Color(0xFF636366);
