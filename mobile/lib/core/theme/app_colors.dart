@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 abstract final class AppColors {
   static const background = Color(0xFF000000);
   static const surface = Color(0xFF1C1C1E);
+  static const accountSelectedSurface = Color(0xFF1B1B1B);
   static const surfaceElevated = Color(0xFF2C2C2E);
   static const surfaceSelected = Color(0xFF3A3A3C);
   static const primary = Color(0xFF0A84FF);
