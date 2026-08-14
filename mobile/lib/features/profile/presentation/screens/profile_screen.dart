@@ -49,14 +49,16 @@ class ProfileScreen extends ConsumerWidget {
                     left: 0,
                     right: 0,
                     top: 49,
-                    child: Text(
-                      'Tài khoản',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 18.5,
-                        height: 1,
-                        fontWeight: FontWeight.w700,
+                    child: IgnorePointer(
+                      child: Text(
+                        'Tài khoản',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18.5,
+                          height: 1,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),

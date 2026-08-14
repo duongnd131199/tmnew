@@ -154,7 +154,7 @@ class _AccountDetailScreenState extends ConsumerState<AccountDetailScreen> {
                         _DetailRow(
                           key: const Key('account-delete-row'),
                           title: 'Xóa tài khoản',
-                          titleColor: AppColors.negative,
+                          titleColor: AppColors.destructive,
                           showChevron: true,
                           onTap: () {},
                         ),

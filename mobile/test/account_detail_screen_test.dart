@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/app/router.dart';
+import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
@@ -99,6 +100,10 @@ void main() {
     expect(find.text('Kết nối từ thiết bị khác'), findsOneWidget);
     expect(find.text('Thay đổi mật khẩu'), findsOneWidget);
     expect(find.text('Xóa tài khoản'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('Xóa tài khoản')).style?.color,
+      AppColors.destructive,
+    );
   });
 
   testWidgets('trade notifications switch changes immediately when tapped', (

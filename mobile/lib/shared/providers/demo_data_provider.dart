@@ -582,8 +582,11 @@ const demoAccountProfiles = <DemoAccountProfile>[
 ];
 
 final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
+  final serverMode = ref.watch(exV2EnabledProvider);
   final server = ref.watch(exV2AccountProvider).value;
-  if (server == null) return demoAccountProfiles;
+  if (server == null) {
+    return serverMode ? const <DemoAccountProfile>[] : demoAccountProfiles;
+  }
   return [ExV2AccountProfileMapper.map(server)];
 });
 
@@ -604,8 +607,12 @@ final activeDemoAccountIdProvider =
     );
 
 final activeDemoAccountProvider = Provider<DemoAccountProfile>((ref) {
+  final serverMode = ref.watch(exV2EnabledProvider);
   final server = ref.watch(exV2AccountProvider).value;
   if (server != null) return ref.watch(demoAccountsProvider).single;
+  if (serverMode) {
+    throw StateError('The authorized server account is not available yet.');
+  }
   final accountId = ref.watch(activeDemoAccountIdProvider);
   return demoAccountProfiles.firstWhere(
     (account) => account.id == accountId,

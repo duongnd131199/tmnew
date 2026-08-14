@@ -23,37 +23,39 @@ class AccountBrokerMark extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox.square(
       dimension: size,
-      child: switch (brand) {
-        DemoBrokerBrand.exness => ColoredBox(
-          color: AppColors.brokerExness,
-          child: Center(
-            child: Text(
-              'exness',
-              textScaler: TextScaler.noScaling,
-              style: TextStyle(
-                color: AppColors.brokerMarkInk,
-                fontFamily: 'sans-serif',
-                fontSize: size * .226,
-                fontWeight: FontWeight.w700,
-                height: 1,
+      child: ExcludeSemantics(
+        child: switch (brand) {
+          DemoBrokerBrand.exness => ColoredBox(
+            color: AppColors.brokerExness,
+            child: Center(
+              child: Text(
+                'exness',
+                textScaler: TextScaler.noScaling,
+                style: TextStyle(
+                  color: AppColors.brokerMarkInk,
+                  fontFamily: 'sans-serif',
+                  fontSize: size * .226,
+                  fontWeight: FontWeight.w700,
+                  height: 1,
+                ),
               ),
             ),
           ),
-        ),
-        DemoBrokerBrand.vantage => CustomPaint(
-          painter: const _VantageLogoPainter(),
-        ),
-        DemoBrokerBrand.unknown => const ColoredBox(
-          color: AppColors.surfaceElevated,
-          child: Center(
-            child: Icon(
-              Icons.account_balance_outlined,
-              color: AppColors.textSecondary,
-              size: 18,
+          DemoBrokerBrand.vantage => CustomPaint(
+            painter: const _VantageLogoPainter(),
+          ),
+          DemoBrokerBrand.unknown => ColoredBox(
+            color: AppColors.surfaceElevated,
+            child: Center(
+              child: Icon(
+                Icons.account_balance_outlined,
+                color: AppColors.textSecondary,
+                size: size * .58,
+              ),
             ),
           ),
-        ),
-      },
+        },
+      ),
     );
   }
 }
@@ -206,9 +208,10 @@ class _VantageLogoPainter extends CustomPainter {
       Paint()..color = AppColors.brokerVantage,
     );
     canvas.save();
-    canvas.translate(size.width / 2, size.height / 2);
+    canvas.scale(size.width / 31, size.height / 31);
+    canvas.translate(15.5, 15.5);
     canvas.scale(.75);
-    canvas.translate(-size.width / 2, -size.height / 2);
+    canvas.translate(-15.5, -15.5);
     final white = Paint()..color = AppColors.textPrimary;
     final red = Paint()..color = AppColors.negative;
     canvas.drawPath(

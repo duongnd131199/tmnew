@@ -65,4 +65,40 @@ void main() {
       const Size.square(31),
     );
   });
+
+  testWidgets('hero broker marks scale every brand to 60 pixels', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Row(
+            children: [
+              AccountBrokerMark(
+                key: Key('hero-vantage-mark'),
+                brand: DemoBrokerBrand.vantage,
+                size: 60,
+              ),
+              AccountBrokerMark(
+                key: Key('hero-unknown-mark'),
+                brand: DemoBrokerBrand.unknown,
+                size: 60,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byKey(const Key('hero-vantage-mark'))),
+      const Size.square(60),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('hero-unknown-mark'))),
+      const Size.square(60),
+    );
+    final unknownIcon = tester.widget<Icon>(find.byType(Icon));
+    expect(unknownIcon.size, 34.8);
+  });
 }
