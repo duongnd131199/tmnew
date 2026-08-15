@@ -1,12 +1,72 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/settings_screen.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
+import 'package:trading_mobile/shared/widgets/mt5_settings_icon_assets.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 
 void main() {
+  testWidgets('messages icon artwork does not bake in notification badge', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Center(
+          child: MtSettingsRasterIcon(MtSettingsRasterIconKind.messages),
+        ),
+      ),
+    );
+
+    final image = tester.widget<Image>(find.byType(Image));
+    final provider = image.image as MemoryImage;
+    final redPixelCount = await tester.runAsync(() async {
+      final codec = await ui.instantiateImageCodec(provider.bytes);
+      final frame = await codec.getNextFrame();
+      final pixels = await frame.image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+      codec.dispose();
+      frame.image.dispose();
+
+      var count = 0;
+      final data = pixels!;
+      for (var offset = 0; offset < data.lengthInBytes; offset += 4) {
+        final red = data.getUint8(offset);
+        final green = data.getUint8(offset + 1);
+        final blue = data.getUint8(offset + 2);
+        final alpha = data.getUint8(offset + 3);
+        if (alpha > 128 && red > 170 && green < 110 && blue < 110) {
+          count++;
+        }
+      }
+      return count;
+    });
+
+    expect(redPixelCount, 0);
+  });
+
+  testWidgets(
+    'messages icon scales clean artwork with high quality filtering',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Center(
+            child: MtSettingsRasterIcon(MtSettingsRasterIconKind.messages),
+          ),
+        ),
+      );
+
+      expect(
+        tester.widget<Image>(find.byType(Image)).filterQuality,
+        FilterQuality.high,
+      );
+    },
+  );
+
   testWidgets('settings account header renders canonical broker metadata', (
     tester,
   ) async {
