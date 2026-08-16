@@ -20,6 +20,8 @@ import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+
+import 'test_support/video_reference_fixtures.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
 
 void main() {
@@ -107,7 +109,7 @@ void main() {
     tester,
   ) async {
     useVideoViewport(tester);
-    final container = ProviderContainer(
+    final container = createVideoReferenceContainer(
       overrides: [
         demoQuoteProvider.overrideWith(
           (ref, symbol) => const Stream<DemoQuote>.empty(),
@@ -141,7 +143,7 @@ void main() {
     'active settings account opens its detail instead of returning immediately',
     (tester) async {
       useVideoViewport(tester);
-      final container = ProviderContainer();
+      final container = createVideoReferenceContainer();
       addTearDown(container.dispose);
       final router = GoRouter(
         initialLocation: '/settings',
@@ -204,7 +206,7 @@ void main() {
     'server account flow resets to settings after switching bottom tabs',
     (tester) async {
       useVideoViewport(tester);
-      final container = ProviderContainer(
+      final container = createVideoReferenceContainer(
         overrides: [
           exV2EnabledProvider.overrideWithValue(true),
           exV2AccountProvider.overrideWithBuild(
@@ -323,7 +325,7 @@ void main() {
     'empty trade wallet button is hittable and balance dialog cancels cleanly',
     (tester) async {
       useVideoViewport(tester);
-      final container = ProviderContainer(
+      final container = createVideoReferenceContainer(
         overrides: [
           demoQuoteProvider.overrideWith(
             (ref, symbol) => const Stream<DemoQuote>.empty(),
@@ -365,7 +367,7 @@ void main() {
     tester,
   ) async {
     useVideoViewport(tester);
-    final container = ProviderContainer(
+    final container = createVideoReferenceContainer(
       overrides: [
         demoQuoteProvider.overrideWith(
           (ref, symbol) => const Stream<DemoQuote>.empty(),
@@ -398,7 +400,7 @@ void main() {
     tester,
   ) async {
     useVideoViewport(tester);
-    final container = ProviderContainer(
+    final container = createVideoReferenceContainer(
       overrides: [
         demoQuoteProvider.overrideWith((ref, symbol) {
           final quote = ref
@@ -465,7 +467,7 @@ void main() {
       useVideoViewport(tester);
       final quoteController = StreamController<DemoQuote>();
       addTearDown(quoteController.close);
-      final container = ProviderContainer(
+      final container = createVideoReferenceContainer(
         overrides: [
           demoQuoteProvider.overrideWith(
             (ref, symbol) => quoteController.stream,
@@ -561,7 +563,7 @@ void main() {
   testWidgets('one-click chevrons and SELL/Buy create matching positions', (
     tester,
   ) async {
-    final container = ProviderContainer(
+    final container = createVideoReferenceContainer(
       overrides: [
         marketCandlesProvider.overrideWith(
           (ref, request) => Stream.value(const <MarketCandle>[]),

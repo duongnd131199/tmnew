@@ -475,6 +475,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     transfers: hydrated.transfers,
     notifications: hydrated.notifications,
     settings: hydrated.settings,
+    presentation: hydrated.presentation,
     pendingOperationIds: pendingOperationIds ?? hydrated.pendingOperationIds,
   );
 

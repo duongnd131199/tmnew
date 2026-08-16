@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
@@ -7,8 +10,10 @@ import 'package:trading_mobile/features/account_link/application/account_link_co
 import 'package:trading_mobile/features/account_link/data/account_link_repository.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
+import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
+import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 void main() {
   test(
@@ -98,16 +103,73 @@ void main() {
       );
     },
   );
+
+  test(
+    'second broker presentation survives core mutation reconciliation',
+    () async {
+      final repository = _OutOfOrderActivationRepository();
+      final adapter = _SecondBrokerMutationAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+        ..httpClientAdapter = adapter;
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(false),
+          exV2DioProvider.overrideWithValue(dio),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('device-token'),
+          ),
+          accountLinkRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+
+      final activation = container
+          .read(accountActivationCoordinatorProvider.notifier)
+          .activate(
+            'account-b',
+            metadata: const ExV2CommandMetadata(
+              idempotencyKey: 'activate-second',
+              correlationId: 'activate-second-correlation',
+            ),
+          );
+      repository.complete(
+        'account-b',
+        version: 2,
+        bootstrap: _secondBrokerBootstrap,
+      );
+      expect((await activation).accepted, isTrue);
+
+      await container
+          .read(exV2AccountProvider.notifier)
+          .updatePositionProtection(
+            positionId: 'second-position',
+            stopLoss: 1.05,
+          );
+
+      final state = container.read(exV2AccountProvider).requireValue!;
+      final profile = container.read(activeDemoAccountProvider);
+      expect(state.settings, isEmpty);
+      expect(state.presentation?.companyName, 'Second Broker Ltd');
+      expect(state.presentation?.tradingServer, 'Second-Live-02');
+      expect(profile.company, 'Second Broker Ltd');
+      expect(profile.server, 'Second-Live-02');
+    },
+  );
 }
 
 final class _OutOfOrderActivationRepository implements AccountLinkRepository {
   final Map<String, Completer<ActivateLinkedAccountResult>> _requests = {};
 
-  void complete(String accountId, {required int version}) {
+  void complete(
+    String accountId, {
+    required int version,
+    ExV2Bootstrap? bootstrap,
+  }) {
     _requests[accountId]!.complete(
       ActivateLinkedAccountResult(
         account: _account(accountId),
-        bootstrap: _bootstrap(accountId, version: version),
+        bootstrap: bootstrap ?? _bootstrap(accountId, version: version),
       ),
     );
   }
@@ -196,3 +258,113 @@ ExV2Bootstrap _bootstrap(String id, {required int version}) =>
       'connection': {'marketFeedStatus': 'connected', 'lastMarketTickAt': null},
       'integrityWarnings': 0,
     });
+
+final Map<String, Object?> _secondBrokerBootstrapJson = {
+  'serverTime': '2026-08-16T08:00:00Z',
+  'version': 2,
+  'device': {'id': 'device-1', 'name': 'Phone'},
+  'activeAccount': {
+    'id': 'account-b',
+    'accountCode': '200002',
+    'name': 'Second account',
+    'currency': 'USD',
+    'status': 'active',
+  },
+  'summary': {
+    'accountId': 'account-b',
+    'currency': 'USD',
+    'balance': 1000,
+    'equity': 1000,
+    'profit': 0,
+    'margin': 10,
+    'freeMargin': 990,
+    'marginLevel': 10000,
+    'updatedAt': '2026-08-16T08:00:00Z',
+  },
+  'positions': [
+    {
+      'id': 'second-position',
+      'symbol': 'EURUSD',
+      'side': 'buy',
+      'initialVolume': 0.1,
+      'remainingVolume': 0.1,
+      'entryPrice': 1.1,
+      'realizedProfit': 0,
+      'status': 'open',
+      'stopLoss': null,
+      'takeProfit': null,
+      'createdAt': '2026-08-16T08:00:00Z',
+      'closedAt': null,
+      'rowVersion': 'row-1',
+    },
+  ],
+  'pendingOrders': <Object?>[],
+  'recentDeals': <Object?>[],
+  'wallet': {
+    'currency': 'USD',
+    'availableBalance': 0,
+    'lockedBalance': 0,
+    'totalBalance': 0,
+  },
+  'performance': {
+    'netProfit': 0,
+    'grossProfit': 0,
+    'grossLoss': 0,
+    'floatingProfit': 0,
+    'tradingVolume': 0,
+    'updatedAt': null,
+    'integrityWarnings': 0,
+  },
+  'connection': {'marketFeedStatus': 'connected', 'lastMarketTickAt': null},
+  'integrityWarnings': 0,
+};
+
+final ExV2Bootstrap _secondBrokerBootstrap = ExV2Bootstrap.fromJson(
+  _secondBrokerBootstrapJson,
+);
+
+final class _SecondBrokerMutationAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final path = options.uri.path;
+    final Object payload;
+    if (path.endsWith('/mobile/bootstrap')) {
+      payload = _secondBrokerBootstrapJson;
+    } else if (path.endsWith('/settings')) {
+      payload = <String, Object?>{};
+    } else if (options.method != 'GET') {
+      payload = <String, Object?>{};
+    } else {
+      payload = <Object?>[];
+    }
+    return ResponseBody.fromString(
+      jsonEncode(payload),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+final class _MemoryTokenStore implements DeviceTokenStore {
+  _MemoryTokenStore(this.value);
+
+  String? value;
+
+  @override
+  Future<void> delete() async => value = null;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String token) async => value = token;
+}

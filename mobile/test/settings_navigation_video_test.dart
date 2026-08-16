@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/settings_screen.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+
+import 'test_support/video_reference_fixtures.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
 import 'package:trading_mobile/shared/widgets/mt5_settings_icon_assets.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
@@ -274,7 +276,7 @@ void main() {
   testWidgets('trade navigation follows loss, flat and profit colors', (
     tester,
   ) async {
-    final container = ProviderContainer();
+    final container = createVideoReferenceContainer();
     addTearDown(container.dispose);
 
     await tester.pumpWidget(

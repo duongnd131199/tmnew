@@ -275,15 +275,15 @@ final demoQuotesProvider = Provider<List<DemoQuote>>((ref) {
     DemoQuote(
       symbol: 'XAUUSD+',
       name: 'Gold US Dollar',
-      bid: 4104.09,
-      ask: 4104.22,
+      bid: 2000.00,
+      ask: 2000.20,
       changePercent: 1.24,
     ),
     DemoQuote(
       symbol: 'XAUUSD',
       name: 'Gold US Dollar',
-      bid: 4104.09,
-      ask: 4104.22,
+      bid: 2000.00,
+      ask: 2000.20,
       changePercent: 1.24,
     ),
     DemoQuote(
@@ -471,8 +471,8 @@ final demoQuotesProvider = Provider<List<DemoQuote>>((ref) {
     DemoQuote(
       symbol: 'BTCUSD',
       name: 'Bitcoin',
-      bid: 65175.98,
-      ask: 65193.10,
+      bid: 60000.00,
+      ask: 60010.00,
       changePercent: 0.82,
     ),
     DemoQuote(
@@ -499,25 +499,11 @@ final demoQuoteProvider = StreamProvider.family<DemoQuote, String>((
     (quote) => quote.symbol == symbol,
     orElse: () => quotes.first,
   );
-  final activeAccountId = ref.watch(activeDemoAccountIdProvider);
-  final accountAdjusted =
-      activeAccountId == _largeDemoAccountId &&
-          (symbol == 'XAUUSD+' || symbol == 'XAUUSD')
-      ? DemoQuote(
-          symbol: initial.symbol,
-          name: initial.name,
-          bid: 4102.396,
-          ask: 4102.520,
-          changePercent: initial.changePercent,
-        )
-      : initial;
   final marketApiConfig = ref.watch(marketApiConfigProvider);
   if (marketApiConfig.enabled) {
-    return ref
-        .watch(realtimeMarketServiceProvider)
-        .watchQuote(symbol, accountAdjusted);
+    return ref.watch(realtimeMarketServiceProvider).watchQuote(symbol, initial);
   }
-  return ref.watch(mockQuoteServiceProvider).watchQuote(accountAdjusted);
+  return ref.watch(mockQuoteServiceProvider).watchQuote(initial);
 });
 
 const _primaryDemoAccountId = '10001001';
@@ -532,14 +518,14 @@ const demoAccountProfiles = <DemoAccountProfile>[
     company: 'Demo Markets Ltd',
     server: 'Demo-Live-01',
     accessPoint: 'Demo Access 01',
-    balance: 2292.60,
+    balance: 100000,
     brand: DemoBrokerBrand.unknown,
-    historyDeposit: 318441.72,
-    historyWithdrawal: -325690.38,
-    historyProfit: 21081.96,
+    historyDeposit: 0,
+    historyWithdrawal: 0,
+    historyProfit: 0,
     historySwap: 0,
-    historyCommission: -11531.70,
-    historyBalance: 2301.60,
+    historyCommission: 0,
+    historyBalance: 100000,
   ),
   DemoAccountProfile(
     id: _largeDemoAccountId,
@@ -547,14 +533,14 @@ const demoAccountProfiles = <DemoAccountProfile>[
     company: 'Demo Markets Ltd',
     server: 'Demo-Trial-02',
     accessPoint: 'Demo Access 02',
-    balance: 27297978.10,
+    balance: 50000,
     brand: DemoBrokerBrand.unknown,
-    historyDeposit: 12000119,
+    historyDeposit: 0,
     historyWithdrawal: 0,
-    historyProfit: 15297859.10,
+    historyProfit: 0,
     historySwap: 0,
     historyCommission: 0,
-    historyBalance: 27297978.10,
+    historyBalance: 50000,
     isDemo: true,
   ),
   DemoAccountProfile(
@@ -589,11 +575,17 @@ const demoAccountProfiles = <DemoAccountProfile>[
   ),
 ];
 
+final demoAccountCatalogProvider = Provider<List<DemoAccountProfile>>(
+  (ref) => demoAccountProfiles,
+);
+
 final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
   final serverMode = ref.watch(exV2EnabledProvider);
   final server = ref.watch(exV2AccountProvider).value;
   if (server == null) {
-    return serverMode ? const <DemoAccountProfile>[] : demoAccountProfiles;
+    return serverMode
+        ? const <DemoAccountProfile>[]
+        : ref.watch(demoAccountCatalogProvider);
   }
   final active = ExV2AccountProfileMapper.map(server);
   final linked = ref.watch(linkedTradingAccountsProvider).value;
@@ -692,10 +684,12 @@ DemoAccountProfile _mapLinkedAccount(LinkedTradingAccount account) {
 
 class ActiveDemoAccountController extends Notifier<String> {
   @override
-  String build() => demoAccountProfiles.first.id;
+  String build() => ref.watch(demoAccountCatalogProvider).first.id;
 
   void select(String accountId) {
-    if (demoAccountProfiles.any((account) => account.id == accountId)) {
+    if (ref
+        .read(demoAccountCatalogProvider)
+        .any((account) => account.id == accountId)) {
       state = accountId;
     }
   }
@@ -720,9 +714,10 @@ final activeDemoAccountProvider = Provider<DemoAccountProfile>((ref) {
     throw StateError('The authorized server account is not available yet.');
   }
   final accountId = ref.watch(activeDemoAccountIdProvider);
-  return demoAccountProfiles.firstWhere(
+  final accounts = ref.watch(demoAccountCatalogProvider);
+  return accounts.firstWhere(
     (account) => account.id == accountId,
-    orElse: () => demoAccountProfiles.first,
+    orElse: () => accounts.first,
   );
 });
 
@@ -762,6 +757,12 @@ class DemoTradingState {
   }
 }
 
+typedef DemoTradingSeed = DemoTradingState Function(String accountId);
+
+final demoTradingSeedProvider = Provider<DemoTradingSeed>(
+  (ref) => _neutralDemoTradingSeed,
+);
+
 class DemoTradingController extends Notifier<DemoTradingState> {
   int _sequence = 0;
   final Map<String, DemoTradingState> _accountStates =
@@ -788,360 +789,7 @@ class DemoTradingController extends Notifier<DemoTradingState> {
     _activeAccountId = accountId;
     final cached = _accountStates[accountId];
     if (cached != null) return cached;
-    if (accountId != '__legacy_reference__') {
-      final initial = _buildAccountTradingFixture(accountId);
-      _accountStates[accountId] = initial;
-      return initial;
-    }
-    final initial = const DemoTradingState(
-      positions: [
-        DemoPosition(
-          id: '57360797890',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          openPrice: 4078.77,
-          currentPrice: 4053.67,
-          profit: -25.10,
-          openedAt: '2026.07.01 19:37:39',
-        ),
-        DemoPosition(
-          id: '57360798021',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          openPrice: 4078.84,
-          currentPrice: 4053.67,
-          profit: -25.17,
-          openedAt: '2026.07.01 19:37:40',
-        ),
-        DemoPosition(
-          id: '57360798130',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          openPrice: 4078.87,
-          currentPrice: 4053.67,
-          profit: -25.20,
-          openedAt: '2026.07.01 19:37:41',
-        ),
-        DemoPosition(
-          id: '57360976645',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          openPrice: 4073.71,
-          currentPrice: 4053.67,
-          profit: -20.04,
-          openedAt: '2026.07.01 19:48:35',
-        ),
-        DemoPosition(
-          id: '57360977002',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          openPrice: 4073.73,
-          currentPrice: 4053.67,
-          profit: -20.06,
-          openedAt: '2026.07.01 19:48:36',
-        ),
-        DemoPosition(
-          id: '57360977704',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          volume: 0.01,
-          openPrice: 4073.64,
-          currentPrice: 4053.93,
-          profit: 19.71,
-          openedAt: '2026.07.01 19:48:37',
-        ),
-        DemoPosition(
-          id: '57360977918',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          volume: 0.01,
-          openPrice: 4073.63,
-          currentPrice: 4053.93,
-          profit: 19.70,
-          openedAt: '2026.07.01 19:48:38',
-        ),
-        DemoPosition(
-          id: '57362543211',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          openPrice: 4032.75,
-          currentPrice: 4053.67,
-          profit: 20.92,
-          openedAt: '2026.07.02 03:00:56',
-        ),
-        DemoPosition(
-          id: '57375209920',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          volume: 0.01,
-          openPrice: 4039.05,
-          currentPrice: 4053.93,
-          profit: -14.88,
-          openedAt: '2026.07.08 19:15:38',
-        ),
-        DemoPosition(
-          id: '57375210983',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          openPrice: 4039.03,
-          currentPrice: 4053.67,
-          profit: 14.64,
-          openedAt: '2026.07.08 19:15:49',
-        ),
-        DemoPosition(
-          id: '57375211406',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          volume: 0.01,
-          openPrice: 4038.72,
-          currentPrice: 4053.93,
-          profit: -15.21,
-          openedAt: '2026.07.08 19:15:55',
-        ),
-      ],
-      orders: [
-        DemoOrder(
-          id: '57360797890',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          type: 'Market',
-          volume: 0.01,
-          requestedPrice: 4078.77,
-          executedPrice: 4078.77,
-          status: 'filled',
-          time: '2026.07.01 19:37:39',
-        ),
-        DemoOrder(
-          id: '57360798021',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          type: 'Market',
-          volume: 0.01,
-          requestedPrice: 4078.84,
-          executedPrice: 4078.84,
-          status: 'filled',
-          time: '2026.07.01 19:37:40',
-        ),
-        DemoOrder(
-          id: '57360798130',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          type: 'Market',
-          volume: 0.01,
-          requestedPrice: 4078.87,
-          executedPrice: 4078.87,
-          status: 'filled',
-          time: '2026.07.01 19:37:41',
-        ),
-        DemoOrder(
-          id: '57360976645',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          type: 'Market',
-          volume: 0.01,
-          requestedPrice: 4073.71,
-          executedPrice: 4073.71,
-          status: 'filled',
-          time: '2026.07.01 19:48:35',
-        ),
-        DemoOrder(
-          id: '57360977002',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          type: 'Market',
-          volume: 0.01,
-          requestedPrice: 4073.73,
-          executedPrice: 4073.73,
-          status: 'filled',
-          time: '2026.07.01 19:48:36',
-        ),
-        DemoOrder(
-          id: '57360977704',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          type: 'Market',
-          volume: 0.01,
-          requestedPrice: 4073.64,
-          executedPrice: 4073.64,
-          status: 'filled',
-          time: '2026.07.01 19:48:37',
-        ),
-        DemoOrder(
-          id: '57360977918',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          type: 'Market',
-          volume: 0.01,
-          requestedPrice: 4073.63,
-          executedPrice: 4073.63,
-          status: 'filled',
-          time: '2026.07.01 19:48:38',
-        ),
-        DemoOrder(
-          id: '57362543211',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          type: 'Buy Limit',
-          volume: 0.01,
-          requestedPrice: 4032.75,
-          executedPrice: 4032.75,
-          status: 'filled',
-          time: '2026.07.02 03:00:56',
-        ),
-        DemoOrder(
-          id: '57375209920',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          type: 'Market',
-          volume: 0.01,
-          requestedPrice: 4039.05,
-          executedPrice: 4039.05,
-          status: 'filled',
-          time: '2026.07.08 19:15:38',
-        ),
-        DemoOrder(
-          id: '57375210983',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          type: 'Market',
-          volume: 0.01,
-          requestedPrice: 4039.03,
-          executedPrice: 4039.03,
-          status: 'filled',
-          time: '2026.07.08 19:15:49',
-        ),
-        DemoOrder(
-          id: '57375211406',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          type: 'Market',
-          volume: 0.01,
-          requestedPrice: 4038.72,
-          executedPrice: 4038.72,
-          status: 'filled',
-          time: '2026.07.08 19:15:55',
-        ),
-      ],
-      deals: [
-        DemoDeal(
-          id: '57016800101',
-          orderId: '57360797890',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          price: 4078.77,
-          profit: 0,
-          time: '2026.07.01 19:37:39',
-        ),
-        DemoDeal(
-          id: '57016800272',
-          orderId: '57360798021',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          price: 4078.84,
-          profit: 0,
-          time: '2026.07.01 19:37:40',
-        ),
-        DemoDeal(
-          id: '57016800413',
-          orderId: '57360798130',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          price: 4078.87,
-          profit: 0,
-          time: '2026.07.01 19:37:41',
-        ),
-        DemoDeal(
-          id: '57016812881',
-          orderId: '57360976645',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          price: 4073.71,
-          profit: 0,
-          time: '2026.07.01 19:48:35',
-        ),
-        DemoDeal(
-          id: '57016813002',
-          orderId: '57360977002',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          price: 4073.73,
-          profit: 0,
-          time: '2026.07.01 19:48:36',
-        ),
-        DemoDeal(
-          id: '57016813223',
-          orderId: '57360977704',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          volume: 0.01,
-          price: 4073.64,
-          profit: 0,
-          time: '2026.07.01 19:48:37',
-        ),
-        DemoDeal(
-          id: '57016813442',
-          orderId: '57360977918',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          volume: 0.01,
-          price: 4073.63,
-          profit: 0,
-          time: '2026.07.01 19:48:38',
-        ),
-        DemoDeal(
-          id: '57018649876',
-          orderId: '57362543211',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          price: 4032.75,
-          profit: 0,
-          time: '2026.07.02 03:00:56',
-        ),
-        DemoDeal(
-          id: '57034450221',
-          orderId: '57375209920',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          volume: 0.01,
-          price: 4039.05,
-          profit: 0,
-          time: '2026.07.08 19:15:38',
-        ),
-        DemoDeal(
-          id: '57034451104',
-          orderId: '57375210983',
-          symbol: 'XAUUSD',
-          side: 'BUY',
-          volume: 0.01,
-          price: 4039.03,
-          profit: 0,
-          time: '2026.07.08 19:15:49',
-        ),
-        DemoDeal(
-          id: '57034451633',
-          orderId: '57375211406',
-          symbol: 'XAUUSD',
-          side: 'SELL',
-          volume: 0.01,
-          price: 4038.72,
-          profit: 0,
-          time: '2026.07.08 19:15:55',
-        ),
-      ],
-    );
+    final initial = ref.watch(demoTradingSeedProvider)(accountId);
     _accountStates[accountId] = initial;
     return initial;
   }
@@ -1154,8 +802,8 @@ class DemoTradingController extends Notifier<DemoTradingState> {
 
   void resetActiveAccountFixture() {
     final accountId = _activeAccountId;
-    if (accountId == null || accountId == '__legacy_reference__') return;
-    _commit(_buildAccountTradingFixture(accountId));
+    if (accountId == null) return;
+    _commit(ref.read(demoTradingSeedProvider)(accountId));
   }
 
   DemoTradingState? stateForAccount(String accountId) =>
@@ -1730,279 +1378,33 @@ class DemoTradingController extends Notifier<DemoTradingState> {
   }
 }
 
-DemoTradingState _buildAccountTradingFixture(String accountId) {
-  return switch (accountId) {
-    _largeDemoAccountId => _hugeAccountFixture(),
-    _emptyDemoAccountId || _alternateDemoAccountId => const DemoTradingState(
-      positions: [],
-      deals: [],
-      balance: 0,
-    ),
-    _ => _smallAccountFixture(),
-  };
-}
-
-DemoTradingState _smallAccountFixture() {
-  const currentPrice = 4104.09;
-  const openPrices = [4104.46, 4105.03, 4105.05, 4105.04, 4105.04, 4105.04];
-  final positions = [
-    for (var index = 0; index < openPrices.length; index++)
-      DemoPosition(
-        id: '$_primaryDemoAccountId${(index + 1).toString().padLeft(2, '0')}',
-        symbol: 'XAUUSD+',
-        side: 'BUY',
-        volume: .25,
-        openPrice: openPrices[index],
-        currentPrice: currentPrice,
-        profit: (currentPrice - openPrices[index]) * 25,
-        openedAt: '2026.07.27 04:00:${(47 + index).toString().padLeft(2, '0')}',
-      ),
-  ];
-
-  const orders = [
-    DemoOrder(
-      id: '57360798130',
-      symbol: 'XAUUSD+',
-      side: 'BUY',
-      type: 'Market',
-      volume: .25,
-      requestedPrice: 4105.05,
-      executedPrice: 4105.05,
-      status: 'filled',
-      time: '2026.07.27 04:00:49',
-    ),
-    DemoOrder(
-      id: '57360797890',
-      symbol: 'XAUUSD+',
-      side: 'BUY',
-      type: 'Market',
-      volume: .25,
-      requestedPrice: 4104.46,
-      executedPrice: 4104.46,
-      status: 'filled',
-      time: '2026.07.27 04:00:47',
-    ),
-  ];
-  const deals = [
-    DemoDeal(
-      id: '57016800413',
-      orderId: '57360798130',
-      symbol: 'XAUUSD+',
-      side: 'BUY',
-      volume: .25,
-      price: 4105.05,
-      profit: 0,
-      time: '2026.07.27 04:00:49',
-    ),
-    DemoDeal(
-      id: '57016800101',
-      orderId: '57360797890',
-      symbol: 'XAUUSD+',
-      side: 'BUY',
-      volume: .25,
-      price: 4104.46,
-      profit: 0,
-      time: '2026.07.27 04:00:47',
-    ),
-  ];
-
-  const oldHistory = <(String, double, double, double, String)>[
-    ('SELL', .01, 4061.39, 4063.44, '2026.07.24 16:58:42'),
-    ('SELL', .01, 4061.39, 4063.44, '2026.07.24 16:58:42'),
-    ('SELL', .01, 4059.37, 4063.28, '2026.07.24 16:58:42'),
-    ('SELL', .01, 4059.28, 4063.28, '2026.07.24 16:58:42'),
-    ('SELL', .01, 4059.25, 4063.28, '2026.07.24 16:58:42'),
-    ('SELL', .01, 4057.24, 4063.28, '2026.07.24 16:58:42'),
-    ('SELL', .01, 4057.25, 4063.28, '2026.07.24 16:58:42'),
-    ('SELL', .01, 4057.25, 4063.28, '2026.07.24 16:58:42'),
-    ('SELL', .01, 4049.66, 4063.28, '2026.07.24 16:58:42'),
-    ('SELL', .01, 4049.61, 4063.28, '2026.07.24 16:58:42'),
-    ('SELL', .01, 4049.50, 4063.28, '2026.07.24 16:58:42'),
-  ];
-  const recentHistory = <(String, double, double, double, String)>[
-    ('BUY', .25, 4107.36, 4108.56, '2026.07.27 04:02:04'),
-    ('BUY', .25, 4107.12, 4109.95, '2026.07.27 04:02:35'),
-    ('BUY', .25, 4107.16, 4110.16, '2026.07.27 04:02:41'),
-    ('BUY', .25, 4107.07, 4108.56, '2026.07.27 04:02:55'),
-    ('SELL', .25, 4107.72, 4111.29, '2026.07.27 04:06:12'),
-    ('SELL', .25, 4108.03, 4111.29, '2026.07.27 04:06:12'),
-    ('SELL', .25, 4108.04, 4111.29, '2026.07.27 04:06:12'),
-    ('SELL', .25, 4109.41, 4101.24, '2026.07.27 04:30:11'),
-    ('SELL', .25, 4109.57, 4101.24, '2026.07.27 04:30:11'),
-    ('SELL', .25, 4109.58, 4101.24, '2026.07.27 04:30:11'),
-    ('SELL', .25, 4109.58, 4101.24, '2026.07.27 04:30:11'),
-    ('SELL', .25, 4109.98, 4101.24, '2026.07.27 04:30:11'),
-    ('BUY', .25, 4111.02, 4109.68, '2026.07.27 05:00:47'),
-    ('BUY', .25, 4111.26, 4109.68, '2026.07.27 05:00:47'),
-    ('BUY', .25, 4111.34, 4109.68, '2026.07.27 05:00:47'),
-    ('BUY', .25, 4112.02, 4109.68, '2026.07.27 05:00:47'),
-    ('BUY', .25, 4112.54, 4109.68, '2026.07.27 05:00:47'),
-    ('SELL', .25, 4108.71, 4104.37, '2026.07.27 05:13:10'),
-    ('SELL', .25, 4108.83, 4104.37, '2026.07.27 05:13:10'),
-    ('SELL', .25, 4109.12, 4104.37, '2026.07.27 05:13:10'),
-    ('SELL', .25, 4107.48, 4104.37, '2026.07.27 05:13:10'),
-    ('SELL', .25, 4107.48, 4104.37, '2026.07.27 05:13:10'),
-    ('SELL', .25, 4107.46, 4104.37, '2026.07.27 05:13:10'),
-  ];
-  var historyIndex = 0;
-  DemoHistoryPosition trade((String, double, double, double, String) item) {
-    final direction = item.$1 == 'BUY' ? 1.0 : -1.0;
-    return DemoHistoryPosition(
-      id: 'small-history-${historyIndex++}',
-      title: 'XAUUSD+',
-      side: item.$1,
-      volume: item.$2,
-      openPrice: item.$3,
-      closePrice: item.$4,
-      profit: (item.$4 - item.$3) * direction * item.$2 * 100,
-      time: item.$5,
+DemoTradingState _neutralDemoTradingSeed(String accountId) {
+  if (accountId != _primaryDemoAccountId) {
+    final account = demoAccountProfiles.firstWhere(
+      (profile) => profile.id == accountId,
+      orElse: () => demoAccountProfiles.first,
+    );
+    return DemoTradingState(
+      positions: const [],
+      deals: const [],
+      balance: account.balance,
     );
   }
-
-  final history = <DemoHistoryPosition>[
-    for (final item in oldHistory) trade(item),
-    const DemoHistoryPosition(
-      id: 'small-balance-adjustment',
-      title: 'Balance',
-      subtitle: 'Cash Adjustment-Debt W/O',
-      profit: 1.41,
-      time: '2026.07.24 17:15:21',
-    ),
-    const DemoHistoryPosition(
-      id: 'small-balance-transfer',
-      title: 'Balance',
-      subtitle: 'Transfer In from 32401745',
-      profit: 1000.10,
-      time: '2026.07.27 03:52:05',
-    ),
-    for (final item in recentHistory) trade(item),
-  ];
-
-  return DemoTradingState(
-    positions: positions,
-    orders: orders,
-    deals: deals,
-    historyPositions: history,
-    balance: 2292.60,
-  );
-}
-
-DemoTradingState _hugeAccountFixture() {
-  const currentPrice = 4102.396;
-  const openPrices = [
-    4108.117,
-    4108.402,
-    4108.299,
-    4108.634,
-    4108.145,
-    4108.142,
-    4107.734,
-    4107.607,
-    4107.143,
-    4108.345,
-  ];
-  final positions = [
-    for (var index = 0; index < openPrices.length; index++)
+  return const DemoTradingState(
+    positions: [
       DemoPosition(
-        id: '$_largeDemoAccountId${(index + 1).toString().padLeft(2, '0')}',
-        symbol: 'XAUUSD',
+        id: 'demo-position-1',
+        symbol: 'EURUSD',
         side: 'BUY',
-        volume: 179,
-        openPrice: openPrices[index],
-        currentPrice: currentPrice,
-        profit: (currentPrice - openPrices[index]) * 17900,
-        openedAt: '2026.07.24 17:${(index + 8).toString().padLeft(2, '0')}:38',
+        volume: 0.1,
+        openPrice: 1.1,
+        currentPrice: 1.101,
+        profit: 0.01,
+        openedAt: '2024.01.01 00:00:00',
       ),
-  ];
-  const rawHistory = <(String, double, double, String)>[
-    ('SELL', 4062.981, 4062.568, '2026.07.24 18:04:32'),
-    ('SELL', 4063.230, 4062.500, '2026.07.24 18:04:32'),
-    ('SELL', 4063.207, 4062.605, '2026.07.24 18:04:33'),
-    ('SELL', 4063.088, 4062.616, '2026.07.24 18:04:34'),
-    ('SELL', 4063.088, 4062.616, '2026.07.24 18:04:34'),
-    ('SELL', 4063.079, 4062.596, '2026.07.24 18:04:36'),
-    ('SELL', 4063.149, 4062.605, '2026.07.24 18:04:36'),
-    ('SELL', 4063.039, 4062.643, '2026.07.24 18:04:38'),
-    ('SELL', 4063.212, 4062.594, '2026.07.24 18:04:39'),
-    ('SELL', 4063.177, 4062.643, '2026.07.24 18:04:40'),
-    ('SELL', 4062.945, 4062.461, '2026.07.24 18:04:41'),
-    ('SELL', 4063.221, 4062.434, '2026.07.24 18:04:42'),
-    ('SELL', 4076.888, 4062.754, '2026.07.24 18:16:35'),
-    ('SELL', 4076.729, 4062.653, '2026.07.24 18:16:37'),
-    ('SELL', 4076.926, 4062.739, '2026.07.24 18:16:38'),
-    ('SELL', 4076.641, 4062.675, '2026.07.24 18:16:38'),
-    ('SELL', 4075.688, 4062.739, '2026.07.24 18:16:39'),
-    ('SELL', 4054.438, 4053.338, '2026.07.24 18:34:06'),
-    ('SELL', 4054.589, 4053.338, '2026.07.24 18:34:07'),
-    ('SELL', 4054.492, 4053.338, '2026.07.24 18:34:07'),
-    ('SELL', 4054.913, 4053.573, '2026.07.24 18:34:08'),
-    ('SELL', 4054.725, 4053.573, '2026.07.24 18:34:08'),
-    ('SELL', 4054.695, 4053.501, '2026.07.24 18:34:09'),
-    ('SELL', 4054.980, 4053.120, '2026.07.24 18:34:10'),
-    ('SELL', 4054.977, 4053.051, '2026.07.24 18:34:10'),
-    ('SELL', 4054.935, 4053.250, '2026.07.24 18:34:11'),
-    ('SELL', 4054.935, 4053.798, '2026.07.24 18:34:12'),
-    ('BUY', 4052.860, 4053.699, '2026.07.24 19:08:39'),
-    ('BUY', 4052.891, 4053.699, '2026.07.24 19:08:39'),
-    ('BUY', 4053.079, 4053.699, '2026.07.24 19:08:39'),
-    ('BUY', 4052.516, 4053.699, '2026.07.24 19:08:39'),
-    ('BUY', 4052.351, 4053.699, '2026.07.24 19:08:39'),
-    ('BUY', 4055.724, 4107.268, '2026.07.27 01:15:52'),
-    ('BUY', 4055.888, 4107.268, '2026.07.27 01:15:56'),
-    ('BUY', 4055.860, 4108.040, '2026.07.27 01:16:01'),
-    ('BUY', 4055.575, 4107.693, '2026.07.27 01:16:06'),
-    ('BUY', 4055.575, 4107.788, '2026.07.27 01:16:11'),
-  ];
-  final history = <DemoHistoryPosition>[
-    for (var index = 0; index < rawHistory.length; index++)
-      () {
-        final item = rawHistory[index];
-        final direction = item.$1 == 'BUY' ? 1.0 : -1.0;
-        return DemoHistoryPosition(
-          id: 'huge-history-$index',
-          title: 'XAUUSD',
-          side: item.$1,
-          volume: 179,
-          openPrice: item.$2,
-          closePrice: item.$3,
-          profit: (item.$3 - item.$2) * direction * 17900,
-          time: item.$4,
-        );
-      }(),
-  ];
-  final orders = [
-    for (var index = 0; index < 12; index++)
-      DemoOrder(
-        id: 'huge-order-$index',
-        symbol: 'XAUUSD',
-        side: index.isEven ? 'BUY' : 'SELL',
-        type: 'Market',
-        volume: 179,
-        requestedPrice: 4108 + index * .07,
-        executedPrice: 4108 + index * .07,
-        status: 'filled',
-        time: '2026.07.24 17:${(8 + index).toString().padLeft(2, '0')}:38',
-      ),
-  ];
-  final deals = [
-    for (var index = 0; index < 12; index++)
-      DemoDeal(
-        id: 'huge-deal-$index',
-        orderId: 'huge-order-$index',
-        symbol: 'XAUUSD',
-        side: index.isEven ? 'BUY' : 'SELL',
-        volume: 179,
-        price: 4108 + index * .07,
-        profit: index.isEven ? 14663.20 + index * 500 : 249991.40 - index * 700,
-        time: '2026.07.24 17:${(8 + index).toString().padLeft(2, '0')}:38',
-      ),
-  ];
-  return DemoTradingState(
-    positions: positions,
-    orders: orders,
-    deals: deals,
-    historyPositions: history,
-    balance: 27297978.10,
+    ],
+    deals: [],
+    balance: 100000,
   );
 }
 
@@ -2044,6 +1446,14 @@ class DemoAccountSnapshot {
   final double profit;
 }
 
+typedef DemoMarginCalculator =
+    double Function(String accountId, int positionCount);
+
+final demoMarginCalculatorProvider = Provider<DemoMarginCalculator>(
+  (ref) =>
+      (_, positionCount) => positionCount * 100,
+);
+
 final demoAccountProvider = Provider<DemoAccountSnapshot>((ref) {
   final server = ref.watch(exV2AccountProvider).value;
   if (server != null) {
@@ -2062,15 +1472,10 @@ final demoAccountProvider = Provider<DemoAccountSnapshot>((ref) {
     0,
     (total, position) => total + position.profit,
   );
-  final margin = switch (account.id) {
-    _primaryDemoAccountId =>
-      trading.positions.isEmpty ? 0.0 : 1231.48 * trading.positions.length / 6,
-    _largeDemoAccountId =>
-      trading.positions.isEmpty
-          ? 0.0
-          : 1470684.33 * trading.positions.length / 10,
-    _ => 0.0,
-  };
+  final margin = ref.read(demoMarginCalculatorProvider)(
+    account.id,
+    trading.positions.length,
+  );
   final equity = trading.balance + profit;
   final freeMargin = equity - margin;
   return DemoAccountSnapshot(

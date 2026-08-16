@@ -8,6 +8,8 @@ import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
+import 'test_support/video_reference_fixtures.dart';
+
 void main() {
   void useVideoViewport(WidgetTester tester) {
     tester.view.physicalSize = const Size(384, 848);
@@ -19,7 +21,7 @@ void main() {
   }
 
   ProviderContainer createStableContainer() {
-    return ProviderContainer(
+    return createVideoReferenceContainer(
       overrides: [
         demoQuoteProvider.overrideWith(
           (ref, symbol) => const Stream<DemoQuote>.empty(),
