@@ -118,6 +118,41 @@ void main() {
     expect(find.text('SERVER APP'), findsOneWidget);
   });
 
+  testWidgets('activation arms the bootstrap watchdog', (tester) async {
+    final adapter = _RecordingAdapter();
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+      ..httpClientAdapter = adapter;
+    final bootstrapGate = Completer<ExV2AccountViewState?>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
+          exV2DioProvider.overrideWithValue(dio),
+          exV2AccountProvider.overrideWithBuild(
+            (ref, controller) => bootstrapGate.future,
+          ),
+        ],
+        child: const MaterialApp(
+          home: DeviceGate(
+            startupTimeout: Duration(milliseconds: 100),
+            child: Text('SERVER APP'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'test-token');
+    await tester.tap(find.text('Kích hoạt'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 101));
+
+    expect(find.byKey(const Key('account-bootstrap-timeout')), findsOneWidget);
+    expect(find.text('SERVER APP'), findsNothing);
+  });
+
   testWidgets('stored token opens the unchanged application', (tester) async {
     await tester.pumpWidget(
       ProviderScope(

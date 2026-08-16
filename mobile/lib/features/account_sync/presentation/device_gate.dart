@@ -124,6 +124,7 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
           if (!mounted) return;
           ref.invalidate(exV2AccountProvider);
           setState(() => _activated = true);
+          _armBootstrapTimeout();
         },
       ),
     );
