@@ -8,10 +8,16 @@ import 'package:trading_mobile/features/account_sync/data/device_token_store.dar
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 
 class DeviceGate extends ConsumerStatefulWidget {
-  const DeviceGate({required this.child, this.onAddAccount, super.key});
+  const DeviceGate({
+    required this.child,
+    this.onAddAccount,
+    this.startupTimeout = const Duration(seconds: 20),
+    super.key,
+  });
 
   final Widget child;
   final VoidCallback? onAddAccount;
+  final Duration startupTimeout;
 
   @override
   ConsumerState<DeviceGate> createState() => _DeviceGateState();
@@ -21,6 +27,8 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
   bool _loading = true;
   bool _activated = false;
   bool _accountlessUnlocked = false;
+  int _tokenReadGeneration = 0;
+  Object? _tokenReadError;
 
   @override
   void initState() {
@@ -28,18 +36,43 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
     _readToken();
   }
 
-  Future<void> _readToken() async {
-    final enabled = ref.read(exV2EnabledProvider);
-    final token = await ref.read(deviceTokenStoreProvider).read();
-    if (!mounted) return;
-    setState(() {
-      _activated = !enabled || (token != null && token.trim().isNotEmpty);
-      _loading = false;
-    });
+  Future<void> _readToken({bool retry = false}) async {
+    final generation = ++_tokenReadGeneration;
+    if (retry && mounted) {
+      setState(() {
+        _loading = true;
+        _tokenReadError = null;
+      });
+    }
+    try {
+      final enabled = ref.read(exV2EnabledProvider);
+      final token = await ref
+          .read(deviceTokenStoreProvider)
+          .read()
+          .timeout(widget.startupTimeout);
+      if (!mounted || generation != _tokenReadGeneration) return;
+      setState(() {
+        _activated = !enabled || (token != null && token.trim().isNotEmpty);
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted || generation != _tokenReadGeneration) return;
+      setState(() {
+        _tokenReadError = error;
+        _loading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_tokenReadError != null) {
+      return _AccountBootstrapUnavailable(
+        key: const Key('device-token-read-error'),
+        message: 'Không thể đọc mã thiết bị.',
+        onRetry: () => _readToken(retry: true),
+      );
+    }
     if (_loading) {
       return const _AccountBootstrapLoading();
     }

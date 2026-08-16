@@ -14,6 +14,65 @@ import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/account_sync/presentation/device_gate.dart';
 
 void main() {
+  testWidgets('token read timeout exits loading without exposing the app', (
+    tester,
+  ) async {
+    final store = _SequencedTokenStore([
+      () => Completer<String?>().future,
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          deviceTokenStoreProvider.overrideWithValue(store),
+        ],
+        child: const MaterialApp(
+          home: DeviceGate(
+            startupTimeout: Duration(milliseconds: 100),
+            child: Text('SERVER APP'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump(const Duration(milliseconds: 101));
+
+    expect(find.byKey(const Key('device-token-read-error')), findsOneWidget);
+    expect(find.text('Thử lại'), findsOneWidget);
+    expect(find.text('SERVER APP'), findsNothing);
+  });
+
+  testWidgets('token read retry starts a fresh read and reaches activation', (
+    tester,
+  ) async {
+    final store = _SequencedTokenStore([
+      () => Completer<String?>().future,
+      () async => null,
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          deviceTokenStoreProvider.overrideWithValue(store),
+        ],
+        child: const MaterialApp(
+          home: DeviceGate(
+            startupTimeout: Duration(milliseconds: 100),
+            child: Text('SERVER APP'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 101));
+
+    await tester.tap(find.text('Thử lại'));
+    await tester.pumpAndSettle();
+
+    expect(store.readCalls, 2);
+    expect(find.text('Kích hoạt thiết bị'), findsOneWidget);
+    expect(find.text('SERVER APP'), findsNothing);
+  });
+
   testWidgets('missing token shows one-time activation instead of mock data', (
     tester,
   ) async {
@@ -265,6 +324,25 @@ final class _MemoryTokenStore implements DeviceTokenStore {
 
   @override
   Future<void> write(String token) async => value = token;
+}
+
+final class _SequencedTokenStore implements DeviceTokenStore {
+  _SequencedTokenStore(this._reads);
+
+  final List<Future<String?> Function()> _reads;
+  int readCalls = 0;
+
+  @override
+  Future<void> delete() async {}
+
+  @override
+  Future<String?> read() {
+    final index = readCalls++;
+    return _reads[index]();
+  }
+
+  @override
+  Future<void> write(String token) async {}
 }
 
 final class _RecordingAdapter implements HttpClientAdapter {
