@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/app/router.dart';
+import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/data/account_link_repository.dart';
@@ -20,6 +21,7 @@ void main() {
 
     const orderedKeys = [
       'existing-account-header',
+      'new-account-section-title',
       'real-account-row',
       'demo-account-row',
       'existing-account-section-title',
@@ -72,7 +74,8 @@ void main() {
       find.byKey(const Key('existing-account-save-switch')),
     );
     expect(saveSwitch.value, isTrue);
-    expect(saveSwitch.activeTrackColor, const Color(0xFF30D158));
+    expect(saveSwitch.activeTrackColor, AppColors.savePasswordEnabled);
+    expect(AppColors.savePasswordEnabled, const Color(0xFF30D158));
     expect(
       tester
           .widget<OutlinedButton>(
@@ -200,6 +203,114 @@ void main() {
   });
 
   testWidgets(
+    'an unknown broker route cannot expose or submit stale form state',
+    (tester) async {
+      final repository = _LoginRepository();
+      await _openForm(tester, repository: repository);
+      await tester.enterText(
+        find.byKey(const Key('existing-account-login-field')),
+        '425297911',
+      );
+      await tester.enterText(
+        find.byKey(const Key('existing-account-password-field')),
+        'stale-password',
+      );
+      await tester.pump();
+
+      appRouter.go('/accounts/add/unknown-broker');
+      await tester.pumpAndSettle();
+
+      expect(appRouter.state.uri.path, '/accounts/add');
+      expect(
+        find.byKey(const Key('existing-account-login-screen')),
+        findsNothing,
+      );
+      expect(repository.linkRequests, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'anchored login action clears keyboard and system bottom insets',
+    (tester) async {
+      await _openForm(tester, repository: _LoginRepository());
+      addTearDown(() {
+        tester.view.resetPadding();
+        tester.view.resetViewInsets();
+        tester.view.resetViewPadding();
+      });
+      final pixelRatio = tester.view.devicePixelRatio;
+      tester.view.padding = FakeViewPadding(top: 24 * pixelRatio);
+      tester.view.viewPadding = FakeViewPadding(
+        top: 24 * pixelRatio,
+        bottom: 24 * pixelRatio,
+      );
+      tester.view.viewInsets = FakeViewPadding(bottom: 300 * pixelRatio);
+      await tester.pump();
+
+      final logicalHeight = tester
+          .getSize(find.byKey(const Key('existing-account-login-screen')))
+          .height;
+      var actionBottom = tester
+          .getBottomRight(
+            find.byKey(const Key('existing-account-login-button')),
+          )
+          .dy;
+      var media = MediaQuery.of(
+        tester.element(find.byKey(const Key('existing-account-login-screen'))),
+      );
+      expect(
+        actionBottom,
+        lessThanOrEqualTo(logicalHeight - media.viewInsets.bottom),
+      );
+
+      tester.view.padding = FakeViewPadding(
+        top: 24 * pixelRatio,
+        bottom: 24 * pixelRatio,
+      );
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pump();
+
+      actionBottom = tester
+          .getBottomRight(
+            find.byKey(const Key('existing-account-login-button')),
+          )
+          .dy;
+      media = MediaQuery.of(
+        tester.element(find.byKey(const Key('existing-account-login-screen'))),
+      );
+      expect(
+        actionBottom,
+        lessThanOrEqualTo(logicalHeight - media.padding.bottom),
+      );
+    },
+  );
+
+  testWidgets(
+    'initial server failure is visible and retries the real catalog',
+    (tester) async {
+      final repository = _LoginRepository(serverFailures: 1);
+      await _openForm(tester, repository: repository);
+
+      expect(
+        find.byKey(const Key('existing-account-server-error')),
+        findsOneWidget,
+      );
+      expect(find.text('Unable to link this account'), findsOneWidget);
+      expect(repository.serverCalls, 1);
+
+      await tester.tap(find.byKey(const Key('existing-account-server-retry')));
+      await tester.pumpAndSettle();
+
+      expect(repository.serverCalls, 2);
+      expect(
+        find.byKey(const Key('existing-account-server-error')),
+        findsNothing,
+      );
+      expect(find.text('Exness-MT5Real20'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'navigation waits for link activation and bootstrap publication',
     (tester) async {
       final activationGate = Completer<void>();
@@ -309,12 +420,19 @@ Future<void> _openForm(
 }
 
 final class _LoginRepository implements AccountLinkRepository {
-  _LoginRepository({this.linkError, this.activationGate, this.events});
+  _LoginRepository({
+    this.linkError,
+    this.activationGate,
+    this.events,
+    this.serverFailures = 0,
+  });
 
   final Object? linkError;
   final Completer<void>? activationGate;
   final List<String>? events;
+  final int serverFailures;
   final List<LinkAccountRequest> linkRequests = <LinkAccountRequest>[];
+  int serverCalls = 0;
 
   @override
   Future<List<LinkedTradingAccount>> accounts() async => const [];
@@ -361,18 +479,24 @@ final class _LoginRepository implements AccountLinkRepository {
   Future<List<MobileTradingServer>> servers(
     String brokerId, {
     String query = '',
-  }) async => const [
-    MobileTradingServer(
-      id: 'real-20',
-      name: 'Exness-MT5Real20',
-      brokerId: 'exness',
-    ),
-    MobileTradingServer(
-      id: 'real-15',
-      name: 'Exness-MT5Real15',
-      brokerId: 'exness',
-    ),
-  ];
+  }) async {
+    serverCalls += 1;
+    if (serverCalls <= serverFailures) {
+      throw StateError('server catalog unavailable');
+    }
+    return const [
+      MobileTradingServer(
+        id: 'real-20',
+        name: 'Exness-MT5Real20',
+        brokerId: 'exness',
+      ),
+      MobileTradingServer(
+        id: 'real-15',
+        name: 'Exness-MT5Real15',
+        brokerId: 'exness',
+      ),
+    ];
+  }
 }
 
 final class _MemoryGrantStore implements AccountReconnectGrantStore {

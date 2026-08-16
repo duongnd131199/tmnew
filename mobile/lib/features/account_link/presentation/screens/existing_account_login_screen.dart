@@ -24,7 +24,7 @@ class _ExistingAccountLoginScreenState
     extends ConsumerState<ExistingAccountLoginScreen> {
   final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
-  String? _routeError;
+  String? _serverError;
 
   @override
   void initState() {
@@ -45,17 +45,18 @@ class _ExistingAccountLoginScreenState
   Widget build(BuildContext context) {
     final asyncState = ref.watch(accountLinkControllerProvider);
     final state = asyncState.value ?? const AccountLinkState();
-    _synchronize(_loginController, state.login);
-    _synchronize(_passwordController, state.password);
+    final routeAuthorized = state.selectedBroker?.id == widget.brokerId;
+    final formState = routeAuthorized ? state : const AccountLinkState();
+    _synchronize(_loginController, formState.login);
+    _synchronize(_passwordController, formState.password);
 
     return Scaffold(
       key: const Key('existing-account-login-screen'),
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        bottom: false,
         child: Column(
           children: [
-            _BrokerHeader(broker: state.selectedBroker),
+            _BrokerHeader(broker: formState.selectedBroker),
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -91,13 +92,18 @@ class _ExistingAccountLoginScreenState
                     _ValueRow(
                       key: const Key('existing-account-server-row'),
                       label: 'Máy chủ',
-                      value: state.selectedServer?.name ?? 'Chọn máy chủ',
-                      onTap: state.selectedBroker == null
+                      value: formState.selectedServer?.name ?? 'Chọn máy chủ',
+                      onTap: !routeAuthorized
                           ? null
                           : () => context.push(
                               '/accounts/add/${Uri.encodeComponent(widget.brokerId)}/servers',
                             ),
                     ),
+                    if (_serverError case final message?)
+                      _ServerFailureRow(
+                        message: message,
+                        onRetry: () => unawaited(_loadServers()),
+                      ),
                     _InputRow(
                       label: 'Đăng nhập',
                       field: TextField(
@@ -156,7 +162,7 @@ class _ExistingAccountLoginScreenState
                       ),
                     ),
                     _SavePasswordRow(
-                      value: state.savePassword,
+                      value: formState.savePassword,
                       onChanged: ref
                           .read(accountLinkControllerProvider.notifier)
                           .updateSavePassword,
@@ -179,25 +185,12 @@ class _ExistingAccountLoginScreenState
                         ),
                       ),
                     ),
-                    if (_routeError case final message?)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.xl,
-                        ),
-                        child: Text(
-                          message,
-                          textAlign: TextAlign.center,
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.negative,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
             ),
             _LoginAction(
-              enabled: state.canSubmit,
+              enabled: routeAuthorized && formState.canSubmit,
               busy:
                   state.phase == AccountLinkPhase.submitting ||
                   state.phase == AccountLinkPhase.activating,
@@ -228,9 +221,7 @@ class _ExistingAccountLoginScreenState
         }
       }
       if (selectedBroker == null) {
-        setState(() {
-          _routeError = state.errorMessage ?? 'Không tìm thấy công ty đã chọn';
-        });
+        context.go('/accounts/add');
         return;
       }
       controller.selectBroker(selectedBroker);
@@ -238,16 +229,30 @@ class _ExistingAccountLoginScreenState
 
     state = ref.read(accountLinkControllerProvider).value ?? state;
     if (state.selectedServer == null) {
-      await controller.loadServers(widget.brokerId);
-      if (!mounted) return;
-      state = ref.read(accountLinkControllerProvider).value ?? state;
-      if (state.selectedServer == null && state.servers.isNotEmpty) {
-        controller.selectServer(state.servers.first);
-      }
+      await _loadServers();
+    }
+  }
+
+  Future<void> _loadServers() async {
+    if (_serverError != null) setState(() => _serverError = null);
+    final controller = ref.read(accountLinkControllerProvider.notifier);
+    await controller.loadServers(widget.brokerId);
+    if (!mounted) return;
+    final state = ref.read(accountLinkControllerProvider).value;
+    if (state == null || state.phase == AccountLinkPhase.failed) {
+      setState(() {
+        _serverError = state?.errorMessage ?? 'Unable to link this account';
+      });
+      return;
+    }
+    if (state.selectedServer == null && state.servers.isNotEmpty) {
+      controller.selectServer(state.servers.first);
     }
   }
 
   Future<void> _submit() async {
+    final state = ref.read(accountLinkControllerProvider).value;
+    if (state?.selectedBroker?.id != widget.brokerId) return;
     FocusScope.of(context).unfocus();
     final result = await ref
         .read(accountLinkControllerProvider.notifier)
@@ -468,6 +473,41 @@ class _InputRow extends StatelessWidget {
   );
 }
 
+class _ServerFailureRow extends StatelessWidget {
+  const _ServerFailureRow({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const Key('existing-account-server-error'),
+    color: AppColors.surface,
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      AppSpacing.sm,
+      AppSpacing.md,
+      AppSpacing.sm,
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            message,
+            style: AppTypography.bodySmall.copyWith(color: AppColors.negative),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        TextButton(
+          key: const Key('existing-account-server-retry'),
+          onPressed: onRetry,
+          child: const Text('Thử lại'),
+        ),
+      ],
+    ),
+  );
+}
+
 class _SavePasswordRow extends StatelessWidget {
   const _SavePasswordRow({required this.value, required this.onChanged});
 
@@ -487,7 +527,7 @@ class _SavePasswordRow extends StatelessWidget {
             Switch.adaptive(
               key: const Key('existing-account-save-switch'),
               value: value,
-              activeTrackColor: const Color(0xFF30D158),
+              activeTrackColor: AppColors.savePasswordEnabled,
               onChanged: onChanged,
             ),
           ],
