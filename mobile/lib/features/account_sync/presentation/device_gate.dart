@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trading_mobile/app/router.dart';
@@ -29,6 +31,8 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
   bool _accountlessUnlocked = false;
   int _tokenReadGeneration = 0;
   Object? _tokenReadError;
+  Timer? _bootstrapTimer;
+  bool _bootstrapTimedOut = false;
 
   @override
   void initState() {
@@ -39,9 +43,11 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
   Future<void> _readToken({bool retry = false}) async {
     final generation = ++_tokenReadGeneration;
     if (retry && mounted) {
+      _bootstrapTimer?.cancel();
       setState(() {
         _loading = true;
         _tokenReadError = null;
+        _bootstrapTimedOut = false;
       });
     }
     try {
@@ -51,10 +57,12 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
           .read()
           .timeout(widget.startupTimeout);
       if (!mounted || generation != _tokenReadGeneration) return;
+      final activated = !enabled || (token != null && token.trim().isNotEmpty);
       setState(() {
-        _activated = !enabled || (token != null && token.trim().isNotEmpty);
+        _activated = activated;
         _loading = false;
       });
+      if (enabled && activated) _armBootstrapTimeout();
     } catch (error) {
       if (!mounted || generation != _tokenReadGeneration) return;
       setState(() {
@@ -79,25 +87,34 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
     if (_activated) {
       if (!ref.watch(exV2EnabledProvider)) return widget.child;
       if (_accountlessUnlocked) return widget.child;
-      return ref
-          .watch(exV2AccountProvider)
-          .when(
-            loading: () => const _AccountBootstrapLoading(),
-            error: (error, stackTrace) => _isAccountNotConfigured(error)
-                ? _AccountBootstrapAccountless(onAddAccount: _openAddAccount)
-                : _AccountBootstrapUnavailable(
-                    key: const Key('account-bootstrap-error'),
-                    message: 'Không thể tải tài khoản.',
-                    onRetry: () => ref.invalidate(exV2AccountProvider),
-                  ),
-            data: (account) => account == null
-                ? _AccountBootstrapUnavailable(
-                    key: const Key('account-bootstrap-empty'),
-                    message: 'Chưa có tài khoản được cấp quyền.',
-                    onRetry: () => ref.invalidate(exV2AccountProvider),
-                  )
-                : widget.child,
-          );
+      final accountState = ref.watch(exV2AccountProvider);
+      if (accountState.isLoading) {
+        return _bootstrapTimedOut
+            ? _AccountBootstrapUnavailable(
+                key: const Key('account-bootstrap-timeout'),
+                message: 'Máy chủ phản hồi quá lâu.',
+                onRetry: _retryBootstrap,
+              )
+            : const _AccountBootstrapLoading();
+      }
+      if (!accountState.isLoading) _bootstrapTimer?.cancel();
+      return accountState.when(
+        loading: () => const _AccountBootstrapLoading(),
+        error: (error, stackTrace) => _isAccountNotConfigured(error)
+            ? _AccountBootstrapAccountless(onAddAccount: _openAddAccount)
+            : _AccountBootstrapUnavailable(
+                key: const Key('account-bootstrap-error'),
+                message: 'Không thể tải tài khoản.',
+                onRetry: _retryBootstrap,
+              ),
+        data: (account) => account == null
+            ? _AccountBootstrapUnavailable(
+                key: const Key('account-bootstrap-empty'),
+                message: 'Chưa có tài khoản được cấp quyền.',
+                onRetry: _retryBootstrap,
+              )
+            : widget.child,
+      );
     }
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -124,6 +141,33 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
         appRouter.go('/accounts/add');
       }
     });
+  }
+
+  void _armBootstrapTimeout() {
+    _bootstrapTimer?.cancel();
+    _bootstrapTimedOut = false;
+    _bootstrapTimer = Timer(widget.startupTimeout, () {
+      if (!mounted || !ref.read(exV2AccountProvider).isLoading) return;
+      setState(() => _bootstrapTimedOut = true);
+    });
+  }
+
+  void _retryBootstrap() {
+    if (!mounted) return;
+    _bootstrapTimer?.cancel();
+    setState(() => _bootstrapTimedOut = false);
+    ref.invalidate(exV2AccountProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _armBootstrapTimeout();
+    });
+  }
+
+  @override
+  void dispose() {
+    _tokenReadGeneration += 1;
+    _bootstrapTimer?.cancel();
+    super.dispose();
   }
 }
 

@@ -17,9 +17,7 @@ void main() {
   testWidgets('token read timeout exits loading without exposing the app', (
     tester,
   ) async {
-    final store = _SequencedTokenStore([
-      () => Completer<String?>().future,
-    ]);
+    final store = _SequencedTokenStore([() => Completer<String?>().future]);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -140,6 +138,73 @@ void main() {
     expect(find.text('SERVER APP'), findsOneWidget);
   });
 
+  testWidgets('bootstrap timeout exits loading and keeps the device token', (
+    tester,
+  ) async {
+    final bootstrapGate = Completer<ExV2AccountViewState?>();
+    final store = _MemoryTokenStore('test-token');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          deviceTokenStoreProvider.overrideWithValue(store),
+          exV2AccountProvider.overrideWithBuild(
+            (ref, controller) => bootstrapGate.future,
+          ),
+        ],
+        child: const MaterialApp(
+          home: DeviceGate(
+            startupTimeout: Duration(milliseconds: 100),
+            child: Text('SERVER APP'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 101));
+
+    expect(find.byKey(const Key('account-bootstrap-timeout')), findsOneWidget);
+    expect(await store.read(), 'test-token');
+    expect(find.text('SERVER APP'), findsNothing);
+  });
+
+  testWidgets('bootstrap timeout retry starts a fresh provider build', (
+    tester,
+  ) async {
+    final bootstrapGate = Completer<ExV2AccountViewState?>();
+    var builds = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('test-token'),
+          ),
+          exV2AccountProvider.overrideWithBuild((ref, controller) {
+            builds += 1;
+            return builds == 1
+                ? bootstrapGate.future
+                : Future.value(_serverState);
+          }),
+        ],
+        child: const MaterialApp(
+          home: DeviceGate(
+            startupTimeout: Duration(milliseconds: 100),
+            child: Text('SERVER APP'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 101));
+
+    await tester.tap(find.text('Thử lại'));
+    await tester.pumpAndSettle();
+
+    expect(builds, 2);
+    expect(find.text('SERVER APP'), findsOneWidget);
+  });
+
   testWidgets('server bootstrap loading never exposes the application', (
     tester,
   ) async {
@@ -185,6 +250,45 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('account-bootstrap-error')), findsOneWidget);
+    expect(find.text('SERVER APP'), findsNothing);
+  });
+
+  testWidgets('bootstrap error retry remains protected by the watchdog', (
+    tester,
+  ) async {
+    final retryGate = Completer<ExV2AccountViewState?>();
+    var builds = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('test-token'),
+          ),
+          exV2AccountProvider.overrideWithBuild((ref, controller) {
+            builds += 1;
+            return builds == 1
+                ? Future<ExV2AccountViewState?>.error(StateError('offline'))
+                : retryGate.future;
+          }),
+        ],
+        child: const MaterialApp(
+          home: DeviceGate(
+            startupTimeout: Duration(milliseconds: 100),
+            child: Text('SERVER APP'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Thử lại'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 101));
+
+    expect(builds, 2);
+    expect(find.byKey(const Key('account-bootstrap-timeout')), findsOneWidget);
     expect(find.text('SERVER APP'), findsNothing);
   });
 

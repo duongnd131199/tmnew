@@ -101,6 +101,7 @@ final exV2NotificationsProvider = Provider<AsyncValue<List<JsonMap>>>((ref) {
 final exV2AccountProvider =
     AsyncNotifierProvider<ExV2AccountController, ExV2AccountViewState?>(
       ExV2AccountController.new,
+      retry: (_, _) => null,
     );
 
 final class ExV2AccountGeneration {
