@@ -47,6 +47,28 @@ void main() {
     expect(find.text('BROKER DISCOVERY'), findsOneWidget);
   });
 
+  testWidgets('production Profile add opens after bootstrap recovery', (
+    tester,
+  ) async {
+    final bootstrapGate = Completer<ExV2AccountViewState?>();
+    final fixture = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/profile',
+      bootstrapGate: bootstrapGate,
+    );
+    addTearDown(fixture.dispose);
+
+    expect(fixture.container.read(exV2AccountProvider).isLoading, isTrue);
+    bootstrapGate.complete(_accountAViewState());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('accounts-add')));
+    await tester.pumpAndSettle();
+
+    expect(fixture.router.state.uri.path, '/accounts/add');
+    expect(find.text('BROKER DISCOVERY'), findsOneWidget);
+  });
+
   for (final accountState in _UnavailableAccountState.values) {
     testWidgets(
       'production Settings add uses broker discovery while account is ${accountState.name}',
@@ -293,6 +315,7 @@ Future<_RouteFixture> _pumpProductionRoute(
   bool activationFails = false,
   bool accountListFails = false,
   _UnavailableAccountState? unavailableAccountState,
+  Completer<ExV2AccountViewState?>? bootstrapGate,
   Stream<MarketConnectionStatus>? connectionStatuses,
 }) async {
   tester.view.physicalSize = const Size(384, 848);
@@ -308,35 +331,25 @@ Future<_RouteFixture> _pumpProductionRoute(
   );
   final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
     ..httpClientAdapter = adapter;
-  final accountOverride = switch (unavailableAccountState) {
-    _UnavailableAccountState.loading => exV2AccountProvider.overrideWithBuild(
-      (ref, controller) => Completer<ExV2AccountViewState?>().future,
-    ),
-    _UnavailableAccountState.error => exV2AccountProvider.overrideWithBuild(
-      (ref, controller) => Future<ExV2AccountViewState?>.error(
-        StateError('bootstrap unavailable'),
-      ),
-    ),
-    null => exV2AccountProvider.overrideWithBuild(
-      (ref, controller) =>
-          ExV2AccountViewState.fromBootstrap(
-            ExV2Bootstrap.fromJson(_bootstrapA),
-          ).copyWith(
-            historyPositions: const [
-              DemoHistoryPosition(
-                id: 'history-a',
-                title: 'A-HISTORY',
-                profit: 1,
-                time: '2026.08.16 08:00:00',
+  final accountOverride = bootstrapGate != null
+      ? exV2AccountProvider.overrideWithBuild(
+          (ref, controller) => bootstrapGate.future,
+        )
+      : switch (unavailableAccountState) {
+          _UnavailableAccountState.loading =>
+            exV2AccountProvider.overrideWithBuild(
+              (ref, controller) => Completer<ExV2AccountViewState?>().future,
+            ),
+          _UnavailableAccountState.error =>
+            exV2AccountProvider.overrideWithBuild(
+              (ref, controller) => Future<ExV2AccountViewState?>.error(
+                StateError('bootstrap unavailable'),
               ),
-            ],
-            notifications: const [
-              {'id': 'notification-a', 'scope': 'A'},
-            ],
-            settings: const {'scope': 'A'},
+            ),
+          null => exV2AccountProvider.overrideWithBuild(
+            (ref, controller) => _accountAViewState(),
           ),
-    ),
-  };
+        };
   final container = ProviderContainer(
     overrides: [
       exV2EnabledProvider.overrideWithValue(true),
@@ -385,11 +398,30 @@ Future<_RouteFixture> _pumpProductionRoute(
     ),
   );
   await tester.pump();
-  if (unavailableAccountState != _UnavailableAccountState.loading) {
+  if (unavailableAccountState != _UnavailableAccountState.loading &&
+      bootstrapGate == null) {
     await tester.pumpAndSettle();
   }
   return _RouteFixture(container, router, adapter);
 }
+
+ExV2AccountViewState _accountAViewState() =>
+    ExV2AccountViewState.fromBootstrap(
+      ExV2Bootstrap.fromJson(_bootstrapA),
+    ).copyWith(
+      historyPositions: const [
+        DemoHistoryPosition(
+          id: 'history-a',
+          title: 'A-HISTORY',
+          profit: 1,
+          time: '2026.08.16 08:00:00',
+        ),
+      ],
+      notifications: const [
+        {'id': 'notification-a', 'scope': 'A'},
+      ],
+      settings: const {'scope': 'A'},
+    );
 
 enum _UnavailableAccountState { loading, error }
 
