@@ -13,6 +13,7 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final accounts = ref.watch(demoAccountsProvider);
     final serverAccount = ref.watch(exV2AccountProvider).value;
+    final linkedAccounts = ref.watch(linkedTradingAccountsProvider).value;
     final activeId =
         serverAccount?.accountCode ?? ref.watch(activeDemoAccountIdProvider);
     ref.watch(demoTradingProvider);
@@ -70,7 +71,7 @@ class ProfileScreen extends ConsumerWidget {
                       child: AccountRoundAddButton(
                         onTap: serverAccount == null
                             ? () => context.push('/register')
-                            : () {},
+                            : () => context.push('/accounts/add'),
                       ),
                     ),
                   ),
@@ -83,18 +84,21 @@ class ProfileScreen extends ConsumerWidget {
                 itemCount: ordered.length,
                 itemBuilder: (context, index) {
                   final account = ordered[index];
+                  final isActive = account.id == activeId;
                   return _AccountRow(
                     key: ValueKey('account-${account.id}'),
                     account: account,
-                    displayBalance:
-                        tradingController
-                            .stateForAccount(account.id)
-                            ?.balance ??
-                        account.balance,
-                    active: account.id == activeId,
-                    onTap: account.id == activeId
+                    displayBalance: serverAccount != null && !isActive
+                        ? null
+                        : tradingController
+                                  .stateForAccount(account.id)
+                                  ?.balance ??
+                              account.balance,
+                    active: isActive,
+                    onTap: isActive
                         ? () => context.push('/account-detail')
-                        : () {
+                        : serverAccount == null
+                        ? () {
                             final controller = ref.read(
                               activeDemoAccountIdProvider.notifier,
                             );
@@ -102,6 +106,29 @@ class ProfileScreen extends ConsumerWidget {
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               controller.select(account.id);
                             });
+                          }
+                        : () async {
+                            final matches = linkedAccounts?.where(
+                              (linked) => linked.login == account.id,
+                            );
+                            if (matches == null || matches.isEmpty) return;
+                            try {
+                              final activated = await ref
+                                  .read(linkedTradingAccountsProvider.notifier)
+                                  .activate(matches.first.id);
+                              if (activated != null && context.mounted) {
+                                context.pop();
+                              }
+                            } catch (_) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'KhÃ´ng thá»ƒ chuyá»ƒn tÃ i khoáº£n. Thá»­ láº¡i.',
+                                  ),
+                                ),
+                              );
+                            }
                           },
                   );
                 },
@@ -124,7 +151,7 @@ class _AccountRow extends StatelessWidget {
   });
 
   final DemoAccountProfile account;
-  final double displayBalance;
+  final double? displayBalance;
   final bool active;
   final VoidCallback onTap;
 
@@ -172,8 +199,10 @@ class _AccountRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${_formatAccountBalance(displayBalance)} '
-                    '${account.currency}, ${account.mode}',
+                    displayBalance == null
+                        ? 'â€” ${account.currency}, ${account.mode}'
+                        : '${_formatAccountBalance(displayBalance!)} '
+                              '${account.currency}, ${account.mode}',
                     maxLines: 1,
                     style: TextStyle(
                       color: active

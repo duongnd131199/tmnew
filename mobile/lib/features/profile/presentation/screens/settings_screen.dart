@@ -86,7 +86,7 @@ class SettingsScreen extends ConsumerWidget {
                           titleScaleX: .97,
                           onTap: serverState == null
                               ? () => context.push('/register')
-                              : () {},
+                              : () => context.push('/accounts/add'),
                         ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.mail,

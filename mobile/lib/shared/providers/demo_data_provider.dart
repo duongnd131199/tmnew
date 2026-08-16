@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
+import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/market_watch/data/data_sources/mock_quote_service.dart';
@@ -587,8 +589,100 @@ final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
   if (server == null) {
     return serverMode ? const <DemoAccountProfile>[] : demoAccountProfiles;
   }
-  return [ExV2AccountProfileMapper.map(server)];
+  final active = ExV2AccountProfileMapper.map(server);
+  final linked = ref.watch(linkedTradingAccountsProvider).value;
+  if (linked == null) return [active];
+
+  final profiles = <DemoAccountProfile>[];
+  var foundActive = false;
+  for (final account in linked) {
+    if (account.id == server.bootstrap.account.id) {
+      profiles.add(active);
+      foundActive = true;
+    } else {
+      profiles.add(_mapLinkedAccount(account));
+    }
+  }
+  if (!foundActive) profiles.insert(0, active);
+  return List.unmodifiable(profiles);
 });
+
+final linkedTradingAccountsProvider =
+    AsyncNotifierProvider<
+      LinkedTradingAccountsController,
+      List<LinkedTradingAccount>
+    >(LinkedTradingAccountsController.new, retry: (_, _) => null);
+
+final class LinkedTradingAccountsController
+    extends AsyncNotifier<List<LinkedTradingAccount>> {
+  bool _activationInFlight = false;
+
+  @override
+  Future<List<LinkedTradingAccount>> build() async {
+    if (!ref.watch(exV2EnabledProvider)) return const [];
+    final activeId = ref.watch(exV2AccountGenerationProvider);
+    if (activeId == null) return const [];
+
+    final accounts = await ref.read(accountLinkRepositoryProvider).accounts();
+    return List.unmodifiable([
+      ...accounts.where((account) => account.id == activeId),
+      ...accounts.where((account) => account.id != activeId),
+    ]);
+  }
+
+  Future<ActivateLinkedAccountResult?> activate(String accountId) async {
+    if (_activationInFlight) return null;
+    final currentAccountId = ref
+        .read(exV2AccountProvider)
+        .value
+        ?.bootstrap
+        .account
+        .id;
+    if (accountId == currentAccountId) return null;
+    final accounts = state.value;
+    if (accounts == null ||
+        !accounts.any((account) => account.id == accountId)) {
+      throw StateError('The linked account is not available.');
+    }
+
+    _activationInFlight = true;
+    try {
+      final result = await ref
+          .read(accountLinkRepositoryProvider)
+          .activate(accountId, metadata: ExV2CommandMetadata.create());
+      if (!ref.mounted) return null;
+      ref.read(exV2AccountProvider.notifier).publishBootstrap(result.bootstrap);
+      return result;
+    } finally {
+      _activationInFlight = false;
+    }
+  }
+}
+
+DemoAccountProfile _mapLinkedAccount(LinkedTradingAccount account) {
+  final broker = '${account.brokerId} ${account.brokerName}'.toLowerCase();
+  final brand = broker.contains('exness')
+      ? DemoBrokerBrand.exness
+      : broker.contains('vantage')
+      ? DemoBrokerBrand.vantage
+      : DemoBrokerBrand.unknown;
+  return DemoAccountProfile(
+    id: account.login,
+    name: account.displayName ?? account.brokerName,
+    company: account.brokerName,
+    server: account.serverName,
+    accessPoint: '',
+    balance: 0,
+    brand: brand,
+    currency: account.currency ?? 'USD',
+    historyDeposit: 0,
+    historyWithdrawal: 0,
+    historyProfit: 0,
+    historySwap: 0,
+    historyCommission: 0,
+    historyBalance: 0,
+  );
+}
 
 class ActiveDemoAccountController extends Notifier<String> {
   @override
@@ -609,7 +703,13 @@ final activeDemoAccountIdProvider =
 final activeDemoAccountProvider = Provider<DemoAccountProfile>((ref) {
   final serverMode = ref.watch(exV2EnabledProvider);
   final server = ref.watch(exV2AccountProvider).value;
-  if (server != null) return ref.watch(demoAccountsProvider).single;
+  if (server != null) {
+    final accounts = ref.watch(demoAccountsProvider);
+    return accounts.firstWhere(
+      (account) => account.id == server.accountCode,
+      orElse: () => ExV2AccountProfileMapper.map(server),
+    );
+  }
   if (serverMode) {
     throw StateError('The authorized server account is not available yet.');
   }

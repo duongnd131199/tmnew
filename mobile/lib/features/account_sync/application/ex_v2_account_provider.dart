@@ -103,6 +103,17 @@ final exV2AccountProvider =
       ExV2AccountController.new,
     );
 
+/// The identity of the account-scoped UI generation.
+///
+/// Deriving this from the published bootstrap keeps the data replacement and
+/// branch reset on the same Riverpod notification. A separate mutable counter
+/// could expose a new branch with the previous account (or vice versa).
+final exV2AccountGenerationProvider = Provider<String?>((ref) {
+  return ref.watch(
+    exV2AccountProvider.select((value) => value.value?.bootstrap.account.id),
+  );
+});
+
 typedef _AccountMutationScope = ({String accountId, int generation});
 
 final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
