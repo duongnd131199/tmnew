@@ -143,32 +143,27 @@ try {
     'debug-only constraint must be explicit.'
   Write-Output 'CHECKED non-debug APK is rejected explicitly'
 
-  $fakeRipgrep = Join-Path $testRoot 'rg-error.exe'
-  Add-Type `
-    -TypeDefinition @'
-using System;
-
-public static class ScannerErrorProgram
-{
-    public static int Main(string[] args)
-    {
-        Console.Error.WriteLine("SCANNER_ERROR_MARKER");
-        return 2;
-    }
-}
-'@ `
-    -Language CSharp `
-    -OutputAssembly $fakeRipgrep `
-    -OutputType ConsoleApplication
+  $fakeRipgrep = Join-Path $env:SystemRoot 'System32\findstr.exe'
   $scannerError = Invoke-ReferenceScanner `
     -ApkPath $cleanApk `
     -RipgrepPath $fakeRipgrep
   Assert-Equal 2 $scannerError.ExitCode 'ripgrep exit 2 must be retained.'
   Assert-Contains `
-    'SCANNER_ERROR_MARKER' `
+    'FINDSTR' `
     $scannerError.Output `
     'ripgrep stderr must be retained.'
   Write-Output 'CHECKED scanner error retains stderr and exits 2'
+
+  $missingRipgrep = Join-Path $testRoot 'missing-rg.exe'
+  $launchFailure = Invoke-ReferenceScanner `
+    -ApkPath $cleanApk `
+    -RipgrepPath $missingRipgrep
+  Assert-Equal 2 $launchFailure.ExitCode 'missing ripgrep must fail closed.'
+  Assert-Contains `
+    'RIPGREP_LAUNCH_FAILED' `
+    $launchFailure.Output `
+    'launch failure diagnostic must be retained.'
+  Write-Output 'CHECKED missing scanner exits 2 with diagnostic'
 } finally {
   $resolvedTestRoot = [System.IO.Path]::GetFullPath($testRoot)
   $expectedPrefix = $resolvedTempParent.TrimEnd('\') + '\'

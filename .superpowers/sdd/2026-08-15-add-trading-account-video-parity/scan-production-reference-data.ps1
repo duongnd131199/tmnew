@@ -13,6 +13,18 @@ if ([string]::IsNullOrWhiteSpace($ApkPath)) {
   $ApkPath = Join-Path $mobileRoot 'build\app\outputs\flutter-apk\app-debug.apk'
 }
 $resolvedApk = (Resolve-Path -LiteralPath $ApkPath).Path
+$ripgrepCommand = Get-Command `
+  -Name $RipgrepPath `
+  -CommandType Application `
+  -ErrorAction SilentlyContinue |
+  Select-Object -First 1
+if ($null -eq $ripgrepCommand) {
+  [Console]::Error.WriteLine(
+    "RIPGREP_LAUNCH_FAILED: executable not found: $RipgrepPath"
+  )
+  exit 2
+}
+$resolvedRipgrep = $ripgrepCommand.Source
 
 $prohibited = @(
   '28210230',
@@ -121,7 +133,8 @@ try {
     $previousErrorAction = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-      & $RipgrepPath `
+      $global:LASTEXITCODE = $null
+      & $resolvedRipgrep `
         -a `
         -l `
         -P `
@@ -132,7 +145,11 @@ try {
         $scanRoot `
         1> $rgStdoutPath `
         2> $rgStderrPath
-      $scannerExitCode = $LASTEXITCODE
+      if ($null -eq $LASTEXITCODE) {
+        $scannerExitCode = 2
+      } else {
+        $scannerExitCode = $LASTEXITCODE
+      }
     } finally {
       $ErrorActionPreference = $previousErrorAction
     }
@@ -145,7 +162,11 @@ try {
       }
     } elseif ($scannerExitCode -ne 1) {
       if ([string]::IsNullOrWhiteSpace($scannerStderr)) {
-        $scannerStderr = "ripgrep failed with exit code $scannerExitCode."
+        $scannerStderr = if ($null -eq $LASTEXITCODE) {
+          "RIPGREP_LAUNCH_FAILED: could not start $resolvedRipgrep"
+        } else {
+          "ripgrep failed with exit code $scannerExitCode."
+        }
       }
     }
   }
