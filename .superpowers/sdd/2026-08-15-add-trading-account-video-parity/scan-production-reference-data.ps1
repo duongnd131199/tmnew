@@ -1,5 +1,6 @@
 param(
-  [string]$ApkPath
+  [string]$ApkPath,
+  [string]$RipgrepPath = 'rg.exe'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -82,25 +83,71 @@ $scanRoot = Join-Path $resolvedScanParent (
 New-Item -ItemType Directory -Path $scanRoot | Out-Null
 
 $apkHits = [System.Collections.Generic.List[string]]::new()
+$scannerExitCode = 0
+$scannerStderr = ''
 try {
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   [System.IO.Compression.ZipFile]::ExtractToDirectory($resolvedApk, $scanRoot)
 
-  $apkPatterns = foreach ($literal in $prohibited) {
-    if ($literal -eq '2026.07.') {
-      [regex]::Escape($literal)
-    } elseif ($literal -match '^-') {
-      '(?<![0-9.])' + [regex]::Escape($literal) + '(?![0-9.])'
-    } elseif ($literal -match '^[0-9]') {
-      '(?<![-+0-9.])' + [regex]::Escape($literal) + '(?![0-9.])'
-    } else {
-      [regex]::Escape($literal)
+  $kernelBlob = Join-Path $scanRoot 'assets\flutter_assets\kernel_blob.bin'
+  if (-not (Test-Path -LiteralPath $kernelBlob -PathType Leaf)) {
+    $scannerExitCode = 2
+    $scannerStderr = @(
+      'DEBUG_APK_REQUIRED: the APK must contain ',
+      'assets/flutter_assets/kernel_blob.bin so Dart string literals ',
+      'can be checked without confusing broker-name identifiers.'
+    ) -join ''
+  } else {
+    $apkPatterns = foreach ($literal in $prohibited) {
+      if ($literal -eq '2026.07.') {
+        [regex]::Escape($literal)
+      } elseif ($literal -match '^-') {
+        '(?<![0-9.])' + [regex]::Escape($literal) + '(?![0-9.])'
+      } elseif ($literal -match '^[0-9]') {
+        '(?<![-+0-9.])' + [regex]::Escape($literal) + '(?![0-9.])'
+      } else {
+        [regex]::Escape($literal)
+      }
     }
-  }
-  $apkPatterns += [regex]::Escape("'Vantage'")
-  $combinedPattern = '(?:' + ($apkPatterns -join '|') + ')'
-  foreach ($match in @(rg.exe -a -l -P -- $combinedPattern $scanRoot 2>$null)) {
-    $apkHits.Add($match)
+    # Debug kernel blobs preserve Dart source spelling, so quotes distinguish
+    # the prohibited UI value from legitimate names such as brokerVantage.
+    $apkPatterns += [regex]::Escape("'Vantage'")
+    # Hex escapes preserve literal double quotes through Windows native-argv
+    # serialization; raw quotes would be stripped before ripgrep receives them.
+    $apkPatterns += '\x22Vantage\x22'
+    $combinedPattern = '(?:' + ($apkPatterns -join '|') + ')'
+    $rgStdoutPath = Join-Path $scanRoot '.rg-stdout.txt'
+    $rgStderrPath = Join-Path $scanRoot '.rg-stderr.txt'
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+      & $RipgrepPath `
+        -a `
+        -l `
+        -P `
+        --hidden `
+        --no-ignore `
+        -- `
+        $combinedPattern `
+        $scanRoot `
+        1> $rgStdoutPath `
+        2> $rgStderrPath
+      $scannerExitCode = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $previousErrorAction
+    }
+    $scannerStderr = [System.IO.File]::ReadAllText($rgStderrPath)
+    if ($scannerExitCode -eq 0) {
+      foreach ($match in [System.IO.File]::ReadAllLines($rgStdoutPath)) {
+        if (-not [string]::IsNullOrWhiteSpace($match)) {
+          $apkHits.Add($match)
+        }
+      }
+    } elseif ($scannerExitCode -ne 1) {
+      if ([string]::IsNullOrWhiteSpace($scannerStderr)) {
+        $scannerStderr = "ripgrep failed with exit code $scannerExitCode."
+      }
+    }
   }
 } finally {
   $resolvedScanRoot = [System.IO.Path]::GetFullPath($scanRoot)
@@ -114,8 +161,14 @@ try {
   Remove-Item -LiteralPath $resolvedScanRoot -Recurse -Force
 }
 
+if ($scannerExitCode -gt 1) {
+  [Console]::Error.WriteLine($scannerStderr.TrimEnd())
+  exit $scannerExitCode
+}
+
 $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $resolvedApk
 Write-Output "LITERAL_COUNT=$($prohibited.Count + 1)"
+Write-Output 'APK_MODE=debug-kernel'
 Write-Output "SOURCE_HIT_COUNT=$($sourceHits.Count)"
 $sourceHits
 Write-Output "APK_HIT_COUNT=$($apkHits.Count)"

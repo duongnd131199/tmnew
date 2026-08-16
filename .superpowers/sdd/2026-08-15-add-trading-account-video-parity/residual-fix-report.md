@@ -54,3 +54,24 @@ The remaining `section_screen.dart` production-reference finding is closed.
 - Repeatable gate: `scan-production-reference-data.ps1 -ApkPath mobile/build/app/outputs/flutter-apk/app-debug.apk` exits nonzero on either source or APK hits; the final run reported `LITERAL_COUNT=45`, `SOURCE_HIT_COUNT=0`, and `APK_HIT_COUNT=0`.
 
 No backend or prompt files changed. No additional mobile concerns remain for this residual finding.
+
+## Final acceptance scanner hardening
+
+The source/APK gate is now fail-closed and explicitly limited to debug APKs.
+
+- Ripgrep exit `0` is handled as detected matches, exit `1` as clean, and every exit greater than `1` terminates the gate with the original exit code and retained stderr.
+- APK traversal uses `--hidden --no-ignore`, covering hidden and ignored extracted entries.
+- The gate requires `assets/flutter_assets/kernel_blob.bin` and reports `APK_MODE=debug-kernel`. This makes the single- and double-quoted `Vantage` checks deliberate: a debug kernel preserves Dart string-literal spelling while legitimate identifiers such as `brokerVantage` remain allowed. APKs without the debug kernel are rejected with `DEBUG_APK_REQUIRED` and exit `2`.
+- `scan-production-reference-data.tests.ps1` creates controlled APKs and verifies clean exit `0`, a prohibited value in a hidden entry exiting `1`, both single- and double-quoted debug-kernel broker literals exiting `1`, non-debug rejection exiting `2`, and an injected native ripgrep failure retaining its stderr and exit `2`.
+
+### Verification
+
+- Controlled PowerShell scanner tests: all six cases passed.
+- PowerShell parser check: both scanner scripts parsed without errors.
+- `flutter analyze --no-pub`: no issues found.
+- `flutter test --no-pub test/production_reference_identifier_test.dart`: 1 test passed.
+- Hardened scanner against the current debug APK: `LITERAL_COUNT=45`, `APK_MODE=debug-kernel`, `SOURCE_HIT_COUNT=0`, `APK_HIT_COUNT=0`.
+- Current debug APK size: 159,925,059 bytes.
+- Current debug APK SHA-256: `876789D89359A68A45B768BB372E731163D8CED557BABF997E8C6D0D85F194A9`.
+
+No Dart product code, backend, or prompt files changed.
