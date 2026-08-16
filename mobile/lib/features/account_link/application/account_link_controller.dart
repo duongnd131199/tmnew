@@ -116,12 +116,16 @@ final accountLinkControllerProvider =
     );
 
 final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
+  bool _operationInFlight = false;
+  int _catalogGeneration = 0;
+
   @override
   Future<AccountLinkState> build() async => const AccountLinkState();
 
   AccountLinkState get _current => state.value ?? const AccountLinkState();
 
   Future<void> loadCatalog({String query = ''}) async {
+    final generation = ++_catalogGeneration;
     final before = _current;
     state = AsyncData(
       before.copyWith(
@@ -135,7 +139,7 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
         repository.brokers(query: query),
         repository.accounts(),
       ]);
-      if (!ref.mounted) return;
+      if (!ref.mounted || generation != _catalogGeneration) return;
       state = AsyncData(
         _current.copyWith(
           phase: AccountLinkPhase.editing,
@@ -144,11 +148,12 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
         ),
       );
     } catch (error) {
-      _fail(error);
+      if (generation == _catalogGeneration) _fail(error);
     }
   }
 
   Future<void> loadServers(String brokerId, {String query = ''}) async {
+    final generation = ++_catalogGeneration;
     state = AsyncData(
       _current.copyWith(
         phase: AccountLinkPhase.loadingCatalog,
@@ -159,16 +164,24 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
       final servers = await ref
           .read(accountLinkRepositoryProvider)
           .servers(brokerId, query: query);
-      if (!ref.mounted) return;
+      if (!ref.mounted ||
+          generation != _catalogGeneration ||
+          _current.selectedBroker?.id != brokerId) {
+        return;
+      }
       state = AsyncData(
         _current.copyWith(phase: AccountLinkPhase.editing, servers: servers),
       );
     } catch (error) {
-      _fail(error);
+      if (generation == _catalogGeneration &&
+          _current.selectedBroker?.id == brokerId) {
+        _fail(error);
+      }
     }
   }
 
   void selectBroker(MobileBroker broker) {
+    _catalogGeneration += 1;
     state = AsyncData(
       _current.copyWith(
         phase: AccountLinkPhase.editing,
@@ -181,6 +194,14 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
   }
 
   void selectServer(MobileTradingServer server) {
+    final selectedBrokerId = _current.selectedBroker?.id;
+    if (server.brokerId != null && server.brokerId != selectedBrokerId) {
+      throw ArgumentError.value(
+        server.brokerId,
+        'server.brokerId',
+        'Server does not belong to the selected broker',
+      );
+    }
     state = AsyncData(
       _current.copyWith(
         phase: AccountLinkPhase.editing,
@@ -209,10 +230,7 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
     ExV2CommandMetadata? activateMetadata,
   }) async {
     final before = _current;
-    if (before.phase == AccountLinkPhase.submitting ||
-        before.phase == AccountLinkPhase.activating) {
-      return null;
-    }
+    if (_operationInFlight) return null;
     if (!before.canSubmit) {
       state = AsyncData(
         before.copyWith(
@@ -223,6 +241,7 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
       return null;
     }
 
+    _operationInFlight = true;
     state = AsyncData(
       before.copyWith(
         phase: AccountLinkPhase.submitting,
@@ -289,6 +308,8 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
         ),
       );
       return null;
+    } finally {
+      _operationInFlight = false;
     }
   }
 

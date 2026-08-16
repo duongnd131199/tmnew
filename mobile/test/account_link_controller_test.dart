@@ -18,12 +18,34 @@ void main() {
 
     final first = harness.controller.submit();
     await Future<void>.delayed(Duration.zero);
+    harness.controller.updateLogin('100002');
     final second = await harness.controller.submit();
 
     expect(second, isNull);
     expect(repository.linkCalls, 1);
-    expect(harness.state.phase, AccountLinkPhase.submitting);
+    expect(harness.state.phase, AccountLinkPhase.editing);
     gate.complete();
+    await first;
+  });
+
+  test('edit during activation cannot bypass the operation lock', () async {
+    final activateGate = Completer<void>();
+    final repository = _FakeRepository(activateGate: activateGate);
+    final harness = await _harness(repository: repository);
+    addTearDown(harness.dispose);
+
+    final first = harness.controller.submit();
+    while (repository.activateCalls == 0) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    harness.controller.updatePassword('edited-password');
+    final second = await harness.controller.submit();
+
+    expect(second, isNull);
+    expect(repository.linkCalls, 1);
+    expect(repository.activateCalls, 1);
+    expect(harness.state.phase, AccountLinkPhase.editing);
+    activateGate.complete();
     await first;
   });
 
@@ -116,6 +138,67 @@ void main() {
       'state:succeeded',
     ]);
   });
+
+  test('a slower broker query cannot overwrite a newer query', () async {
+    final repository = _CatalogRepository();
+    final container = ProviderContainer(
+      overrides: [accountLinkRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    await container.read(accountLinkControllerProvider.future);
+    final controller = container.read(accountLinkControllerProvider.notifier);
+
+    final older = controller.loadCatalog(query: 'old');
+    final newer = controller.loadCatalog(query: 'new');
+    repository.brokerRequests['new']!.complete(const [
+      MobileBroker(id: 'broker-new', name: 'New Broker'),
+    ]);
+    await newer;
+    repository.brokerRequests['old']!.complete(const [
+      MobileBroker(id: 'broker-old', name: 'Old Broker'),
+    ]);
+    await older;
+
+    final state = container.read(accountLinkControllerProvider).requireValue;
+    expect(state.brokers.single.id, 'broker-new');
+  });
+
+  test('servers from a previously selected broker are discarded', () async {
+    final repository = _CatalogRepository();
+    final container = ProviderContainer(
+      overrides: [accountLinkRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    await container.read(accountLinkControllerProvider.future);
+    final controller = container.read(accountLinkControllerProvider.notifier);
+    const brokerA = MobileBroker(id: 'broker-a', name: 'Broker A');
+    const brokerB = MobileBroker(id: 'broker-b', name: 'Broker B');
+
+    controller.selectBroker(brokerA);
+    final older = controller.loadServers('broker-a');
+    controller.selectBroker(brokerB);
+    final newer = controller.loadServers('broker-b');
+    repository.serverRequests['broker-b']!.complete(const [
+      MobileTradingServer(
+        id: 'server-b',
+        name: 'Server B',
+        brokerId: 'broker-b',
+      ),
+    ]);
+    await newer;
+    repository.serverRequests['broker-a']!.complete(const [
+      MobileTradingServer(
+        id: 'server-a',
+        name: 'Server A',
+        brokerId: 'broker-a',
+      ),
+    ]);
+    await older;
+
+    final state = container.read(accountLinkControllerProvider).requireValue;
+    expect(state.selectedBroker?.id, 'broker-b');
+    expect(state.servers.single.id, 'server-b');
+  });
 }
 
 Future<_Harness> _harness({
@@ -164,6 +247,7 @@ final class _Harness {
 final class _FakeRepository implements AccountLinkRepository {
   _FakeRepository({
     this.linkGate,
+    this.activateGate,
     this.linkError,
     this.alreadyLinked = false,
     this.reconnectGrant = 'opaque-grant-1',
@@ -171,6 +255,7 @@ final class _FakeRepository implements AccountLinkRepository {
   });
 
   final Completer<void>? linkGate;
+  final Completer<void>? activateGate;
   final Object? linkError;
   final bool alreadyLinked;
   final String? reconnectGrant;
@@ -190,6 +275,7 @@ final class _FakeRepository implements AccountLinkRepository {
     activateCalls += 1;
     activatedAccountIds.add(accountId);
     events?.add('activate:$accountId');
+    if (activateGate != null) await activateGate!.future;
     return ActivateLinkedAccountResult(
       account: _account,
       bootstrap: ExV2Bootstrap.fromJson(_bootstrapJson),
@@ -220,6 +306,43 @@ final class _FakeRepository implements AccountLinkRepository {
     String brokerId, {
     String query = '',
   }) async => const [];
+}
+
+final class _CatalogRepository implements AccountLinkRepository {
+  final Map<String, Completer<List<MobileBroker>>> brokerRequests = {};
+  final Map<String, Completer<List<MobileTradingServer>>> serverRequests = {};
+
+  @override
+  Future<List<LinkedTradingAccount>> accounts() async => const [];
+
+  @override
+  Future<ActivateLinkedAccountResult> activate(
+    String accountId, {
+    required ExV2CommandMetadata metadata,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<List<MobileBroker>> brokers({String query = ''}) {
+    final request = Completer<List<MobileBroker>>();
+    brokerRequests[query] = request;
+    return request.future;
+  }
+
+  @override
+  Future<LinkAccountResult> link(
+    LinkAccountRequest request, {
+    required ExV2CommandMetadata metadata,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<List<MobileTradingServer>> servers(
+    String brokerId, {
+    String query = '',
+  }) {
+    final request = Completer<List<MobileTradingServer>>();
+    serverRequests[brokerId] = request;
+    return request.future;
+  }
 }
 
 final class _MemoryGrantStore implements AccountReconnectGrantStore {

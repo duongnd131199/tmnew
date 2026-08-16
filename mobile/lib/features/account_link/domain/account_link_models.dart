@@ -168,11 +168,20 @@ final class ActivateLinkedAccountResult {
     required this.bootstrap,
   });
 
-  factory ActivateLinkedAccountResult.fromJson(AccountLinkJson json) =>
-      ActivateLinkedAccountResult(
-        account: LinkedTradingAccount.fromJson(_requiredMap(json, 'account')),
-        bootstrap: ExV2Bootstrap.fromJson(_requiredMap(json, 'bootstrap')),
+  factory ActivateLinkedAccountResult.fromJson(AccountLinkJson json) {
+    final account = LinkedTradingAccount.fromJson(
+      _requiredMap(json, 'account'),
+    );
+    final bootstrap = ExV2Bootstrap.fromJson(_requiredMap(json, 'bootstrap'));
+    final accountId = account.id;
+    if (bootstrap.account.id != accountId ||
+        bootstrap.summary.accountId != accountId) {
+      throw const FormatException(
+        'Activated account and bootstrap account identities must match',
       );
+    }
+    return ActivateLinkedAccountResult(account: account, bootstrap: bootstrap);
+  }
 
   final LinkedTradingAccount account;
   final ExV2Bootstrap bootstrap;

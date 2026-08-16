@@ -39,6 +39,7 @@ void main() {
     expect(request.uri.queryParameters, {'query': 'example'});
     expect(request.headers['X-Device-Token'], 'device-token-1');
     expect(request.headers['X-Correlation-Id'], isNotEmpty);
+    expect(request.headers['Idempotency-Key'], isNull);
     expect(result.single.id, 'broker-1');
     expect(result.single.name, 'Example Markets');
     expect(result.single.companyName, 'Example Markets Ltd');
@@ -61,6 +62,9 @@ void main() {
     final request = adapter.requests.single;
     expect(request.uri.path, '/ex/v2/api/mobile/brokers/broker%2Fone/servers');
     expect(request.uri.queryParameters, {'query': 'demo'});
+    expect(request.headers['X-Device-Token'], 'device-token-1');
+    expect(request.headers['X-Correlation-Id'], isNotEmpty);
+    expect(request.headers['Idempotency-Key'], isNull);
     expect(result.single.id, 'server-1');
     expect(result.single.name, 'Example-Demo');
   });
@@ -84,14 +88,16 @@ void main() {
 
     final result = await repository.accounts();
 
-    expect(adapter.requests.single.uri.path, '/ex/v2/api/mobile/accounts');
+    final request = adapter.requests.single;
+    expect(request.uri.path, '/ex/v2/api/mobile/accounts');
+    expect(request.headers['X-Device-Token'], 'device-token-1');
+    expect(request.headers['X-Correlation-Id'], isNotEmpty);
+    expect(request.headers['Idempotency-Key'], isNull);
     final account = result.single;
     expect(account.id, 'account-1');
     expect(account.isActive, isTrue);
-    expect(
-      account.toJson().keys,
-      isNot(containsAll(<String>['password', 'reconnectGrant'])),
-    );
+    expect(account.toJson(), isNot(contains('password')));
+    expect(account.toJson(), isNot(contains('reconnectGrant')));
   });
 
   test('link sends exact JSON and command headers', () async {
@@ -131,6 +137,7 @@ void main() {
       'savePassword': true,
     });
     expect(result.account.toJson().containsKey('password'), isFalse);
+    expect(result.account.toJson().containsKey('reconnectGrant'), isFalse);
     expect(result.reconnectGrant, 'opaque-grant-1');
   });
 
@@ -159,6 +166,7 @@ void main() {
       );
       expect(request.method, 'PUT');
       expect(request.data, isEmpty);
+      expect(request.headers['X-Device-Token'], 'device-token-1');
       expect(request.headers['Idempotency-Key'], 'idem-activate-1');
       expect(request.headers['X-Correlation-Id'], 'corr-activate-1');
       expect(result.bootstrap.account.id, 'account-1');
@@ -176,7 +184,64 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('activate rejects a linked account id mismatch', () {
+    final account = <String, Object?>{..._linkedAccountJson, 'id': 'account-x'};
+
+    expect(
+      () => ActivateLinkedAccountResult.fromJson({
+        'account': account,
+        'bootstrap': _bootstrapJson,
+      }),
+      throwsFormatException,
+    );
+  });
+
+  test('activate rejects an active bootstrap account id mismatch', () {
+    final bootstrap = _bootstrapWith(
+      activeAccountId: 'account-x',
+      summaryAccountId: 'account-1',
+    );
+
+    expect(
+      () => ActivateLinkedAccountResult.fromJson({
+        'account': _linkedAccountJson,
+        'bootstrap': bootstrap,
+      }),
+      throwsFormatException,
+    );
+  });
+
+  test('activate rejects a bootstrap summary account id mismatch', () {
+    final bootstrap = _bootstrapWith(
+      activeAccountId: 'account-1',
+      summaryAccountId: 'account-x',
+    );
+
+    expect(
+      () => ActivateLinkedAccountResult.fromJson({
+        'account': _linkedAccountJson,
+        'bootstrap': bootstrap,
+      }),
+      throwsFormatException,
+    );
+  });
 }
+
+Map<String, Object?> _bootstrapWith({
+  required String activeAccountId,
+  required String summaryAccountId,
+}) => <String, Object?>{
+  ..._bootstrapJson,
+  'activeAccount': {
+    ..._bootstrapJson['activeAccount']! as Map<String, Object?>,
+    'id': activeAccountId,
+  },
+  'summary': {
+    ..._bootstrapJson['summary']! as Map<String, Object?>,
+    'accountId': summaryAccountId,
+  },
+};
 
 final class _AccountLinkAdapter implements HttpClientAdapter {
   final Map<String, Object?> responses = <String, Object?>{};

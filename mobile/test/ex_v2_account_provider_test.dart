@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
+import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
+import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 void main() {
@@ -178,7 +180,261 @@ void main() {
     gate.complete();
     await marking;
   });
+
+  test(
+    'an in-flight mutation cannot publish into a replacement bootstrap',
+    () async {
+      final orderGate = Completer<void>();
+      final adapter = _AccountSwitchAdapter(orderGate);
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+        ..httpClientAdapter = adapter;
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          exV2DioProvider.overrideWithValue(dio),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('test-token'),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+      final controller = container.read(exV2AccountProvider.notifier);
+
+      final creating = controller.createOrder(
+        symbol: 'XAUUSD+',
+        side: 'buy',
+        volume: 0.01,
+        commandMetadata: const ExV2CommandMetadata(
+          idempotencyKey: 'old-account-order',
+          correlationId: 'old-account-correlation',
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      controller.publishBootstrap(
+        ExV2Bootstrap.fromJson(_bootstrapForAccount('account-2', 'TEST-200')),
+      );
+      orderGate.complete();
+      await creating;
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final state = container.read(exV2AccountProvider).requireValue!;
+      expect(state.bootstrap.account.id, 'account-2');
+      expect(state.bootstrap.summary.accountId, 'account-2');
+      expect(state.orders, isEmpty);
+      expect(state.pendingOperationIds, isEmpty);
+    },
+  );
+
+  test('stale hydration cannot overwrite a replacement bootstrap', () async {
+    final historyGate = Completer<void>();
+    final adapter = _HydrationSwitchAdapter(historyGate);
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+      ..httpClientAdapter = adapter;
+    final container = ProviderContainer(
+      overrides: [
+        exV2EnabledProvider.overrideWithValue(true),
+        exV2DioProvider.overrideWithValue(dio),
+        deviceTokenStoreProvider.overrideWithValue(
+          _MemoryTokenStore('test-token'),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+    while (adapter.historyOrderCalls == 0) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    container
+        .read(exV2AccountProvider.notifier)
+        .publishBootstrap(
+          ExV2Bootstrap.fromJson(_bootstrapForAccount('account-2', 'TEST-200')),
+        );
+    historyGate.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final state = container.read(exV2AccountProvider).requireValue!;
+    expect(state.bootstrap.account.id, 'account-2');
+    expect(state.orders, isEmpty);
+  });
+
+  test('stale refresh cannot overwrite a replacement bootstrap', () async {
+    final refreshGate = Completer<void>();
+    final adapter = _RefreshSwitchAdapter(refreshGate);
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+      ..httpClientAdapter = adapter;
+    final container = ProviderContainer(
+      overrides: [
+        exV2EnabledProvider.overrideWithValue(true),
+        exV2DioProvider.overrideWithValue(dio),
+        deviceTokenStoreProvider.overrideWithValue(
+          _MemoryTokenStore('test-token'),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+    final controller = container.read(exV2AccountProvider.notifier);
+
+    final refreshing = controller.refresh();
+    while (adapter.bootstrapCalls < 2) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    controller.publishBootstrap(
+      ExV2Bootstrap.fromJson(_bootstrapForAccount('account-2', 'TEST-200')),
+    );
+    refreshGate.complete();
+    await refreshing;
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    final state = container.read(exV2AccountProvider).requireValue!;
+    expect(state.bootstrap.account.id, 'account-2');
+    expect(state.bootstrap.summary.accountId, 'account-2');
+  });
 }
+
+final class _HydrationSwitchAdapter implements HttpClientAdapter {
+  _HydrationSwitchAdapter(this.historyGate);
+
+  final Completer<void> historyGate;
+  int historyOrderCalls = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final path = options.uri.path;
+    if (path.endsWith('/mobile/bootstrap')) {
+      return _response(_bootstrapForAccount('account-1', 'TEST-100'));
+    }
+    if (path.endsWith('/history/orders')) {
+      historyOrderCalls += 1;
+      if (historyOrderCalls == 1) {
+        await historyGate.future;
+        return _response([
+          {
+            'id': 'old-history-order',
+            'accountCode': 'TEST-100',
+            'symbol': 'XAUUSD+',
+            'side': 'buy',
+            'volume': 0.01,
+            'openPrice': 4300,
+            'profit': 1,
+            'openedAt': '2026-08-16T08:00:00Z',
+            'status': 'closed',
+          },
+        ]);
+      }
+      return _response(<Object?>[]);
+    }
+    if (path.endsWith('/settings')) return _response(<String, Object?>{});
+    return _response(<Object?>[]);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+final class _RefreshSwitchAdapter implements HttpClientAdapter {
+  _RefreshSwitchAdapter(this.refreshGate);
+
+  final Completer<void> refreshGate;
+  int bootstrapCalls = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final path = options.uri.path;
+    if (path.endsWith('/mobile/bootstrap')) {
+      bootstrapCalls += 1;
+      if (bootstrapCalls > 1) await refreshGate.future;
+      return _response(_bootstrapForAccount('account-1', 'TEST-100'));
+    }
+    if (path.endsWith('/settings')) return _response(<String, Object?>{});
+    return _response(<Object?>[]);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+ResponseBody _response(Object value) => ResponseBody.fromString(
+  jsonEncode(value),
+  200,
+  headers: {
+    Headers.contentTypeHeader: [Headers.jsonContentType],
+  },
+);
+
+final class _AccountSwitchAdapter implements HttpClientAdapter {
+  _AccountSwitchAdapter(this.orderGate);
+
+  final Completer<void> orderGate;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    if (options.method == 'POST' && options.uri.path.endsWith('/orders')) {
+      await orderGate.future;
+      return _jsonResponse({
+        'id': 'server-order-old-account',
+        'clientOrderId': 'old-account-order',
+        'symbol': 'XAUUSD+',
+        'type': 'market',
+        'side': 'buy',
+        'volume': 0.01,
+        'requestedPrice': null,
+        'executedPrice': 4300,
+        'stopLoss': null,
+        'takeProfit': null,
+        'status': 'filled',
+        'createdAt': '2026-08-16T08:00:00Z',
+        'version': 1,
+        'rowVersion': null,
+      });
+    }
+    if (options.uri.path.endsWith('/mobile/bootstrap')) {
+      return _jsonResponse(_bootstrapForAccount('account-1', 'TEST-100'));
+    }
+    if (options.uri.path.endsWith('/settings')) {
+      return _jsonResponse(<String, Object?>{});
+    }
+    return _jsonResponse(<Object?>[]);
+  }
+
+  @override
+  void close({bool force = false}) {}
+
+  ResponseBody _jsonResponse(Object value) => ResponseBody.fromString(
+    jsonEncode(value),
+    200,
+    headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    },
+  );
+}
+
+Map<String, Object?> _bootstrapForAccount(String id, String code) => {
+  ..._bootstrap,
+  'activeAccount': {
+    ..._bootstrap['activeAccount']! as Map<String, Object?>,
+    'id': id,
+    'accountCode': code,
+  },
+  'summary': {
+    ..._bootstrap['summary']! as Map<String, Object?>,
+    'accountId': id,
+  },
+};
 
 final class _MemoryTokenStore implements DeviceTokenStore {
   _MemoryTokenStore(this.value);

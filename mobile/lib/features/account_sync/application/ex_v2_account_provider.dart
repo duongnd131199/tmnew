@@ -103,14 +103,29 @@ final exV2AccountProvider =
       ExV2AccountController.new,
     );
 
+typedef _AccountMutationScope = ({String accountId, int generation});
+
 final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   StreamSubscription<ExV2RealtimeEvent>? _realtimeSubscription;
   ExV2RealtimeService? _realtimeService;
   Timer? _refreshDebounce;
   bool _realtimeStarted = false;
   int _loadGeneration = 0;
+  int _accountGeneration = 0;
   final Set<String> _optimisticHiddenPositionIds = <String>{};
   final Set<String> _optimisticHiddenOrderIds = <String>{};
+
+  _AccountMutationScope _captureMutationScope(ExV2AccountViewState current) =>
+      (accountId: current.bootstrap.account.id, generation: _accountGeneration);
+
+  bool _isMutationScopeCurrent(_AccountMutationScope scope) {
+    final current = state.value;
+    return ref.mounted &&
+        scope.generation == _accountGeneration &&
+        current != null &&
+        current.bootstrap.account.id == scope.accountId &&
+        current.bootstrap.summary.accountId == scope.accountId;
+  }
 
   @override
   Future<ExV2AccountViewState?> build() async {
@@ -319,6 +334,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         : 'pending';
     final before = state.value;
     if (before == null) throw const ExV2TokenMissing();
+    final scope = _captureMutationScope(before);
     final operationId = 'order:${metadata.idempotencyKey}';
     final placeholder = DemoOrder(
       id: metadata.idempotencyKey,
@@ -352,6 +368,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
             metadata: metadata,
           );
     } catch (_) {
+      if (!_isMutationScopeCurrent(scope)) rethrow;
       final current = state.value ?? before;
       state = AsyncData(
         current.copyWith(
@@ -365,6 +382,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       );
       rethrow;
     }
+    if (!_isMutationScopeCurrent(scope)) return order;
     final current = state.value ?? before;
     final confirmedOrder = ExV2DemoMapper.order(order);
     state = AsyncData(
@@ -406,6 +424,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   Future<DemoDeal?> closePosition(String positionId, {double? volume}) async {
     final before = state.value;
     if (before == null) throw const ExV2TokenMissing();
+    final scope = _captureMutationScope(before);
     final originalIndex = before.positions.indexWhere(
       (position) => position.id == positionId,
     );
@@ -444,11 +463,14 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
               metadata: ExV2CommandMetadata.create(),
             );
         commandCommitted = true;
+        if (!_isMutationScopeCurrent(scope)) return null;
       } on ExV2RequestFailure {
+        if (!_isMutationScopeCurrent(scope)) rethrow;
         if (await _reconcileMissingPosition(
           positionId: positionId,
           operationId: operationId,
           fallback: before,
+          scope: scope,
         )) {
           return null;
         }
@@ -460,10 +482,15 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         operationId: operationId,
         fallback: before,
         isPartial: isPartial,
+        scope: scope,
       );
     } catch (_) {
+      if (!_isMutationScopeCurrent(scope)) {
+        if (commandCommitted) return null;
+        rethrow;
+      }
       if (commandCommitted) {
-        _finishCommittedCloseWithoutDeal(operationId, before);
+        _finishCommittedCloseWithoutDeal(operationId, before, scope);
         return null;
       }
       _optimisticHiddenPositionIds.remove(positionId);
@@ -494,9 +521,12 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     required String positionId,
     required String operationId,
     required ExV2AccountViewState fallback,
+    required _AccountMutationScope scope,
   }) async {
     try {
+      if (!_isMutationScopeCurrent(scope)) return false;
       final core = await _loadCore(applyOptimisticHides: false);
+      if (!_isMutationScopeCurrent(scope)) return false;
       if (core.positions.any((position) => position.id == positionId)) {
         return false;
       }
@@ -522,9 +552,12 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     required String operationId,
     required ExV2AccountViewState fallback,
     required bool isPartial,
+    required _AccountMutationScope scope,
   }) async {
+    if (!_isMutationScopeCurrent(scope)) return null;
     final repository = ref.read(exV2RepositoryProvider);
     final serverCore = await _loadCore(applyOptimisticHides: false);
+    if (!_isMutationScopeCurrent(scope)) return null;
     final serverStillHasPosition = serverCore.positions.any(
       (position) => position.id == positionId,
     );
@@ -541,10 +574,12 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     var deals = serverCore.deals;
     try {
       final dealRows = await repository.historyDeals();
+      if (!_isMutationScopeCurrent(scope)) return null;
       deals = _mapRows(dealRows, ExV2DemoMapper.historyDeal);
     } catch (_) {
       // The command is already committed. History enrichment is best effort.
     }
+    if (!_isMutationScopeCurrent(scope)) return null;
     final closeDeal = deals
         .where((deal) => deal.positionId == positionId && deal.entry == 'out')
         .firstOrNull;
@@ -565,7 +600,9 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   void _finishCommittedCloseWithoutDeal(
     String operationId,
     ExV2AccountViewState fallback,
+    _AccountMutationScope scope,
   ) {
+    if (!_isMutationScopeCurrent(scope)) return;
     final current = state.value ?? fallback;
     if (ref.mounted) {
       state = AsyncData(
@@ -582,6 +619,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   Future<void> cancelOrder(String orderId) async {
     final before = state.value;
     if (before == null) throw const ExV2TokenMissing();
+    final scope = _captureMutationScope(before);
     final originalIndex = before.pendingOrders.indexWhere(
       (order) => order.id == orderId,
     );
@@ -606,7 +644,9 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       await ref
           .read(exV2RepositoryProvider)
           .cancelOrder(orderId, metadata: ExV2CommandMetadata.create());
+      if (!_isMutationScopeCurrent(scope)) return;
       final core = await _loadCore();
+      if (!_isMutationScopeCurrent(scope)) return;
       _optimisticHiddenOrderIds.remove(orderId);
       final current = state.value ?? before;
       final confirmed = _mergeCoreWithHydrated(
@@ -623,6 +663,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       if (ref.mounted) state = AsyncData(confirmed);
       unawaited(refresh());
     } catch (_) {
+      if (!_isMutationScopeCurrent(scope)) rethrow;
       _optimisticHiddenOrderIds.remove(orderId);
       final current = state.value ?? before;
       final restored = [...current.pendingOrders];
@@ -654,6 +695,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   }) async {
     final before = state.value;
     if (before == null) throw const ExV2TokenMissing();
+    final scope = _captureMutationScope(before);
     final index = before.positions.indexWhere(
       (position) => position.id == positionId,
     );
@@ -685,7 +727,9 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
             rowVersion: before.positionRowVersion(positionId),
             metadata: ExV2CommandMetadata.create(),
           );
+      if (!_isMutationScopeCurrent(scope)) return;
       final core = await _loadCore();
+      if (!_isMutationScopeCurrent(scope)) return;
       final current = state.value ?? before;
       if (ref.mounted) {
         state = AsyncData(
@@ -700,6 +744,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       }
       unawaited(refresh());
     } catch (_) {
+      if (!_isMutationScopeCurrent(scope)) rethrow;
       final current = state.value ?? before;
       state = AsyncData(
         current.copyWith(
@@ -726,6 +771,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   }) async {
     final before = state.value;
     if (before == null) throw const ExV2TokenMissing();
+    final scope = _captureMutationScope(before);
     final index = before.pendingOrders.indexWhere(
       (order) => order.id == orderId,
     );
@@ -759,7 +805,9 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
             rowVersion: before.orderRowVersion(orderId),
             metadata: ExV2CommandMetadata.create(),
           );
+      if (!_isMutationScopeCurrent(scope)) return;
       final core = await _loadCore();
+      if (!_isMutationScopeCurrent(scope)) return;
       final current = state.value ?? before;
       if (ref.mounted) {
         state = AsyncData(
@@ -774,6 +822,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       }
       unawaited(refresh());
     } catch (_) {
+      if (!_isMutationScopeCurrent(scope)) rethrow;
       final current = state.value ?? before;
       state = AsyncData(
         current.copyWith(
@@ -793,6 +842,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   Future<void> closeBy(String positionId, String oppositePositionId) async {
     final before = state.value;
     if (before == null) throw const ExV2TokenMissing();
+    final scope = _captureMutationScope(before);
     final ids = {positionId, oppositePositionId};
     final originals = before.positions
         .where((position) => ids.contains(position.id))
@@ -839,7 +889,9 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
             oppositePositionId: oppositePositionId,
             metadata: ExV2CommandMetadata.create(),
           );
+      if (!_isMutationScopeCurrent(scope)) return;
       final core = await _loadCore(applyOptimisticHides: false);
+      if (!_isMutationScopeCurrent(scope)) return;
       _optimisticHiddenPositionIds.removeAll(fullyClosedIds);
       final current = state.value ?? before;
       if (ref.mounted) {
@@ -855,6 +907,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       }
       unawaited(refresh());
     } catch (_) {
+      if (!_isMutationScopeCurrent(scope)) rethrow;
       _optimisticHiddenPositionIds.removeAll(fullyClosedIds);
       final current = state.value ?? before;
       state = AsyncData(
@@ -876,6 +929,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   }) async {
     final before = state.value;
     if (before == null) throw const ExV2TokenMissing();
+    final scope = _captureMutationScope(before);
     final metadata = ExV2CommandMetadata.create();
     final operationId = 'wallet:${metadata.idempotencyKey}';
     final placeholder = <String, dynamic>{
@@ -916,6 +970,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
               accountHolder: note,
               metadata: metadata,
             );
+      if (!_isMutationScopeCurrent(scope)) return;
       final current = state.value ?? before;
       final row = <String, dynamic>{
         ...confirmed,
@@ -946,6 +1001,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       );
       unawaited(refresh());
     } catch (_) {
+      if (!_isMutationScopeCurrent(scope)) rethrow;
       final current = state.value ?? before;
       JsonMap failed(JsonMap item) => item['id'] == metadata.idempotencyKey
           ? {...item, 'status': 'failed'}
@@ -966,6 +1022,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   Future<void> markNotificationRead(String notificationId) async {
     final before = state.value;
     if (before == null) throw const ExV2TokenMissing();
+    final scope = _captureMutationScope(before);
     state = AsyncData(
       before.copyWith(
         notifications: [
@@ -985,7 +1042,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
             metadata: ExV2CommandMetadata.create(),
           );
     } catch (_) {
-      if (ref.mounted) state = AsyncData(before);
+      if (_isMutationScopeCurrent(scope)) state = AsyncData(before);
       rethrow;
     }
   }
@@ -993,6 +1050,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   Future<void> markAllNotificationsRead() async {
     final before = state.value;
     if (before == null) throw const ExV2TokenMissing();
+    final scope = _captureMutationScope(before);
     state = AsyncData(
       before.copyWith(
         notifications: [
@@ -1006,7 +1064,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
           .read(exV2RepositoryProvider)
           .markAllNotificationsRead(metadata: ExV2CommandMetadata.create());
     } catch (_) {
-      if (ref.mounted) state = AsyncData(before);
+      if (_isMutationScopeCurrent(scope)) state = AsyncData(before);
       rethrow;
     }
   }
@@ -1014,6 +1072,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   Future<void> updateSettings(JsonMap patch) async {
     final before = state.value;
     if (before == null) throw const ExV2TokenMissing();
+    final scope = _captureMutationScope(before);
     state = AsyncData(
       before.copyWith(settings: {...before.settings, ...patch}),
     );
@@ -1022,10 +1081,11 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         ...before.settings,
         ...patch,
       }, metadata: ExV2CommandMetadata.create());
+      if (!_isMutationScopeCurrent(scope)) return;
       final current = state.value ?? before;
       state = AsyncData(current.copyWith(settings: confirmed));
     } catch (_) {
-      if (ref.mounted) state = AsyncData(before);
+      if (_isMutationScopeCurrent(scope)) state = AsyncData(before);
       rethrow;
     }
   }
@@ -1063,6 +1123,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   }
 
   void publishBootstrap(ExV2Bootstrap bootstrap) {
+    _accountGeneration += 1;
     final generation = ++_loadGeneration;
     _refreshDebounce?.cancel();
     _optimisticHiddenPositionIds.clear();
