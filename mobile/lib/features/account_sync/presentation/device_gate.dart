@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trading_mobile/app/router.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
+import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 
 class DeviceGate extends ConsumerStatefulWidget {
-  const DeviceGate({required this.child, super.key});
+  const DeviceGate({required this.child, this.onAddAccount, super.key});
 
   final Widget child;
+  final VoidCallback? onAddAccount;
 
   @override
   ConsumerState<DeviceGate> createState() => _DeviceGateState();
@@ -17,6 +20,7 @@ class DeviceGate extends ConsumerStatefulWidget {
 class _DeviceGateState extends ConsumerState<DeviceGate> {
   bool _loading = true;
   bool _activated = false;
+  bool _accountlessUnlocked = false;
 
   @override
   void initState() {
@@ -41,15 +45,18 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
     }
     if (_activated) {
       if (!ref.watch(exV2EnabledProvider)) return widget.child;
+      if (_accountlessUnlocked) return widget.child;
       return ref
           .watch(exV2AccountProvider)
           .when(
             loading: () => const _AccountBootstrapLoading(),
-            error: (error, stackTrace) => _AccountBootstrapUnavailable(
-              key: const Key('account-bootstrap-error'),
-              message: 'Không thể tải tài khoản.',
-              onRetry: () => ref.invalidate(exV2AccountProvider),
-            ),
+            error: (error, stackTrace) => _isAccountNotConfigured(error)
+                ? _AccountBootstrapAccountless(onAddAccount: _openAddAccount)
+                : _AccountBootstrapUnavailable(
+                    key: const Key('account-bootstrap-error'),
+                    message: 'Không thể tải tài khoản.',
+                    onRetry: () => ref.invalidate(exV2AccountProvider),
+                  ),
             data: (account) => account == null
                 ? _AccountBootstrapUnavailable(
                     key: const Key('account-bootstrap-empty'),
@@ -71,7 +78,26 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
       ),
     );
   }
+
+  void _openAddAccount() {
+    if (!mounted) return;
+    setState(() => _accountlessUnlocked = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final callback = widget.onAddAccount;
+      if (callback != null) {
+        callback();
+      } else {
+        appRouter.go('/accounts/add');
+      }
+    });
+  }
 }
+
+bool _isAccountNotConfigured(Object error) =>
+    error is ExV2RequestFailure &&
+    error.statusCode == 409 &&
+    error.code == 'ACTIVE_ACCOUNT_NOT_CONFIGURED';
 
 class _AccountBootstrapLoading extends StatelessWidget {
   const _AccountBootstrapLoading();
@@ -116,6 +142,40 @@ class _AccountBootstrapUnavailable extends StatelessWidget {
   );
 }
 
+class _AccountBootstrapAccountless extends StatelessWidget {
+  const _AccountBootstrapAccountless({required this.onAddAccount});
+
+  final VoidCallback onAddAccount;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    key: const Key('account-bootstrap-accountless'),
+    debugShowCheckedModeBanner: false,
+    theme: AppTheme.dark,
+    home: Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Thiết bị đã được kích hoạt. Hãy thêm tài khoản giao dịch đầu tiên.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton(
+                onPressed: onAddAccount,
+                child: const Text('Thêm tài khoản'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _DeviceActivationScreen extends ConsumerStatefulWidget {
   const _DeviceActivationScreen({required this.onActivated});
 
@@ -151,7 +211,7 @@ class _DeviceActivationScreenState
       await service.activate(
         _controller.text,
         validate: (_) async {
-          await ref.read(exV2RepositoryProvider).bootstrap();
+          await ref.read(exV2RepositoryProvider).status();
         },
       );
       widget.onActivated();
