@@ -204,7 +204,6 @@ class _ServerRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: AppTypography.titleMedium.copyWith(
                       color: AppColors.textPrimary,
-                      fontFamily: 'sans-serif',
                       height: 1,
                     ),
                   ),

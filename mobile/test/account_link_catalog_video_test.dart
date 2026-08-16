@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/app/router.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/data/account_link_repository.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
@@ -84,6 +85,39 @@ void main() {
     expect(find.text('MetaQuotes Ltd.'), findsOneWidget);
   });
 
+  testWidgets('catalog text retains its semantic typography family', (
+    tester,
+  ) async {
+    final repository = _CatalogRepository();
+    await _pump(
+      tester,
+      repository: repository,
+      child: const BrokerListScreen(),
+    );
+
+    expect(
+      tester.widget<Text>(find.text('EX')).style?.fontFamily,
+      AppTypography.caption.fontFamily,
+    );
+    expect(
+      tester
+          .widget<Text>(find.text('Exness Technologies Ltd'))
+          .style
+          ?.fontFamily,
+      AppTypography.titleMedium.fontFamily,
+    );
+
+    await _pump(
+      tester,
+      repository: repository,
+      child: const TradingServerScreen(brokerId: 'exness'),
+    );
+    expect(
+      tester.widget<Text>(find.text('Exness-MT5Real1')).style?.fontFamily,
+      AppTypography.titleMedium.fontFamily,
+    );
+  });
+
   testWidgets('server-matched broker survives authoritative search response', (
     tester,
   ) async {
@@ -159,6 +193,57 @@ void main() {
 
     expect(find.text('New Brokerage'), findsOneWidget);
     expect(find.text('Old Brokerage'), findsNothing);
+  });
+
+  testWidgets('an earlier A response cannot authorize B results after A-B-A', (
+    tester,
+  ) async {
+    final repository = _AbaCatalogRepository();
+    await _pump(
+      tester,
+      repository: repository,
+      child: const BrokerListScreen(),
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('broker-search-field')),
+      'alpha',
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.enterText(
+      find.byKey(const Key('broker-search-field')),
+      'beta',
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    repository.complete('beta', 0, const [
+      MobileBroker(id: 'beta-broker', name: 'Beta Brokerage'),
+    ]);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Beta Brokerage'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('broker-search-field')),
+      'alpha',
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Beta Brokerage'), findsNothing);
+
+    repository.complete('alpha', 0, const [
+      MobileBroker(id: 'stale-alpha', name: 'Stale Alpha Brokerage'),
+    ]);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Beta Brokerage'), findsNothing);
+
+    repository.complete('alpha', 1, const [
+      MobileBroker(id: 'latest-alpha', name: 'Latest Alpha Brokerage'),
+    ]);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Latest Alpha Brokerage'), findsOneWidget);
   });
 
   testWidgets('broker load failure stays visible and retry uses the server', (
@@ -419,6 +504,22 @@ final class _DeferredCatalogRepository extends _CatalogRepository {
 
   void complete(String query, List<MobileBroker> value) =>
       _requests[query]!.complete(value);
+}
+
+final class _AbaCatalogRepository extends _CatalogRepository {
+  final Map<String, List<Completer<List<MobileBroker>>>> _requests = {};
+
+  @override
+  Future<List<MobileBroker>> brokers({String query = ''}) {
+    brokerQueries.add(query);
+    if (query.isEmpty) return Future.value(_brokers);
+    final completer = Completer<List<MobileBroker>>();
+    (_requests[query] ??= []).add(completer);
+    return completer.future;
+  }
+
+  void complete(String query, int index, List<MobileBroker> value) =>
+      _requests[query]![index].complete(value);
 }
 
 final class _ServerNameSearchRepository extends _CatalogRepository {

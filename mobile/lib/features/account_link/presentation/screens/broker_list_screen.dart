@@ -33,19 +33,22 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
   Timer? _debounce;
   String _query = '';
   String? _authoritativeQuery;
+  int _requestGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        unawaited(_loadCatalog(''));
+        final generation = ++_requestGeneration;
+        unawaited(_loadCatalog('', generation: generation));
       }
     });
   }
 
   @override
   void dispose() {
+    _requestGeneration += 1;
     _debounce?.cancel();
     super.dispose();
   }
@@ -172,27 +175,34 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
   }
 
   void _search(String value) {
+    final generation = ++_requestGeneration;
     setState(() => _query = value);
     _debounce?.cancel();
     _debounce = Timer(_searchDebounce, () {
       if (!mounted) return;
-      unawaited(_loadCatalog(value.trim()));
+      unawaited(_loadCatalog(value.trim(), generation: generation));
     });
   }
 
   void _retry() {
-    unawaited(_loadCatalog(_query.trim()));
+    final generation = ++_requestGeneration;
+    unawaited(_loadCatalog(_query.trim(), generation: generation));
   }
 
-  Future<void> _loadCatalog(String query) async {
+  Future<void> _loadCatalog(String query, {required int generation}) async {
     await ref
         .read(accountLinkControllerProvider.notifier)
         .loadCatalog(query: query);
-    if (!mounted || _query.trim().toLowerCase() != query.toLowerCase()) return;
+    if (!mounted ||
+        generation != _requestGeneration ||
+        _query.trim().toLowerCase() != query.toLowerCase()) {
+      return;
+    }
     setState(() => _authoritativeQuery = query.toLowerCase());
   }
 
   void _selectBroker(MobileBroker broker) {
+    _requestGeneration += 1;
     _debounce?.cancel();
     _debounce = null;
     ref.read(accountLinkControllerProvider.notifier).selectBroker(broker);
@@ -303,7 +313,6 @@ class _BrokerRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.titleMedium.copyWith(
                         color: AppColors.textPrimary,
-                        fontFamily: 'sans-serif',
                         height: 1.05,
                       ),
                     ),
@@ -315,7 +324,6 @@ class _BrokerRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.bodyLarge.copyWith(
                           color: AppColors.textSecondary,
-                          fontFamily: 'sans-serif',
                           height: 1,
                         ),
                       ),
