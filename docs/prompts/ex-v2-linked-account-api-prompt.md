@@ -40,7 +40,7 @@ Các ràng buộc không được thương lượng:
 - tài liệu migration/database;
 - tài liệu deployment, health check và rollback.
 
-Sau đó tìm và ghi lại đường dẫn thật của các thành phần sau:
+Sau đó tìm, đọc implementation/test và ghi lại đường dẫn thật cùng behavior đã kiểm chứng của các thành phần sau:
 
 - solution `.sln` hoặc `.slnx`;
 - API/startup project;
@@ -48,6 +48,7 @@ Sau đó tìm và ghi lại đường dẫn thật của các thành phần sau:
 - `DbContext`, migration assembly và migration gần nhất;
 - controller/endpoint hiện có của `GET /api/v2/mobile/bootstrap`;
 - device-token resolver hiện có;
+- reconnect-grant consumer/reconnect boundary, data-protection/key-management và secret-key rotation hiện có;
 - bootstrap builder hiện có;
 - password hasher hiện có;
 - audit writer hiện có;
@@ -86,6 +87,8 @@ dotnet test "<DISCOVERED_SOLUTION_FILE>" -c Release --no-build --logger "console
 
 Nếu không có source thật, baseline không xanh hoặc không xác định được deployment/rollback mechanism, dừng triển khai và báo blocker; không dựng API giả trong `D:/mt5New/backend`.
 
+Cũng phải dừng và báo blocker nếu không tìm thấy hoặc không thể xác lập behavior bằng source/test cho **bất kỳ primitive bắt buộc hiện hữu nào**: device-token resolver, reconnect-grant consumer/reconnect boundary, data-protection/key-management và key rotation, canonical bootstrap builder, password hasher, audit writer, correlation pipeline, idempotency mechanism/key store, transaction boundary, transactional outbox và outbox dispatcher, SignalR/event transport, OpenAPI generation, migration mechanism, deploy và rollback. Không tự chế hasher, token resolver, grant consumer, encryption vault, audit, idempotency, event bus hay deployment flow song song để lấp khoảng trống. Báo chính xác primitive nào thiếu, các path đã tìm và bằng chứng search/baseline.
+
 ## 3. Contract route công khai và route ASP.NET Core
 
 Flutter hiện cấu hình REST base URL công khai là:
@@ -116,7 +119,7 @@ POST /ex/v2/api/mobile/accounts/link
 PUT  /ex/v2/api/mobile/accounts/{accountId}/activate
 ```
 
-Không đổi tên route, HTTP method, field JSON hoặc casing. `brokerId`, `serverId` và `accountId` là UUID/GUID được JSON hóa thành string. Path parameter phải được route-decoded đúng một lần và validate là GUID hợp lệ.
+Không đổi tên route, HTTP method, field JSON hoặc casing. Ở HTTP boundary, `brokerId`, `serverId` và `accountId` là **opaque string khác rỗng**: Flutter giữ nguyên string và URI-encode path segment, kể cả ID có ký tự `/`. Server route-decode đúng một lần, không tự diễn giải hoặc chuẩn hóa làm thay đổi identity. Chỉ được thêm OpenAPI `format: uuid` và `Guid.TryParse` sau khi source entity, bootstrap/OpenAPI hiện hữu và integration fixtures của EX V2 cùng chứng minh **toàn bộ** ID tương ứng là GUID; phải ghi bằng chứng đó trong implementation report và có compatibility test. Nếu chưa đủ bằng chứng, giữ `type: string`, không reject ID chỉ vì không phải GUID. Các UUID-like value trong ví dụ dưới đây chỉ là dữ liệu minh họa không thật, không phải ràng buộc kiểu.
 
 ## 4. Header, xác thực thiết bị và correlation
 
@@ -229,7 +232,7 @@ Request body phải đúng năm field, không nhận account ID, executed price 
 Validation:
 
 - từ chối unknown field nếu convention hiện có đã bật strict JSON; tối thiểu không bind hoặc persist unknown field;
-- `brokerId`, `serverId` là GUID hợp lệ;
+- `brokerId`, `serverId` là opaque string khác rỗng; chỉ validate GUID khi đã đạt cổng bằng chứng ở mục 3;
 - server phải đang bật và thuộc đúng broker;
 - `login` sau trim phải chỉ gồm chữ số; dùng string xuyên suốt;
 - `password` phải khác rỗng và không trim/thay đổi trước khi verify;
@@ -252,7 +255,7 @@ Response `200`, dùng cho cả link mới và link đã tồn tại:
     "currency": "USD",
     "status": "active"
   },
-  "reconnectGrant": "opaque-one-time-return-value",
+  "reconnectGrant": "opaque-non-reusable-example",
   "alreadyLinked": false
 }
 ```
@@ -262,9 +265,11 @@ Quy tắc response:
 - `alreadyLinked` là `false` khi tạo link mới, `true` khi đúng account đã liên kết với thiết bị.
 - Dù link đã tồn tại, vẫn phải verify lại password và trạng thái account trước khi trả thành công.
 - Không tự kích hoạt account trong endpoint link; Flutter gọi endpoint activate ngay sau đó. `isActive` phản ánh trạng thái thật tại thời điểm trả response.
-- Tạo một reconnect grant ngẫu nhiên, entropy cao cho mỗi link thành công. Chỉ trả plaintext grant đúng lần response này; database chỉ lưu hash/digest bằng primitive hiện có, cùng device/link scope, purpose, issued-at, expiry và revoked-at.
+- Mỗi **idempotency operation link đã commit** phát hành đúng một reconnect grant ngẫu nhiên, entropy cao. Request replay đã xác thực trong idempotency window được phép nhận lại **chính grant của operation đó** từ replay payload đã được bảo vệ; replay không phát hành grant mới và không tạo thêm audit side effect nghiệp vụ.
+- Một link authentication thành công dùng idempotency key mới là một operation mới: trong cùng transaction, revoke grant live trước đó rồi tạo grant thay thế. Sau commit chỉ được có một grant current, chưa revoke cho `(DeviceId, DeviceAccountLinkId, Purpose)`. Không cố ý cho phép nhiều live grant.
+- Database chính chỉ lưu digest không thể đảo ngược cùng device/link/purpose, issued-at, expiry, revoked-at và replacement metadata. Plaintext chỉ tồn tại tạm ở response boundary hoặc trong idempotency replay payload được mã hóa/xác thực bằng data-protection/key-management hiện có; không lưu plaintext hoặc reversible value trong grant table.
 - Với `savePassword: true`, grant dùng TTL lưu đăng nhập do security configuration hiện có quy định. Với `savePassword: false`, grant dùng TTL phiên/ngắn hạn do cùng security configuration quy định; client chỉ giữ trong memory và server vẫn chỉ lưu hash. Không hard-code TTL trong controller.
-- Link response không có field `password`, `passwordHash`, `grantHash` hoặc device token.
+- Link success luôn có `reconnectGrant` là opaque string khác rỗng, không nullable. Link response không có field `password`, `passwordHash`, `grantHash` hoặc device token.
 
 ### 5.5 `PUT /api/v2/mobile/accounts/{accountId}/activate`
 
@@ -363,8 +368,8 @@ Flutter sẽ ném `FormatException` và từ chối chuyển state nếu bất k
 - credential của account demo đã provision: trading-account FK, server FK, normalized login, salted password hash và trạng thái;
 - device-account link: device FK, trading-account FK, linked timestamp, trạng thái;
 - active account của device: dùng field/aggregate hiện có hoặc quan hệ một-active-per-device;
-- reconnect grant: device/link scope, unique digest, purpose, issued/expiry/revoked timestamps, không có plaintext;
-- idempotency record: device scope, operation/route, key, request fingerprint, status và response an toàn cần replay;
+- reconnect grant: device/link scope, unique non-reversible digest, purpose, issued/expiry/revoked timestamps, replacement relation/current marker, không có plaintext;
+- idempotency record: device scope, operation/route, key, fingerprint version/key ID/digest, status, expiry và response replay đã được data-protect; không có raw request/password/grant;
 - audit/outbox record theo infrastructure hiện có.
 
 Tạo migration có tên rõ ràng, ví dụ `AddMobileLinkedAccounts`, theo convention thật của repository. Migration tối thiểu phải có các FK/index/constraint sau:
@@ -374,12 +379,13 @@ Tạo migration có tên rõ ràng, ví dụ `AddMobileLinkedAccounts`, theo con
 - `(ServerId, NormalizedLogin)` unique, nhờ đó cùng login được phép tồn tại trên broker/server khác nhau;
 - `(DeviceId, TradingAccountId)` unique;
 - reconnect-grant digest unique;
+- constraint/current pointer bảo đảm tối đa một grant current chưa revoke trên `(DeviceId, DeviceAccountLinkId, Purpose)`; transaction revoke–replace phải chịu concurrency lock;
 - `(DeviceId, Operation, IdempotencyKey)` unique;
 - tối đa một active account cho mỗi device, bằng current active-account FK hiện có hoặc filtered unique index tương đương;
 - index phục vụ broker/server filtering và device account listing;
 - cascade/restrict behavior rõ ràng để không xóa ngầm trading/audit history.
 
-Dùng password hasher hiện có để tạo/verify salted password hash. Không tự dùng SHA-256 thuần cho password. Reconnect grant là random token entropy cao; lưu digest bằng cơ chế token hashing hiện có hoặc HMAC keyed hash phù hợp với security architecture. Mọi so sánh secret dùng primitive constant-time do framework/security library cung cấp.
+Dùng password hasher hiện có để tạo/verify salted password hash. Không tự dùng SHA-256 thuần cho password. Reconnect grant là random token entropy cao; lưu digest bằng cơ chế token hashing hiện có hoặc keyed HMAC phù hợp với security architecture. Mọi so sánh secret dùng primitive constant-time do framework/security library cung cấp. Consumer boundary hiện có phải resolve grant bằng đủ device + link + purpose, kiểm tra digest, current marker, expiry và revoked-at; không chỉ tìm theo digest.
 
 Seed/catalog data phải đến từ migration/config/admin source được repository cho phép. Chỉ seed identity demo mà tổ chức được quyền hiển thị; không dùng tên/logo để giả mạo broker thật. Tuyệt đối không seed login/mật khẩu/account/balance lấy từ video.
 
@@ -407,17 +413,17 @@ Trong một transaction SQL Server:
 
 1. resolve và khóa scope device phù hợp;
 2. claim idempotency key theo `(DeviceId, Operation, Key)`;
-3. fingerprint canonical method + route + body sau khi đã loại password khỏi dữ liệu log; fingerprint có thể bao gồm HMAC của request để phát hiện body khác mà không lưu password;
+3. tạo fingerprint bắt buộc theo canonical algorithm ở mục 7.4; fingerprint phải phân biệt request chỉ khác password mà không lưu/log password;
 4. validate broker/server relation và enabled state;
 5. tìm credential theo `(ServerId, NormalizedLogin)`;
 6. verify password bằng password hasher hiện có; unknown login và wrong password phải có behavior/timing/message tương đương;
 7. từ chối account disabled;
 8. tạo device-account link hoặc lấy link hiện có, không tạo duplicate;
-9. tạo reconnect grant và chỉ persist digest/metadata;
-10. ghi audit an toàn và idempotency result;
-11. commit rồi mới trả response có plaintext grant một lần.
+9. revoke grant current trước đó và tạo đúng một grant thay thế; chỉ persist digest/metadata trong grant table;
+10. data-protect response replay chứa chính grant vừa phát hành, gắn TTL bằng idempotency window; ghi idempotency result và audit `grant_issued`/`grant_replaced` an toàn;
+11. commit rồi mới trả response; replay hợp lệ có thể tái phát cùng protected grant nhưng không phát hành grant mới.
 
-Hai request đồng thời cùng device/account không được tạo hai link hoặc hai grant hợp lệ ngoài semantics replay. Nếu unique-key race xảy ra, đọc kết quả đã commit và replay đúng response an toàn.
+Hai request đồng thời cùng device/account không được tạo hai link hoặc hai grant current hợp lệ ngoài semantics replay. Nếu unique-key race xảy ra, đọc kết quả đã commit, unprotect replay payload và trả đúng semantic response; không chạy lại verify/issue/revoke. Operation mới cạnh tranh phải serialize trên grant scope để revoke–replace atomically.
 
 ### 7.3 Activate
 
@@ -429,24 +435,26 @@ Trong một transaction SQL Server:
 4. cập nhật active account và version/generation của device theo concurrency convention hiện có;
 5. dùng chính bootstrap builder hiện có để tạo snapshot đầy đủ nhìn thấy active account mới trong cùng transaction; nếu build/validation thất bại trước commit thì rollback toàn bộ active change, audit, outbox và idempotency write;
 6. assert ba account ID bằng nhau;
-7. ghi audit và outbox/account-change intent trong transaction;
+7. persist audit và đúng một outbox `ActiveAccountChanged` intent trong transaction;
 8. commit;
-9. chỉ sau commit mới publish `ActiveAccountChanged` qua SignalR/event mechanism hiện có. Ưu tiên transactional outbox hiện có; nếu publisher hậu commit lỗi, trạng thái DB không rollback, event phải có retry/observability và không được phát event giả cho account cũ;
+9. chỉ sau commit, **outbox dispatcher là publisher authoritative duy nhất** được dispatch `ActiveAccountChanged` ra SignalR/event mechanism hiện có. Controller/service không direct-publish thêm lần thứ hai. Nếu dispatch lỗi, trạng thái DB không rollback; cùng outbox message được retry/dedupe theo cơ chế hiện có và không phát event giả cho account cũ;
 10. trả `account + bootstrap` đã chuẩn bị.
 
 Activation của account vốn đã active vẫn trả `200` với account và bootstrap đầy đủ, không tạo side effect lặp. Nếu activation cạnh tranh với mutation account-scoped khác, dùng concurrency/version hiện có để không tạo mixed snapshot; trả `409 concurrency_conflict` khi không thể serialize an toàn.
 
 ### 7.4 Idempotency
 
-- Cùng device + operation + key + cùng canonical request phải replay cùng status code và cùng semantic result, không chạy lại password/grant/link/activation side effect.
-- Cùng key nhưng khác method/route/body fingerprint trả `409 idempotency_key_reused`.
+- Cùng device + operation + key + cùng canonical request phải replay cùng status code và cùng semantic result, không chạy lại password/grant/link/activation side effect. Với link, replay trong idempotency window tái phát chính protected grant của operation đã commit.
+- Cùng key nhưng khác method/route/body fingerprint — kể cả chỉ khác `password` — trả `409 idempotency_key_reused`.
 - Idempotency scope không được dùng chung giữa hai device.
-- Không lưu raw password trong idempotency body/response. Nếu link response có reconnect grant, cơ chế replay phải đáp ứng security policy hiện có mà không lưu plaintext; lựa chọn an toàn là bảo vệ response bằng data-protection/key-management hiện hữu với TTL bằng idempotency window, hoặc trả lại cùng grant qua token-vault hiện có. Không được băm rồi giả vờ có thể phục hồi grant.
-- Ghi rõ lựa chọn và threat model trong security/implementation report.
+- Dùng **một canonical fingerprint versioned bắt buộc** cho từng mutation. Version đầu phải canonicalize bằng length-prefixed UTF-8, không nối chuỗi mơ hồ: HTTP method chuẩn hóa, route template, route ID sau route-decode, `brokerId`, `serverId`, `login` sau rule trim, raw password bytes không trim, `savePassword`, và mọi semantic field hiện tại/tương lai. Activate bao gồm method, route template, decoded `accountId` và empty object semantics.
+- Tính `HMAC-SHA-256` trên toàn bộ canonical byte sequence bằng deployment-managed idempotency fingerprint key; lưu `FingerprintVersion`, key ID và digest, không lưu canonical bytes. Cấm unkeyed hash hoặc reversible encryption của password để làm fingerprint. Key lấy từ secret manager, hỗ trợ rotation theo key ID; compare digest constant-time.
+- Link replay payload phải được encrypt + authenticate bằng data-protection/key-management hiện hữu và expire cùng idempotency window. Chỉ replay handler được unprotect để trả lại chính grant; không ghi payload đã unprotect vào log/audit. Khi replay record hết hạn, không được âm thầm chạy cùng key như operation mới: trả structured conflict yêu cầu client tạo user action/idempotency key mới theo policy đã ghi trong OpenAPI.
+- Ghi rõ canonicalization version, key rotation, replay retention và threat model trong security/implementation report.
 
 ## 8. Error contract có cấu trúc
 
-Mọi lỗi `400`, `401`, `404`, `409`, `422` — và lỗi `500` an toàn nếu xảy ra — trả JSON object:
+Mọi lỗi `400`, `401`, `404`, `409`, `422`, `429` — và lỗi `500` an toàn nếu xảy ra — trả JSON object:
 
 ```json
 {
@@ -470,10 +478,12 @@ Mapping tối thiểu:
 | 404 | `server_not_found` | server không tồn tại/không được phép thấy |
 | 404 | `account_not_found` | link không tồn tại hoặc thuộc device khác |
 | 409 | `idempotency_key_reused` | cùng key nhưng request fingerprint khác |
+| 409 | `idempotency_record_expired` | replay dùng key đã hết retention; client phải tạo user action/key mới |
 | 409 | `concurrency_conflict` | không thể hoàn tất activation nhất quán do concurrent change |
 | 422 | `server_mismatch` | server không thuộc broker đã gửi |
 | 422 | `account_disabled` | account/link/server bị disabled |
 | 422 | `link_rejected` | domain rule demo từ chối nhưng request hợp lệ cú pháp |
+| 429 | `rate_limited` | credential-verification limit đạt ngưỡng; trả `Retry-After`, không đổi thông điệp theo login tồn tại/không tồn tại |
 | 500 | `internal_error` | lỗi ngoài dự kiến; message chung, tra cứu bằng correlation ID |
 
 Không đưa login, password, grant, token, hash, connection string, stack trace hoặc trạng thái account của device khác vào error body/log/audit.
@@ -487,13 +497,27 @@ Ghi audit bằng hệ thống hiện có cho ít nhất:
 - link rejected với reason code không nhạy cảm;
 - account activated, gồm previous/new internal account ID;
 - activation rejected;
-- reconnect grant issued/revoked/expired;
+- reconnect grant issued/replaced/revoked/expired và authenticated replay delivered;
 - idempotency conflict;
 - post-commit publication success/failure.
 
 Audit chứa actor/device internal ID, action, target internal ID, UTC timestamp, correlation ID, outcome/reason code. Không chứa request body, login nếu policy xem là dữ liệu nhạy cảm, password, hash, raw grant hoặc raw device token.
 
-Event `ActiveAccountChanged` chỉ được enqueue/publish sau commit thành công. Payload theo event contract hiện có, tối thiểu đủ để client invalidates bootstrap; không gửi credential/grant. Không publish khi transaction rollback, authorization fail hoặc idempotency replay không tạo thay đổi mới.
+Outbox intent `ActiveAccountChanged` được **persist atomically bên trong activation transaction**. Chỉ sau commit, outbox dispatcher hiện có mới dispatch ra SignalR/event transport. Dispatcher là publisher authoritative duy nhất; controller/service không direct-publish, nhờ đó không double-publish từ hai đường. Payload theo event contract hiện có, tối thiểu đủ để client invalidate bootstrap; không gửi credential/grant. Transaction rollback không để lại outbox row; authorization failure và idempotency replay/no-op không tạo outbox intent mới. Retry có message ID/dedupe và metric theo convention hiện có.
+
+### 9.1 Cleanup grant bắt buộc
+
+Khám phá và tái sử dụng token-cleanup owner hiện có. Nếu repository không có generic cleanup scheduler nhưng có worker host chuẩn, thêm một bounded `BackgroundService` vào **worker host hiện có**, không tạo service/deployment mới. Owner duy nhất là EX V2 worker/token-cleanup component; API request path không tự xóa hàng loạt.
+
+Quy tắc cleanup chính xác:
+
+- chạy mỗi 60 phút, interval lấy từ strongly typed configuration nhưng default và production value phải được tài liệu hóa;
+- dùng distributed lock/single-runner hiện có để tránh nhiều instance cleanup trùng nhau;
+- mỗi batch tối đa 1.000 row, có cancellation token và transaction ngắn;
+- xóa grant đã expired hoặc revoked **quá 30 ngày**; audit records giữ theo audit-retention policy hiện có và không bị job này xóa;
+- idempotency replay payload được xóa theo idempotency retention đã tài liệu hóa, nhưng không trước khi replay window kết thúc;
+- emit tối thiểu `exv2_reconnect_grant_cleanup_deleted_total`, `exv2_reconnect_grant_cleanup_failure_total` và `exv2_reconnect_grant_cleanup_last_success_timestamp_seconds` (hoặc tên đã tồn tại được mapping rõ trong report), không gắn device/login/grant label;
+- có integration test với clock giả chứng minh row chưa đến hạn được giữ, row quá retention được xóa theo batch, lỗi job không xóa audit và metric success/failure đúng.
 
 ## 10. Test-first bắt buộc
 
@@ -521,10 +545,21 @@ Tối thiểu phải có các test độc lập sau:
 18. publisher lỗi sau commit không đảo ngược active state, được retry/quan sát theo cơ chế hiện có;
 19. event chỉ xuất hiện sau commit và không xuất hiện trên rollback/replay không-op;
 20. migration unique/index/FK behavior trên SQL Server;
-21. mọi error `400/401/404/409/422` có `code`, `message`, `correlationId`, header correlation tương ứng;
+21. mọi error `400/401/404/409/422/429` có `code`, `message`, `correlationId`, header correlation tương ứng; `429` có thêm `Retry-After`;
 22. secret leakage test quét response, structured logs, audit payload, exception và OpenAPI examples để đảm bảo không có plaintext password/grant/token/hash;
 23. authorization test cho mọi route, kể cả catalog;
-24. cancellation token và timeout không để transaction/lock treo.
+24. cancellation token và timeout không để transaction/lock treo;
+25. ID HTTP boundary nhận opaque non-empty string và route-decode đúng một lần; chỉ chạy GUID-only test nếu cổng evidence mục 3 chứng minh contract GUID;
+26. idempotency fingerprint khác khi chỉ `password` thay đổi và trả `409 idempotency_key_reused`; test xác nhận chỉ lưu version/key ID/keyed digest, không raw canonical request hoặc unkeyed password digest;
+27. cùng `Idempotency-Key` trên hai device tạo hai scope độc lập, không replay/collision chéo device;
+28. grant table chỉ lưu non-reversible digest + device/link/purpose/issued/expiry/revoked/replacement metadata; không có plaintext/reversible grant;
+29. qua existing grant consumer boundary: grant đúng scope/current/chưa hết hạn/chưa revoke được chấp nhận; sai device, sai link, sai purpose, expired, revoked và replaced grant đều bị từ chối cùng safe contract;
+30. operation link mới atomically revoke–replace grant cũ, để đúng một current grant; concurrent replacement không để lại hai current grant;
+31. authenticated idempotency replay trong window trả cùng protected grant và không issue/revoke/audit nghiệp vụ lần hai; replay hết hạn trả `409 idempotency_record_expired`;
+32. thiếu, sai, hết hạn và revoked `X-Device-Token` đều trả `401 device_token_invalid` trên **từng route trong năm route**, không chạy query/mutation side effect;
+33. credential-verification rate limit được test theo device/IP: đạt ngưỡng trả structured `429 rate_limited` + `Retry-After`, wrong/unknown login không làm khác status/message/timing bucket và không ghi secret;
+34. outbox row tồn tại atomically với activation commit, không tồn tại sau rollback; chỉ authoritative dispatcher phát, retry không tạo intent mới hoặc đường direct-publish thứ hai;
+35. grant cleanup test với clock giả chứng minh owner/cadence/batch/30-day retention, audit preservation và ba metric không có high-cardinality/secret label.
 
 Test contract HTTP phải assert đúng method, route `/api/v2/mobile/...`, query, JSON casing, empty `{}` của activate và các header bắt buộc. Thêm regression test so sánh shape bootstrap activate với shape bootstrap canonical hiện có, không copy một DTO rút gọn vào test.
 
@@ -546,10 +581,12 @@ Cập nhật OpenAPI source/generated artifact thật tại `<DISCOVERED_OPENAPI
 - request/response schema và example đúng casing nêu trên;
 - `X-Device-Token`, `X-Correlation-Id`, mutation `Idempotency-Key` là required;
 - success code `200`;
-- structured error schema cho `400/401/404/409/422/500`;
+- structured error schema cho `400/401/404/409/422/429/500`, gồm `Retry-After` cho `429`;
 - `password` chỉ xuất hiện trong link request, format `password`, không có example thật;
-- `reconnectGrant` chỉ xuất hiện ở link response, nullable/opaque, không có example reusable;
+- `reconnectGrant` là required non-null opaque string chỉ ở link success response; mô tả rõ cùng protected value có thể được re-deliver khi authenticated idempotency replay trong window, không issue grant mới;
 - linked-account DTO không có secret/hash;
+- các ID HTTP là opaque non-empty `type: string`; chỉ thêm `format: uuid` cho loại ID đã có evidence và compatibility test theo mục 3;
+- mô tả versioned keyed-HMAC fingerprint, password-only conflict, device scope, replay expiry và atomic grant revoke–replace mà không công bố key/digest;
 - activate bootstrap reference đúng canonical mobile bootstrap schema hiện có;
 - mô tả rõ virtual/demo-only và device isolation.
 
@@ -561,10 +598,10 @@ Tự review và ghi bằng chứng:
 
 - HTTPS bắt buộc tại ingress; không cho password qua HTTP;
 - request-body logging tắt/redact cho link;
-- rate limit theo device/IP cho credential verification nhưng không làm đổi error contract;
+- rate limit theo device/IP cho credential verification; dùng structured `429 rate_limited` + `Retry-After` giống nhau cho wrong/unknown login và không tạo enumeration side channel;
 - chống user/account enumeration;
 - password hasher có salt/work factor theo chuẩn hiện có;
-- grant random, hashed, scoped, expiring, revocable và có cleanup;
+- grant random, hashed, scoped, expiring, revocable, atomic revoke–replace, protected replay và có cleanup owner/cadence/retention/test/metrics ở mục 9.1;
 - idempotency không lưu plaintext secret;
 - EF query không trả secret entity;
 - authorization nằm trước data disclosure và được recheck trong mutation transaction;
@@ -618,6 +655,7 @@ Thực hiện rollback rehearsal bằng đúng `<DISCOVERED_ROLLBACK_DOC_OR_SCRI
 Chỉ đánh dấu hoàn thành khi tất cả mục sau có bằng chứng:
 
 - [ ] Đã đọc và liệt kê AGENTS/README/architecture/security/deployment docs của source EX V2 thật.
+- [ ] Đã tìm được và chứng minh behavior của mọi existing primitive bắt buộc; nếu thiếu bất kỳ primitive nào thì task dừng ở trạng thái blocked, không có implementation song song.
 - [ ] Không có thay đổi nào trong `D:/mt5New/backend`.
 - [ ] Baseline và final build/test của solution EX V2 xanh.
 - [ ] Năm route `/api/v2/mobile/...` tồn tại đúng method/path và public proxy tạo đúng `/ex/v2/api/mobile/...` mà Flutter đang gọi.
@@ -625,15 +663,21 @@ Chỉ đánh dấu hoàn thành khi tất cả mục sau có bằng chứng:
 - [ ] Broker/server catalog filter ổn định và không chứa hard-coded video account data.
 - [ ] Link request đúng `brokerId`, `serverId`, `login`, `password`, `savePassword`.
 - [ ] List/link/activate response đúng field/casing Flutter model đang parse.
+- [ ] ID tại HTTP boundary là opaque non-empty string và hỗ trợ URI-encoded segment; GUID-only validation chỉ tồn tại khi report có source/OpenAPI/fixture evidence tương ứng.
 - [ ] Activate nhận body `{}` và trả `account + bootstrap` canonical đầy đủ.
 - [ ] Ba account ID trong activate response luôn giống nhau.
 - [ ] Password dùng existing salted hasher; plaintext không persist/log.
-- [ ] Reconnect grants hashed, scoped, expiring, revocable; plaintext chỉ trả ở boundary cho phép.
+- [ ] Mỗi committed link operation issue đúng một reconnect grant; authenticated replay trả cùng protected grant, operation mới atomically revoke–replace grant cũ và chỉ còn một current grant.
+- [ ] Grant table chỉ có non-reversible digest + scope/TTL/revocation/replacement metadata; existing consumer boundary đã test valid/wrong-scope/expired/revoked/replaced grant.
+- [ ] Versioned canonical idempotency fingerprint dùng keyed HMAC trên toàn bộ semantic request, gồm raw password; password-only change trả `409` và không có raw/unkeyed password digest.
 - [ ] Unique constraints cho catalog, credential natural key, device link, grant digest và idempotency key đã được kiểm chứng trên SQL Server.
 - [ ] Device isolation và authorization pass cho list/activate, kể cả foreign ID.
+- [ ] Cùng idempotency key được scope độc lập giữa hai device; missing/invalid/expired/revoked device token đã test trên cả năm route.
+- [ ] Credential rate limit pass integration test và giữ structured/no-enumeration contract.
 - [ ] Link/activate transaction, concurrent request, replay và rollback tests xanh.
-- [ ] `ActiveAccountChanged` chỉ publish sau commit; failure/retry có bằng chứng.
-- [ ] Structured `400/401/404/409/422/500` có correlation ID và không có secret.
+- [ ] Activation persist outbox intent trong transaction; authoritative outbox dispatcher duy nhất publish `ActiveAccountChanged` sau commit, không có direct double-publish; failure/retry có bằng chứng.
+- [ ] Grant cleanup có owner, cadence 60 phút, batch 1.000, retention 30 ngày, integration test và metrics không chứa secret/high-cardinality label.
+- [ ] Structured `400/401/404/409/422/429/500` có correlation ID và không có secret; `429` có `Retry-After`.
 - [ ] OpenAPI đã update/validate và legacy `/ex/api/api/*` không đổi.
 - [ ] Migration script đã review, deploy staging thành công, smoke test qua public ingress xanh.
 - [ ] Có commit/image/migration/health/SignalR/legacy/rollback evidence.
@@ -648,14 +692,16 @@ Tạo một implementation report trong repository EX V2, theo convention docs h
 3. commit SHA và danh sách file thay đổi;
 4. tóm tắt schema, constraints và migration;
 5. bảng route + request/response/error;
-6. security decisions cho password, reconnect grant, idempotency và redaction;
-7. transaction/concurrency/outbox flow;
+6. security decisions cho password, reconnect grant issue/replay/revoke–replace, versioned keyed-HMAC idempotency fingerprint/key rotation và redaction;
+7. transaction/concurrency/outbox flow, chứng minh outbox dispatcher là authoritative publisher duy nhất;
 8. TDD RED/GREEN evidence và exact command/output counts;
 9. migration review và OpenAPI diff evidence;
 10. staging smoke evidence, không chép secret;
 11. deployment evidence: version/image digest, health, migration state;
 12. rollback rehearsal/evidence;
 13. legacy `/ex/api/api/*` regression evidence;
-14. unresolved concerns và follow-up có owner rõ ràng.
+14. ID-type evidence: opaque string compatibility, hoặc source/OpenAPI/fixture evidence nếu đã dùng GUID validation;
+15. cleanup owner/cadence/batch/retention/test/metric evidence;
+16. unresolved concerns và follow-up có owner rõ ràng.
 
 Trước khi kết thúc, quét source, migration, test, OpenAPI, report và log artifact để chắc chắn không có credential/token/grant thật; chạy `git diff --check`; kiểm tra `git status`; chỉ commit đúng phạm vi EX V2 đã review.
