@@ -102,6 +102,13 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
         loading: () => const _AccountBootstrapLoading(),
         error: (error, stackTrace) => _isAccountNotConfigured(error)
             ? _AccountBootstrapAccountless(onAddAccount: _openAddAccount)
+            : _isDeviceAuthenticationFailure(error)
+            ? _AccountBootstrapUnavailable(
+                key: const Key('device-authentication-error'),
+                message: 'Mã thiết bị đã hết hiệu lực.',
+                buttonLabel: 'Nhập mã khác',
+                onRetry: () => unawaited(_resetDeviceAuthentication()),
+              )
             : _AccountBootstrapUnavailable(
                 key: const Key('account-bootstrap-error'),
                 message: 'Không thể tải tài khoản.',
@@ -164,6 +171,35 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
     });
   }
 
+  Future<void> _resetDeviceAuthentication() async {
+    final generation = ++_tokenReadGeneration;
+    _bootstrapTimer?.cancel();
+    setState(() {
+      _loading = true;
+      _tokenReadError = null;
+      _bootstrapTimedOut = false;
+    });
+    try {
+      await ref
+          .read(deviceTokenStoreProvider)
+          .delete()
+          .timeout(widget.startupTimeout);
+      if (!mounted || generation != _tokenReadGeneration) return;
+      ref.invalidate(exV2AccountProvider);
+      setState(() {
+        _activated = false;
+        _accountlessUnlocked = false;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted || generation != _tokenReadGeneration) return;
+      setState(() {
+        _tokenReadError = error;
+        _loading = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _tokenReadGeneration += 1;
@@ -176,6 +212,10 @@ bool _isAccountNotConfigured(Object error) =>
     error is ExV2RequestFailure &&
     error.statusCode == 409 &&
     error.code == 'ACTIVE_ACCOUNT_NOT_CONFIGURED';
+
+bool _isDeviceAuthenticationFailure(Object error) =>
+    error is ExV2RequestFailure &&
+    (error.statusCode == 401 || error.statusCode == 403);
 
 class _AccountBootstrapLoading extends StatelessWidget {
   const _AccountBootstrapLoading();
@@ -192,11 +232,13 @@ class _AccountBootstrapUnavailable extends StatelessWidget {
   const _AccountBootstrapUnavailable({
     required this.message,
     required this.onRetry,
+    this.buttonLabel = 'Thử lại',
     super.key,
   });
 
   final String message;
   final VoidCallback onRetry;
+  final String buttonLabel;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -211,7 +253,7 @@ class _AccountBootstrapUnavailable extends StatelessWidget {
             children: [
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: AppSpacing.lg),
-              OutlinedButton(onPressed: onRetry, child: const Text('Thử lại')),
+              OutlinedButton(onPressed: onRetry, child: Text(buttonLabel)),
             ],
           ),
         ),

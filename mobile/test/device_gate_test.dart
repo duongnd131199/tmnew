@@ -288,6 +288,40 @@ void main() {
     expect(find.text('SERVER APP'), findsNothing);
   });
 
+  testWidgets('rejected device token can return to activation explicitly', (
+    tester,
+  ) async {
+    final store = _MemoryTokenStore('expired-token');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          deviceTokenStoreProvider.overrideWithValue(store),
+          exV2AccountProvider.overrideWithBuild(
+            (ref, controller) async => throw const ExV2RequestFailure(
+              statusCode: 401,
+              code: 'INVALID_DEVICE_TOKEN',
+              message: 'Invalid device token',
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('device-authentication-error')),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Nhập mã khác'));
+    await tester.pumpAndSettle();
+
+    expect(await store.read(), isNull);
+    expect(find.text('Kích hoạt thiết bị'), findsOneWidget);
+    expect(find.text('SERVER APP'), findsNothing);
+  });
+
   testWidgets('bootstrap error retry remains protected by the watchdog', (
     tester,
   ) async {
