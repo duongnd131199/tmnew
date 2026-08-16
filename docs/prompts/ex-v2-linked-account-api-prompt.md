@@ -56,6 +56,7 @@ Sau đó tìm, đọc implementation/test và ghi lại đường dẫn thật c
 - idempotency và correlation middleware/filter hiện có;
 - integration-test project và test fixture SQL Server;
 - OpenAPI source/generated artifact;
+- toàn bộ public-ingress chain trước Kestrel (CDN/WAF/load balancer/Nginx hoặc reverse proxy tương đương), raw-path/rewrite/escaped-separator configuration và ASP.NET Core routing behavior;
 - manifest/script/pipeline deploy và rollback.
 
 Chỉ các token đường dẫn dưới đây là placeholder hợp lệ trong quá trình làm việc. Thay tất cả bằng đường dẫn thật đã phát hiện trước khi chạy lệnh hoặc đưa vào báo cáo cuối:
@@ -119,7 +120,36 @@ POST /ex/v2/api/mobile/accounts/link
 PUT  /ex/v2/api/mobile/accounts/{accountId}/activate
 ```
 
-Không đổi tên route, HTTP method, field JSON hoặc casing. Ở HTTP boundary, `brokerId`, `serverId` và `accountId` là **opaque string khác rỗng**: Flutter giữ nguyên string và URI-encode path segment, kể cả ID có ký tự `/`. Server route-decode đúng một lần, không tự diễn giải hoặc chuẩn hóa làm thay đổi identity. Chỉ được thêm OpenAPI `format: uuid` và `Guid.TryParse` sau khi source entity, bootstrap/OpenAPI hiện hữu và integration fixtures của EX V2 cùng chứng minh **toàn bộ** ID tương ứng là GUID; phải ghi bằng chứng đó trong implementation report và có compatibility test. Nếu chưa đủ bằng chứng, giữ `type: string`, không reject ID chỉ vì không phải GUID. Các UUID-like value trong ví dụ dưới đây chỉ là dữ liệu minh họa không thật, không phải ràng buộc kiểu.
+Không đổi tên route, HTTP method, field JSON hoặc casing. Ở HTTP boundary, `brokerId`, `serverId` và `accountId` là **opaque string khác rỗng**. Flutter giữ nguyên string và gọi `Uri.encodeComponent` cho path segment, nên ID logic `broker/one` được gửi thành `broker%2Fone`. Server chỉ được nhận ID chứa `/` theo nhánh A của cổng encoded-slash dưới đây; nếu ingress không chứng minh được behavior đó thì phải dùng nhánh B với public ID segment-safe. Không được ngầm thay `/` bằng `_`, decode hai lần hoặc để JSON trả một ID nhưng route lookup đòi ID khác.
+
+Chỉ được thêm OpenAPI `format: uuid` và `Guid.TryParse` sau khi source entity, bootstrap/OpenAPI hiện hữu và integration fixtures của EX V2 cùng chứng minh **toàn bộ** ID tương ứng là GUID; phải ghi bằng chứng đó trong implementation report và có compatibility test. Nếu chưa đủ bằng chứng, giữ `type: string`, không reject ID chỉ vì không phải GUID. Các UUID-like value trong ví dụ dưới đây chỉ là dữ liệu minh họa không thật, không phải ràng buộc kiểu.
+
+### 3.1 Cổng encoded slash qua public ingress
+
+Trước khi chốt schema ID hoặc triển khai route, trace request qua **đúng public staging ingress** có topology/config tương đương production: CDN/WAF/load balancer/reverse proxy, rewrite từ `/ex/v2/api` sang `/api/v2`, Kestrel/ASP.NET Core routing và model binding. Không dùng direct Kestrel port hoặc `WebApplicationFactory` làm bằng chứng duy nhất.
+
+Phải chọn và tài liệu hóa đúng một trong hai nhánh; không để runtime tự rơi qua lại:
+
+**Nhánh A — giữ opaque ID có `/`, chỉ khi E2E probe xanh:**
+
+- provision synthetic staging broker ID `broker/one` và linked-account ID `account/one` bằng fixture/provisioning hợp lệ;
+- gọi qua public ingress với `--path-as-is` tới `GET /ex/v2/api/mobile/brokers/broker%2Fone/servers?query=` và `PUT /ex/v2/api/mobile/accounts/account%2Fone/activate`;
+- chứng minh raw ingress path chứa `%2F`, proxy không reject/normalize thành separator route, và ASP.NET route value sau **đúng một lần decode** bằng chính xác `broker/one` hoặc `account/one`;
+- response server/account ID phải bằng logical ID ban đầu; activate vẫn giữ ba-way account-ID equality;
+- `%252F` không được decode lần hai thành `/`; raw `/`, invalid percent encoding, encoded backslash `%5C`, dot-segment và alternate casing `%2f` phải có behavior được test/tài liệu hóa, không resolve sang identity khác;
+- authorization chạy sau khi resolve canonical identity bằng exact match và vẫn scope theo device. Encoded/double-encoded variant không được bypass foreign-device `404` hoặc map sang row khác;
+- chỉ enable/giữ escaped-separator behavior ở đúng route/scope cần thiết sau security review; không bật permissive global proxy normalization nếu có thể ảnh hưởng route legacy.
+
+**Nhánh B — bắt buộc nếu bất kỳ ingress layer reject, split, normalize hoặc không chứng minh được `%2F`:**
+
+- thêm immutable `PublicId` segment-safe cho broker, server và linked account, unique/indexed, sinh bằng UUID hoặc CSPRNG base64url không padding; chỉ cho phép `[A-Za-z0-9_-]`, không chứa `/`, `%`, `?`, `#`, `\` hoặc dot-segment;
+- không biến đổi lossy internal ID (`Replace`, lowercase, slugify) để tạo public ID; lưu mapping một-một rõ ràng và backfill bằng migration reviewable;
+- expose public ID trong **các field hiện có**, không thêm một parallel field mà Flutter không đọc: broker `id`; server `id`/`brokerId`; linked account `id`/`brokerId`/`serverId`; link/activate `account`; canonical `/mobile/bootstrap` `activeAccount.id` và `summary.accountId`;
+- link request dùng public `brokerId`/`serverId` nhận từ catalog; activate path dùng public `accountId` nhận từ list/link. Sau device authorization, server map exact public ID sang internal key; không fallback thử internal ID và không accept hai namespace mơ hồ;
+- giữ `account.id == bootstrap.activeAccount.id == bootstrap.summary.accountId` bằng cùng public account ID; internal IDs không rò ra mobile JSON/log/error;
+- update migration, projections, bootstrap builder, OpenAPI, tests và staging fixtures atomically. Một app nhận catalog/list trước deploy không được bị mismatch route sau deploy; dùng deployment compatibility/rollback mechanism hiện có.
+
+Nếu không chạy được public-ingress probe nhánh A và cũng không thể triển khai/verify nhánh B nhất quán, dừng task ở trạng thái blocked. Không tuyên bố hỗ trợ slash ID dựa trên unit/in-process test.
 
 ## 4. Header, xác thực thiết bị và correlation
 
@@ -549,7 +579,7 @@ Tối thiểu phải có các test độc lập sau:
 22. secret leakage test quét response, structured logs, audit payload, exception và OpenAPI examples để đảm bảo không có plaintext password/grant/token/hash;
 23. authorization test cho mọi route, kể cả catalog;
 24. cancellation token và timeout không để transaction/lock treo;
-25. ID HTTP boundary nhận opaque non-empty string và route-decode đúng một lần; chỉ chạy GUID-only test nếu cổng evidence mục 3 chứng minh contract GUID;
+25. ID HTTP boundary nhận opaque non-empty string; in-process routing test chứng minh exact match, không silent normalization/double-decode; chỉ chạy GUID-only test nếu cổng evidence mục 3 chứng minh contract GUID;
 26. idempotency fingerprint khác khi chỉ `password` thay đổi và trả `409 idempotency_key_reused`; test xác nhận chỉ lưu version/key ID/keyed digest, không raw canonical request hoặc unkeyed password digest;
 27. cùng `Idempotency-Key` trên hai device tạo hai scope độc lập, không replay/collision chéo device;
 28. grant table chỉ lưu non-reversible digest + device/link/purpose/issued/expiry/revoked/replacement metadata; không có plaintext/reversible grant;
@@ -559,7 +589,10 @@ Tối thiểu phải có các test độc lập sau:
 32. thiếu, sai, hết hạn và revoked `X-Device-Token` đều trả `401 device_token_invalid` trên **từng route trong năm route**, không chạy query/mutation side effect;
 33. credential-verification rate limit được test theo device/IP: đạt ngưỡng trả structured `429 rate_limited` + `Retry-After`, wrong/unknown login không làm khác status/message/timing bucket và không ghi secret;
 34. outbox row tồn tại atomically với activation commit, không tồn tại sau rollback; chỉ authoritative dispatcher phát, retry không tạo intent mới hoặc đường direct-publish thứ hai;
-35. grant cleanup test với clock giả chứng minh owner/cadence/batch/30-day retention, audit preservation và ba metric không có high-cardinality/secret label.
+35. grant cleanup test với clock giả chứng minh owner/cadence/batch/30-day retention, audit preservation và ba metric không có high-cardinality/secret label;
+36. public-staging-ingress E2E test dùng broker `broker/one` và account `account/one`: Flutter-compatible `%2F` path đi qua toàn bộ proxy/Kestrel chain, route-decode đúng một lần, response giữ nguyên logical identity và activate giữ ba-way account-ID equality;
+37. security E2E test chứng minh `%252F`, raw slash, invalid percent encoding, `%5C`, dot-segment, casing variant và foreign-device request không double-decode, alias sang row khác hoặc bypass authorization;
+38. nếu nhánh A thất bại, migration/projection/contract test của nhánh B chứng minh mọi catalog/list/link/activate/bootstrap ID đều dùng cùng immutable segment-safe public mapping, internal slash ID không được nhận ở public route và rollback compatibility xanh.
 
 Test contract HTTP phải assert đúng method, route `/api/v2/mobile/...`, query, JSON casing, empty `{}` của activate và các header bắt buộc. Thêm regression test so sánh shape bootstrap activate với shape bootstrap canonical hiện có, không copy một DTO rút gọn vào test.
 
@@ -586,6 +619,8 @@ Cập nhật OpenAPI source/generated artifact thật tại `<DISCOVERED_OPENAPI
 - `reconnectGrant` là required non-null opaque string chỉ ở link success response; mô tả rõ cùng protected value có thể được re-deliver khi authenticated idempotency replay trong window, không issue grant mới;
 - linked-account DTO không có secret/hash;
 - các ID HTTP là opaque non-empty `type: string`; chỉ thêm `format: uuid` cho loại ID đã có evidence và compatibility test theo mục 3;
+- OpenAPI phải phản ánh **duy nhất nhánh ID đã chọn**. Nhánh A dùng logical example `broker/one` và `account/one`, đồng thời mô tả wire path `broker%2Fone`/`account%2Fone` cùng exactly-once decode. Nhánh B dùng segment-safe examples và regex/pattern `[A-Za-z0-9_-]+`; không trộn internal slash ID vào public example;
+- mô tả rõ không double-decode, không silent normalize và foreign-ID lookup vẫn trả `404` sau device-scoped authorization;
 - mô tả versioned keyed-HMAC fingerprint, password-only conflict, device scope, replay expiry và atomic grant revoke–replace mà không công bố key/digest;
 - activate bootstrap reference đúng canonical mobile bootstrap schema hiện có;
 - mô tả rõ virtual/demo-only và device isolation.
@@ -605,6 +640,7 @@ Tự review và ghi bằng chứng:
 - idempotency không lưu plaintext secret;
 - EF query không trả secret entity;
 - authorization nằm trước data disclosure và được recheck trong mutation transaction;
+- encoded separator/double-encoding không làm thay đổi identity, route selection hoặc bypass device authorization; ingress rule chỉ áp dụng đúng route đã review và không làm yếu route legacy;
 - SQL injection không thể xảy ra qua query/login;
 - catalog URL/logo được validate theo policy hiện có;
 - audit và SignalR payload không có secret;
@@ -648,6 +684,39 @@ Với link/activate smoke, tạo JSON bằng tool lấy secret từ environment/
 - restart service không mất link/active selection;
 - legacy `/ex/api/api/*` vẫn có baseline tương đương.
 
+### 13.1 Public-ingress encoded-slash staging gate
+
+Trước production deploy, chạy test với synthetic fixtures `broker/one` và `account/one` qua **public staging base**, không qua loopback/direct Kestrel. Dùng `--path-as-is` để curl không tự normalize URL. Ví dụ chỉ in các field identity không nhạy cảm:
+
+```bash
+set -euo pipefail
+: "${EXV2_STAGING_BASE_URL:?required}"
+: "${EXV2_STAGING_DEVICE_TOKEN:?required}"
+
+CORRELATION_ID="$(uuidgen)"
+curl --path-as-is --fail-with-body --silent --show-error \
+  -H "X-Device-Token: ${EXV2_STAGING_DEVICE_TOKEN}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  "${EXV2_STAGING_BASE_URL}/mobile/brokers/broker%2Fone/servers?query=" \
+  | jq 'map({id,brokerId,name})'
+
+CORRELATION_ID="$(uuidgen)"
+IDEMPOTENCY_KEY="$(uuidgen)"
+curl --path-as-is --fail-with-body --silent --show-error \
+  -X PUT \
+  -H "Content-Type: application/json" \
+  -H "X-Device-Token: ${EXV2_STAGING_DEVICE_TOKEN}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
+  --data-binary '{}' \
+  "${EXV2_STAGING_BASE_URL}/mobile/accounts/account%2Fone/activate" \
+  | jq '{accountId:.account.id,activeAccountId:.bootstrap.activeAccount.id,summaryAccountId:.bootstrap.summary.accountId}'
+```
+
+Test phải assert server response thuộc `broker/one`, và ba account ID đều đúng `account/one`. Đồng thời chạy negative probes `%252F`, raw slash, invalid encoding, `%5C`, dot-segment và foreign-device token; chúng không được resolve thành fixture slash ID hoặc vượt device scope. Thu thập bằng chứng từ ingress access log an toàn/raw-target diagnostics và application route-value assertion mà không log token.
+
+Nếu bất kỳ positive probe nào bị proxy/WAF/Kestrel reject, split hoặc normalize, **không sửa client và không tuyên bố nhánh A pass**. Chọn nhánh B, triển khai public ID segment-safe nhất quán, rồi smoke lại bằng ID lấy trực tiếp từ broker/account JSON. Assert ID match regex, link/activate chấp nhận đúng ID đó, bootstrap dùng cùng account ID, internal `broker/one`/`account/one` không được accept như public alias, và foreign-device authorization vẫn `404`. Ghi lại failure evidence nhánh A và success evidence nhánh B trong report/OpenAPI.
+
 Thực hiện rollback rehearsal bằng đúng `<DISCOVERED_ROLLBACK_DOC_OR_SCRIPT>` hoặc môi trường rehearsal được quy định. Ghi bằng chứng rollback app version và chiến lược database tương thích; không chạy destructive down-migration trên production nếu policy cấm. Sau rollback, health và legacy smoke phải xanh.
 
 ## 14. Definition of Done / acceptance checklist
@@ -663,7 +732,9 @@ Chỉ đánh dấu hoàn thành khi tất cả mục sau có bằng chứng:
 - [ ] Broker/server catalog filter ổn định và không chứa hard-coded video account data.
 - [ ] Link request đúng `brokerId`, `serverId`, `login`, `password`, `savePassword`.
 - [ ] List/link/activate response đúng field/casing Flutter model đang parse.
-- [ ] ID tại HTTP boundary là opaque non-empty string và hỗ trợ URI-encoded segment; GUID-only validation chỉ tồn tại khi report có source/OpenAPI/fixture evidence tương ứng.
+- [ ] ID tại HTTP boundary là opaque non-empty string; GUID-only validation chỉ tồn tại khi report có source/OpenAPI/fixture evidence tương ứng.
+- [ ] Đã chọn đúng một ID strategy: nhánh A có public-ingress `%2F` E2E proof qua actual proxy/Kestrel, hoặc nhánh B dùng immutable segment-safe public IDs nhất quán trong catalog/list/link/activate/canonical bootstrap.
+- [ ] Exactly-once decode và negative `%252F`/raw slash/invalid encoding/`%5C`/dot-segment/foreign-device tests chứng minh không normalization mismatch, alias hoặc authorization bypass.
 - [ ] Activate nhận body `{}` và trả `account + bootstrap` canonical đầy đủ.
 - [ ] Ba account ID trong activate response luôn giống nhau.
 - [ ] Password dùng existing salted hasher; plaintext không persist/log.
@@ -678,7 +749,7 @@ Chỉ đánh dấu hoàn thành khi tất cả mục sau có bằng chứng:
 - [ ] Activation persist outbox intent trong transaction; authoritative outbox dispatcher duy nhất publish `ActiveAccountChanged` sau commit, không có direct double-publish; failure/retry có bằng chứng.
 - [ ] Grant cleanup có owner, cadence 60 phút, batch 1.000, retention 30 ngày, integration test và metrics không chứa secret/high-cardinality label.
 - [ ] Structured `400/401/404/409/422/429/500` có correlation ID và không có secret; `429` có `Retry-After`.
-- [ ] OpenAPI đã update/validate và legacy `/ex/api/api/*` không đổi.
+- [ ] OpenAPI chỉ mô tả strategy ID đã chọn, có đúng logical/wire examples, và legacy `/ex/api/api/*` không đổi.
 - [ ] Migration script đã review, deploy staging thành công, smoke test qua public ingress xanh.
 - [ ] Có commit/image/migration/health/SignalR/legacy/rollback evidence.
 - [ ] Không kết nối hoặc giả mạo tài khoản Exness/MetaQuotes thật.
@@ -701,7 +772,8 @@ Tạo một implementation report trong repository EX V2, theo convention docs h
 12. rollback rehearsal/evidence;
 13. legacy `/ex/api/api/*` regression evidence;
 14. ID-type evidence: opaque string compatibility, hoặc source/OpenAPI/fixture evidence nếu đã dùng GUID validation;
-15. cleanup owner/cadence/batch/retention/test/metric evidence;
-16. unresolved concerns và follow-up có owner rõ ràng.
+15. public-ingress chain/config và encoded-slash decision evidence: nhánh A positive/negative raw-path + exactly-once decode/authorization probes, hoặc nhánh A failure và nhánh B segment-safe mapping/compatibility proof;
+16. cleanup owner/cadence/batch/retention/test/metric evidence;
+17. unresolved concerns và follow-up có owner rõ ràng.
 
 Trước khi kết thúc, quét source, migration, test, OpenAPI, report và log artifact để chắc chắn không có credential/token/grant thật; chạy `git diff --check`; kiểm tra `git status`; chỉ commit đúng phạm vi EX V2 đã review.
