@@ -80,15 +80,24 @@ class SectionScreen extends StatelessWidget {
   }
 }
 
-class _SymbolPropertiesScreen extends StatelessWidget {
+class _SymbolPropertiesScreen extends ConsumerWidget {
   const _SymbolPropertiesScreen({required this.title, required this.symbol});
 
   final String title;
   final String symbol;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isGold = symbol.startsWith('XAUUSD');
+    final accounts = ref.watch(demoAccountsProvider);
+    final activeAccountId = ref.watch(activeDemoAccountIdProvider);
+    final account = accounts
+        .where((candidate) => candidate.id == activeAccountId)
+        .firstOrNull;
+    final priceSource = account?.company ?? accounts.firstOrNull?.company;
+    final displayPriceSource = priceSource == null || priceSource.trim().isEmpty
+        ? '—'
+        : priceSource;
     final rows = <(String, String)>[
       (isGold ? 'Gold US Dollar' : _symbolName(symbol), ''),
       ('Chu so', isGold ? '2' : '5'),
@@ -112,13 +121,13 @@ class _SymbolPropertiesScreen extends StatelessWidget {
       ('Buoc khoi luong', '0.01'),
       ('Gioi han khoi luong', '0.00'),
       ('Loai Swap', 'Theo diem'),
-      ('Swap lenh mua', '-41.36'),
-      ('Swap lenh ban', '24.24'),
+      ('Swap lenh mua', '—'),
+      ('Swap lenh ban', '—'),
       ('Phi Swap gap ba', 'Thu Tu'),
       ('Ky quy ban dau', '0.00'),
       ('Ky quy duy tri', '0.00'),
-      ('Ky quy phong toa', '50.00'),
-      ('Ty le ky quy', '100.00%'),
+      ('Ky quy phong toa', '—'),
+      ('Ty le ky quy', '—'),
       ('Phien bao gia', ''),
       ('Thu Hai', '01:00 - 23:59'),
       ('Thu Ba', '01:00 - 23:59'),
@@ -131,7 +140,7 @@ class _SymbolPropertiesScreen extends StatelessWidget {
       ('Thu Tu', '01:00 - 23:59'),
       ('Thu Nam', '01:00 - 23:59'),
       ('Thu Sau', '01:00 - 23:59'),
-      ('Nguon gia', 'Vantage'),
+      ('Nguon gia', displayPriceSource),
       ('Danh muc', 'Metals'),
       ('San giao dich', 'OTC'),
       ('Trang web', ''),
@@ -252,6 +261,7 @@ class _SymbolPropertiesScreen extends StatelessWidget {
                               offset: const Offset(0, -2.5),
                               child: Text(
                                 rows[index].$2,
+                                key: _symbolPropertyValueKey(rows[index].$1),
                                 maxLines: 2,
                                 textAlign: TextAlign.end,
                                 style: const TextStyle(
@@ -468,16 +478,15 @@ class _MarketStatisticsScreen extends ConsumerWidget {
       liveQuote?.bid ?? fallbackQuote.$1,
       liveQuote?.ask ?? fallbackQuote.$2,
     );
-    final isGold = symbol.startsWith('XAUUSD');
     final rows = <(String, String)>[
       ('Giá mua', _formatPrice(quote.$1)),
       ('Giá bán', _formatPrice(quote.$2)),
-      ('Giá cuối', _formatPrice((quote.$1 + quote.$2) / 2)),
-      ('Giá mở cửa', isGold ? '4063.33' : _formatPrice(quote.$1 * .997)),
-      ('Giá cao nhất', isGold ? '4115.79' : _formatPrice(quote.$2 * 1.02)),
-      ('Giá thấp nhất', isGold ? '3959.93' : _formatPrice(quote.$1 * .98)),
-      ('Khối lượng', '0'),
-      ('Số tick', isGold ? '6 336' : '1 247'),
+      ('Giá cuối', '—'),
+      ('Giá mở cửa', '—'),
+      ('Giá cao nhất', '—'),
+      ('Giá thấp nhất', '—'),
+      ('Khối lượng', '—'),
+      ('Số tick', '—'),
     ];
     return Scaffold(
       appBar: AppBar(title: Text(title)),
@@ -495,6 +504,15 @@ class _MarketStatisticsScreen extends ConsumerWidget {
     );
   }
 }
+
+Key? _symbolPropertyValueKey(String label) => switch (label) {
+  'Swap lenh mua' => const Key('symbol-property-swap-long-value'),
+  'Swap lenh ban' => const Key('symbol-property-swap-short-value'),
+  'Ky quy phong toa' => const Key('symbol-property-blocked-margin-value'),
+  'Ty le ky quy' => const Key('symbol-property-margin-rate-value'),
+  'Nguon gia' => const Key('symbol-property-price-source-value'),
+  _ => null,
+};
 
 (double, double) _symbolQuote(String symbol) => switch (symbol) {
   'XAUUSD' || 'XAUUSD+' => (2000.00, 2000.20),

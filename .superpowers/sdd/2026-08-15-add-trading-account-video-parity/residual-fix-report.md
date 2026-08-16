@@ -28,3 +28,29 @@ No backend or prompt files changed.
 ## Residual concerns
 
 - None in the requested mobile scope. The separately deployed EX V2 endpoints remain externally unverified, unchanged from the re-review assessment.
+
+## Final residual re-review closure
+
+The remaining `section_screen.dart` production-reference finding is closed.
+
+- Symbol properties now obtain the price source from the active account catalog. Hydrated server accounts therefore expose their real company name; an unavailable account produces the neutral `—` state. No EX V2 success state is synthesized.
+- Swap long/short, blocked margin, and margin rate no longer contain recorded values and render `—` because no authoritative symbol-specification provider exists.
+- Market bid and ask still use the existing quote provider. Unsupported last/open/high/low/volume/tick fields now render `—` instead of recorded or calculated fixture values.
+- The production source gate now includes every cited value: `-41.36`, `24.24`, `50.00`, `100.00%`, `Vantage`, `4063.33`, `4115.79`, `3959.93`, `6 336`, and `6336`.
+
+### TDD evidence
+
+- RED: the expanded source gate reported the nine actual `section_screen.dart` occurrences, and the widget tests could not find account-derived/unavailable values.
+- GREEN: the source gate plus new section behavior tests passed 3/3; the focused section suites passed 6/6.
+
+### Final verification
+
+- `flutter analyze --no-pub`: no issues found.
+- `flutter test --no-pub --concurrency=1`: 266 tests passed.
+- `flutter build apk --debug --no-pub`: built `build/app/outputs/flutter-apk/app-debug.apk` successfully.
+- Debug APK size: 159,925,059 bytes.
+- Debug APK SHA-256: `876789D89359A68A45B768BB372E731163D8CED557BABF997E8C6D0D85F194A9`.
+- Expanded exact-literal scan: 45 prohibited recorded account/server/financial/trade entries checked across `mobile/lib` and every extracted APK entry; source hits 0, APK hits 0. Numeric artifact checks use digit/decimal boundaries to avoid false matches inside unrelated compiled coordinates and native constants.
+- Repeatable gate: `scan-production-reference-data.ps1 -ApkPath mobile/build/app/outputs/flutter-apk/app-debug.apk` exits nonzero on either source or APK hits; the final run reported `LITERAL_COUNT=45`, `SOURCE_HIT_COUNT=0`, and `APK_HIT_COUNT=0`.
+
+No backend or prompt files changed. No additional mobile concerns remain for this residual finding.

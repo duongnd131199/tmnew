@@ -42,6 +42,15 @@ void main() {
         '2026.07.27 04:00:49',
         'Cash Adjustment-Debt W/O',
         'Transfer In from 32401745',
+        '-41.36',
+        '24.24',
+        '50.00',
+        '100.00%',
+        '4063.33',
+        '4115.79',
+        '3959.93',
+        '6 336',
+        '6336',
       };
       final hits = <String>[];
       for (final file
@@ -54,6 +63,9 @@ void main() {
           if (contents.contains(identifier)) {
             hits.add('${file.path}: $identifier');
           }
+        }
+        if (contents.contains("'Vantage'") || contents.contains('"Vantage"')) {
+          hits.add('${file.path}: Vantage string literal');
         }
       }
 
