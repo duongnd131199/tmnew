@@ -1,0 +1,375 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_radius.dart';
+import 'package:trading_mobile/core/theme/app_spacing.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
+import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
+import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_visuals.dart';
+
+class BrokerListScreen extends ConsumerStatefulWidget {
+  const BrokerListScreen({
+    this.onBrokerSelected,
+    this.onBrokerInfo,
+    this.onQrPressed,
+    super.key,
+  });
+
+  final ValueChanged<MobileBroker>? onBrokerSelected;
+  final ValueChanged<MobileBroker>? onBrokerInfo;
+  final VoidCallback? onQrPressed;
+
+  @override
+  ConsumerState<BrokerListScreen> createState() => _BrokerListScreenState();
+}
+
+class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
+  static const _searchDebounce = Duration(milliseconds: 280);
+
+  Timer? _debounce;
+  String _query = '';
+  String? _authoritativeQuery;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_loadCatalog(''));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final asyncState = ref.watch(accountLinkControllerProvider);
+    final state = asyncState.value;
+    final brokers = _locallyFiltered(state?.brokers ?? const []);
+    final loading =
+        asyncState.isLoading || state?.phase == AccountLinkPhase.loadingCatalog;
+    final failed = state?.phase == AccountLinkPhase.failed;
+
+    return Scaffold(
+      key: const Key('broker-list-screen'),
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _BrokerToolbar(
+              onBack: () => Navigator.of(context).maybePop(),
+              onQr: _handleQr,
+            ),
+            Expanded(
+              child: switch ((failed, loading, brokers.isEmpty)) {
+                (true, _, _) => _CatalogFailure(
+                  key: const Key('broker-catalog-error'),
+                  message: state?.errorMessage ?? 'Unable to link this account',
+                  retryKey: const Key('broker-catalog-retry'),
+                  onRetry: _retry,
+                ),
+                (false, true, true) => const Center(
+                  child: CircularProgressIndicator(
+                    key: Key('broker-catalog-loading'),
+                  ),
+                ),
+                (_, _, true) => Center(
+                  child: Text(
+                    'Không tìm thấy công ty',
+                    key: const Key('broker-catalog-empty'),
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                _ => ListView.builder(
+                  key: const Key('broker-list'),
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  itemCount: brokers.length,
+                  itemBuilder: (context, index) {
+                    final broker = brokers[index];
+                    return _BrokerRow(
+                      broker: broker,
+                      onTap: () => _selectBroker(broker),
+                      onInfo: () => _showBrokerInfo(broker),
+                    );
+                  },
+                ),
+              },
+            ),
+            SafeArea(
+              top: false,
+              minimum: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.xs,
+                AppSpacing.xl,
+                AppSpacing.md,
+              ),
+              child: TextField(
+                key: const Key('broker-search-field'),
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.search,
+                autocorrect: false,
+                onChanged: _search,
+                decoration: InputDecoration(
+                  hintText: 'Vui lòng nhập tên công ty hoặc máy chủ',
+                  hintMaxLines: 1,
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: AppColors.textPrimary,
+                  ),
+                  isDense: true,
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: AppRadius.pill,
+                    borderSide: const BorderSide(color: AppColors.divider),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: AppRadius.pill,
+                    borderSide: const BorderSide(color: AppColors.divider),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<MobileBroker> _locallyFiltered(List<MobileBroker> brokers) {
+    final normalized = _query.trim().toLowerCase();
+    if (_authoritativeQuery == normalized) return brokers;
+    if (normalized.isEmpty) return brokers;
+    return brokers
+        .where((broker) {
+          final searchable = [
+            broker.name,
+            broker.companyName,
+            broker.description,
+          ].whereType<String>().join(' ').toLowerCase();
+          return searchable.contains(normalized);
+        })
+        .toList(growable: false);
+  }
+
+  void _search(String value) {
+    setState(() => _query = value);
+    _debounce?.cancel();
+    _debounce = Timer(_searchDebounce, () {
+      if (!mounted) return;
+      unawaited(_loadCatalog(value.trim()));
+    });
+  }
+
+  void _retry() {
+    unawaited(_loadCatalog(_query.trim()));
+  }
+
+  Future<void> _loadCatalog(String query) async {
+    await ref
+        .read(accountLinkControllerProvider.notifier)
+        .loadCatalog(query: query);
+    if (!mounted || _query.trim().toLowerCase() != query.toLowerCase()) return;
+    setState(() => _authoritativeQuery = query.toLowerCase());
+  }
+
+  void _selectBroker(MobileBroker broker) {
+    _debounce?.cancel();
+    _debounce = null;
+    ref.read(accountLinkControllerProvider.notifier).selectBroker(broker);
+    final callback = widget.onBrokerSelected;
+    if (callback != null) {
+      callback(broker);
+      return;
+    }
+    context.push('/accounts/add/${Uri.encodeComponent(broker.id)}');
+  }
+
+  void _showBrokerInfo(MobileBroker broker) {
+    final callback = widget.onBrokerInfo;
+    if (callback != null) {
+      callback(broker);
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(broker.description ?? broker.companyName ?? broker.name),
+      ),
+    );
+  }
+
+  void _handleQr() {
+    final callback = widget.onQrPressed;
+    if (callback != null) {
+      callback();
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Nhập tài khoản bằng QR chưa được hỗ trợ')),
+    );
+  }
+}
+
+class _BrokerToolbar extends StatelessWidget {
+  const _BrokerToolbar({required this.onBack, required this.onQr});
+
+  final VoidCallback onBack;
+  final VoidCallback onQr;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 66,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        Text(
+          'Brokers',
+          style: AppTypography.titleMedium.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Positioned(
+          left: AppSpacing.md,
+          child: AccountLinkToolbarButton(
+            action: AccountLinkToolbarAction.back,
+            onTap: onBack,
+          ),
+        ),
+        Positioned(
+          right: AppSpacing.md,
+          child: AccountLinkToolbarButton(
+            action: AccountLinkToolbarAction.qr,
+            onTap: onQr,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _BrokerRow extends StatelessWidget {
+  const _BrokerRow({
+    required this.broker,
+    required this.onTap,
+    required this.onInfo,
+  });
+
+  final MobileBroker broker;
+  final VoidCallback onTap;
+  final VoidCallback onInfo;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 72,
+    child: Row(
+      children: [
+        const SizedBox(width: AppSpacing.md),
+        AccountLinkBrokerMark(broker: broker),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Material(
+            color: AppColors.transparent,
+            child: InkWell(
+              key: ValueKey('broker-row-${broker.id}'),
+              onTap: onTap,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      broker.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.titleMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontFamily: 'sans-serif',
+                        height: 1.05,
+                      ),
+                    ),
+                    if (broker.companyName case final company?) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        company,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.bodyLarge.copyWith(
+                          color: AppColors.textSecondary,
+                          fontFamily: 'sans-serif',
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        AccountLinkInfoButton(
+          key: ValueKey('broker-info-${broker.id}'),
+          onTap: onInfo,
+        ),
+        const SizedBox(width: AppSpacing.xs),
+      ],
+    ),
+  );
+}
+
+class _CatalogFailure extends StatelessWidget {
+  const _CatalogFailure({
+    required this.message,
+    required this.retryKey,
+    required this.onRetry,
+    super.key,
+  });
+
+  final String message;
+  final Key retryKey;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          OutlinedButton(
+            key: retryKey,
+            onPressed: onRetry,
+            child: const Text('Thử lại'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
