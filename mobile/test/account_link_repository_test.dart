@@ -1,0 +1,264 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:trading_mobile/features/account_link/data/account_link_repository.dart';
+import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
+import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
+
+void main() {
+  late _AccountLinkAdapter adapter;
+  late AccountLinkRepository repository;
+
+  setUp(() {
+    adapter = _AccountLinkAdapter();
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+      ..httpClientAdapter = adapter;
+    repository = AccountLinkRepository(
+      ExV2ApiClient(dio: dio, tokenReader: () async => 'device-token-1'),
+    );
+  });
+
+  test('broker discovery uses the exact mobile path and query', () async {
+    adapter.responses['GET /ex/v2/api/mobile/brokers'] = [
+      {
+        'id': 'broker-1',
+        'name': 'Example Markets',
+        'companyName': 'Example Markets Ltd',
+        'description': null,
+        'logoUrl': 42,
+      },
+    ];
+
+    final result = await repository.brokers(query: 'example');
+
+    final request = adapter.requests.single;
+    expect(request.method, 'GET');
+    expect(request.uri.path, '/ex/v2/api/mobile/brokers');
+    expect(request.uri.queryParameters, {'query': 'example'});
+    expect(request.headers['X-Device-Token'], 'device-token-1');
+    expect(request.headers['X-Correlation-Id'], isNotEmpty);
+    expect(result.single.id, 'broker-1');
+    expect(result.single.name, 'Example Markets');
+    expect(result.single.companyName, 'Example Markets Ltd');
+    expect(result.single.description, isNull);
+    expect(result.single.logoUrl, isNull);
+  });
+
+  test('server discovery scopes and escapes the broker id', () async {
+    adapter.responses['GET /ex/v2/api/mobile/brokers/broker%2Fone/servers'] = [
+      {
+        'id': 'server-1',
+        'name': 'Example-Demo',
+        'brokerId': 'broker/one',
+        'accountType': 'demo',
+      },
+    ];
+
+    final result = await repository.servers('broker/one', query: 'demo');
+
+    final request = adapter.requests.single;
+    expect(request.uri.path, '/ex/v2/api/mobile/brokers/broker%2Fone/servers');
+    expect(request.uri.queryParameters, {'query': 'demo'});
+    expect(result.single.id, 'server-1');
+    expect(result.single.name, 'Example-Demo');
+  });
+
+  test('linked accounts never deserialize credential fields', () async {
+    adapter.responses['GET /ex/v2/api/mobile/accounts'] = [
+      {
+        'id': 'account-1',
+        'brokerId': 'broker-1',
+        'brokerName': 'Example Markets',
+        'serverId': 'server-1',
+        'serverName': 'Example-Demo',
+        'login': '100001',
+        'displayName': 'Demo account',
+        'currency': 'USD',
+        'isActive': true,
+        'password': 'must-not-escape',
+        'reconnectGrant': 'must-not-escape',
+      },
+    ];
+
+    final result = await repository.accounts();
+
+    expect(adapter.requests.single.uri.path, '/ex/v2/api/mobile/accounts');
+    final account = result.single;
+    expect(account.id, 'account-1');
+    expect(account.isActive, isTrue);
+    expect(
+      account.toJson().keys,
+      isNot(containsAll(<String>['password', 'reconnectGrant'])),
+    );
+  });
+
+  test('link sends exact JSON and command headers', () async {
+    adapter.responses['POST /ex/v2/api/mobile/accounts/link'] = {
+      'account': _linkedAccountJson,
+      'reconnectGrant': 'opaque-grant-1',
+      'alreadyLinked': false,
+      'password': 'must-not-escape',
+    };
+    const metadata = ExV2CommandMetadata(
+      idempotencyKey: 'idem-link-1',
+      correlationId: 'corr-link-1',
+    );
+
+    final result = await repository.link(
+      const LinkAccountRequest(
+        brokerId: 'broker-1',
+        serverId: 'server-1',
+        login: '100001',
+        password: 'transient-password',
+        savePassword: true,
+      ),
+      metadata: metadata,
+    );
+
+    final request = adapter.requests.single;
+    expect(request.method, 'POST');
+    expect(request.uri.path, '/ex/v2/api/mobile/accounts/link');
+    expect(request.headers['X-Device-Token'], 'device-token-1');
+    expect(request.headers['Idempotency-Key'], 'idem-link-1');
+    expect(request.headers['X-Correlation-Id'], 'corr-link-1');
+    expect(request.data, {
+      'brokerId': 'broker-1',
+      'serverId': 'server-1',
+      'login': '100001',
+      'password': 'transient-password',
+      'savePassword': true,
+    });
+    expect(result.account.toJson().containsKey('password'), isFalse);
+    expect(result.reconnectGrant, 'opaque-grant-1');
+  });
+
+  test(
+    'activate uses exact path, empty JSON body, and parses bootstrap',
+    () async {
+      adapter
+          .responses['PUT /ex/v2/api/mobile/accounts/account%2Fone/activate'] = {
+        'account': _linkedAccountJson,
+        'bootstrap': _bootstrapJson,
+      };
+      const metadata = ExV2CommandMetadata(
+        idempotencyKey: 'idem-activate-1',
+        correlationId: 'corr-activate-1',
+      );
+
+      final result = await repository.activate(
+        'account/one',
+        metadata: metadata,
+      );
+
+      final request = adapter.requests.single;
+      expect(
+        request.uri.path,
+        '/ex/v2/api/mobile/accounts/account%2Fone/activate',
+      );
+      expect(request.method, 'PUT');
+      expect(request.data, isEmpty);
+      expect(request.headers['Idempotency-Key'], 'idem-activate-1');
+      expect(request.headers['X-Correlation-Id'], 'corr-activate-1');
+      expect(result.bootstrap.account.id, 'account-1');
+      expect(result.bootstrap.summary.accountId, 'account-1');
+    },
+  );
+
+  test('catalog models reject missing required ids and names', () {
+    expect(
+      () => MobileBroker.fromJson(const {'id': '', 'name': 'Broker'}),
+      throwsFormatException,
+    );
+    expect(
+      () => MobileTradingServer.fromJson(const {'id': 'server-1'}),
+      throwsFormatException,
+    );
+  });
+}
+
+final class _AccountLinkAdapter implements HttpClientAdapter {
+  final Map<String, Object?> responses = <String, Object?>{};
+  final List<RequestOptions> requests = <RequestOptions>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(options);
+    final key = '${options.method} ${options.uri.path}';
+    final body = responses[key];
+    if (!responses.containsKey(key)) {
+      return ResponseBody.fromString('missing fixture for $key', 500);
+    }
+    return ResponseBody.fromString(
+      jsonEncode(body),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+const _linkedAccountJson = <String, Object?>{
+  'id': 'account-1',
+  'brokerId': 'broker-1',
+  'brokerName': 'Example Markets',
+  'serverId': 'server-1',
+  'serverName': 'Example-Demo',
+  'login': '100001',
+  'displayName': 'Demo account',
+  'currency': 'USD',
+  'isActive': true,
+};
+
+const _bootstrapJson = <String, Object?>{
+  'serverTime': '2026-08-15T08:00:00Z',
+  'version': 2,
+  'device': {'id': 'device-1', 'name': 'Phone'},
+  'activeAccount': {
+    'id': 'account-1',
+    'accountCode': '100001',
+    'name': 'Demo account',
+    'currency': 'USD',
+    'status': 'active',
+  },
+  'summary': {
+    'accountId': 'account-1',
+    'currency': 'USD',
+    'balance': 0,
+    'equity': 0,
+    'profit': 0,
+    'margin': 0,
+    'freeMargin': 0,
+    'marginLevel': 0,
+    'updatedAt': '2026-08-15T08:00:00Z',
+  },
+  'positions': <Object?>[],
+  'pendingOrders': <Object?>[],
+  'recentDeals': <Object?>[],
+  'wallet': {
+    'currency': 'USD',
+    'availableBalance': 0,
+    'lockedBalance': 0,
+    'totalBalance': 0,
+  },
+  'performance': {
+    'netProfit': 0,
+    'grossProfit': 0,
+    'grossLoss': 0,
+    'floatingProfit': 0,
+    'tradingVolume': 0,
+    'updatedAt': null,
+    'integrityWarnings': 0,
+  },
+  'connection': {'marketFeedStatus': 'connected', 'lastMarketTickAt': null},
+  'integrityWarnings': 0,
+};
