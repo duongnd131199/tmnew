@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/features/chart/data/chart_market_warmup_provider.dart';
+import 'package:trading_mobile/features/market_watch/presentation/screens/market_watch_screen.dart';
+import 'package:trading_mobile/features/market_watch/data/data_sources/realtime_market_service.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
@@ -14,6 +16,7 @@ import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/providers/realtime_market_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
 
 void main() {
@@ -61,6 +64,10 @@ void main() {
     );
     await tester.pump();
     expect(find.text('captured:LOGIN-A'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<(String?, int)>(('account-a', 0))),
+      findsOneWidget,
+    );
 
     container
         .read(exV2AccountProvider.notifier)
@@ -73,6 +80,10 @@ void main() {
     expect(find.byKey(const Key('account-scope-resetting')), findsOneWidget);
     await tester.pump();
     expect(find.text('captured:LOGIN-B'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<(String?, int)>(('account-b', 1))),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -94,6 +105,9 @@ void main() {
           exV2DioProvider.overrideWithValue(dio),
           deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
           chartMarketWarmupProvider.overrideWith((ref) async {}),
+          marketConnectionStatusProvider.overrideWith(
+            (ref) => Stream.value(MarketConnectionStatus.connected),
+          ),
           exV2AccountProvider.overrideWithBuild(
             (ref, controller) =>
                 ExV2AccountViewState.fromBootstrap(
@@ -126,7 +140,7 @@ void main() {
             builder: (context, state, navigationShell) =>
                 AppShell(navigationShell: navigationShell),
             branches: [
-              _branch('/market', const _MarketProbe(), 'Market'),
+              _branch('/market', const MarketWatchScreen(), 'Market'),
               _branch('/chart', const _ChartProbe(), 'Chart'),
               _branch('/trade', const _TradeProbe(), 'Trade'),
               _branch('/history', const _HistoryProbe(), 'History'),
@@ -172,6 +186,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      container.read(marketSymbolsProvider.notifier).add('AUDNOK');
+      await tester.pump();
+      expect(find.text('AUDNOK'), findsOneWidget);
+
       for (final deepPath in const [
         '/market/deep',
         '/chart/deep',
@@ -196,7 +214,7 @@ void main() {
       expect(find.text('Settings:B'), findsOneWidget);
 
       for (final tab in const [
-        ('Gia', '/market', 'Market:B-SYMBOL'),
+        ('Gia', '/market', 'XAUUSD+'),
         ('Bieu do', '/chart', 'Chart:LOGIN-B'),
         ('Giao dich', '/trade', 'Trade:position-b'),
         ('Lich su', '/history', 'History:'),
@@ -207,6 +225,9 @@ void main() {
         expect(router.state.uri.path, tab.$2, reason: tab.$1);
         expect(find.text(tab.$3), findsOneWidget, reason: tab.$1);
         expect(find.textContaining('deep:LOGIN-A'), findsNothing);
+        if (tab.$2 == '/market') {
+          expect(find.text('AUDNOK'), findsNothing);
+        }
       }
 
       router.push('/wallet');
@@ -267,15 +288,6 @@ class _DeepAccountProbeState extends ConsumerState<_DeepAccountProbe> {
   @override
   Widget build(BuildContext context) =>
       Scaffold(body: Text('${widget.label} deep:$_captured'));
-}
-
-class _MarketProbe extends ConsumerWidget {
-  const _MarketProbe();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
-    body: Text('Market:${ref.watch(demoPositionsProvider).single.symbol}'),
-  );
 }
 
 class _ChartProbe extends ConsumerWidget {

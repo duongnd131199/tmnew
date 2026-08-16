@@ -7,6 +7,7 @@ import 'package:trading_mobile/features/account_link/data/account_link_repositor
 import 'package:trading_mobile/features/account_link/data/account_reconnect_grant_store.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
+import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 
 void main() {
@@ -119,24 +120,47 @@ void main() {
   test('activation publishes one complete bootstrap before success', () async {
     final events = <String>[];
     final repository = _FakeRepository(events: events);
-    final harness = await _harness(
-      repository: repository,
-      onBootstrap: (bootstrap) {
-        expect(bootstrap.account.id, bootstrap.summary.accountId);
-        events.add('publish:${bootstrap.account.id}');
-      },
-    );
+    final harness = await _harness(repository: repository);
     addTearDown(harness.dispose);
 
     await harness.controller.submit();
-    events.add('state:${harness.state.phase.name}');
 
-    expect(events, [
-      'link',
-      'activate:account-1',
-      'publish:account-1',
-      'state:succeeded',
-    ]);
+    expect(events, ['link', 'activate:account-1']);
+    expect(harness.state.phase, AccountLinkPhase.succeeded);
+    final published = harness.container.read(exV2AccountProvider).requireValue!;
+    expect(published.bootstrap.account.id, 'account-1');
+    expect(
+      published.bootstrap.account.id,
+      published.bootstrap.summary.accountId,
+    );
+  });
+
+  test('a stale activation publication cannot report link success', () async {
+    final repository = _FakeRepository();
+    final harness = await _harness(repository: repository);
+    addTearDown(harness.dispose);
+    harness.container
+        .read(exV2AccountProvider.notifier)
+        .publishBootstrap(
+          ExV2Bootstrap.fromJson(
+            _bootstrapForAccount('account-2', '200002', version: 3),
+          ),
+          operationAuthority: 5,
+        );
+
+    final result = await harness.controller.submit();
+
+    expect(result, isNull);
+    expect(harness.state.phase, AccountLinkPhase.failed);
+    expect(
+      harness.container
+          .read(exV2AccountProvider)
+          .requireValue
+          ?.bootstrap
+          .account
+          .id,
+      'account-2',
+    );
   });
 
   test('a slower broker query cannot overwrite a newer query', () async {
@@ -205,16 +229,12 @@ Future<_Harness> _harness({
   required _FakeRepository repository,
   AccountReconnectGrantStore? grantStore,
   bool savePassword = true,
-  void Function(ExV2Bootstrap bootstrap)? onBootstrap,
 }) async {
   final container = ProviderContainer(
     overrides: [
       accountLinkRepositoryProvider.overrideWithValue(repository),
       accountReconnectGrantStoreProvider.overrideWithValue(
         grantStore ?? _MemoryGrantStore(),
-      ),
-      accountLinkBootstrapPublisherProvider.overrideWithValue(
-        onBootstrap ?? (_) {},
       ),
     ],
   );
@@ -224,7 +244,11 @@ Future<_Harness> _harness({
     const MobileBroker(id: 'broker-1', name: 'Example Markets'),
   );
   controller.selectServer(
-    const MobileTradingServer(id: 'server-1', name: 'Example-Demo'),
+    const MobileTradingServer(
+      id: 'server-1',
+      name: 'Example-Demo',
+      brokerId: 'broker-1',
+    ),
   );
   controller.updateLogin('100001');
   controller.updatePassword('transient-password');
@@ -258,7 +282,7 @@ final class _FakeRepository implements AccountLinkRepository {
   final Completer<void>? activateGate;
   final Object? linkError;
   final bool alreadyLinked;
-  final String? reconnectGrant;
+  final String reconnectGrant;
   final List<String>? events;
   int linkCalls = 0;
   int activateCalls = 0;
@@ -414,4 +438,22 @@ const _bootstrapJson = <String, Object?>{
   },
   'connection': {'marketFeedStatus': 'connected', 'lastMarketTickAt': null},
   'integrityWarnings': 0,
+};
+
+Map<String, Object?> _bootstrapForAccount(
+  String id,
+  String code, {
+  required int version,
+}) => {
+  ..._bootstrapJson,
+  'version': version,
+  'activeAccount': {
+    ..._bootstrapJson['activeAccount']! as Map<String, Object?>,
+    'id': id,
+    'accountCode': code,
+  },
+  'summary': {
+    ..._bootstrapJson['summary']! as Map<String, Object?>,
+    'accountId': id,
+  },
 };

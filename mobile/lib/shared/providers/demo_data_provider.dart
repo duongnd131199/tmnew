@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
@@ -500,7 +501,7 @@ final demoQuoteProvider = StreamProvider.family<DemoQuote, String>((
   );
   final activeAccountId = ref.watch(activeDemoAccountIdProvider);
   final accountAdjusted =
-      activeAccountId == '463696038' &&
+      activeAccountId == _largeDemoAccountId &&
           (symbol == 'XAUUSD+' || symbol == 'XAUUSD')
       ? DemoQuote(
           symbol: initial.symbol,
@@ -519,15 +520,20 @@ final demoQuoteProvider = StreamProvider.family<DemoQuote, String>((
   return ref.watch(mockQuoteServiceProvider).watchQuote(accountAdjusted);
 });
 
+const _primaryDemoAccountId = '10001001';
+const _largeDemoAccountId = '10001002';
+const _emptyDemoAccountId = '10001003';
+const _alternateDemoAccountId = '10001004';
+
 const demoAccountProfiles = <DemoAccountProfile>[
   DemoAccountProfile(
-    id: '28210230',
-    name: 'Delete',
-    company: 'Vantage Markets (Pty) Ltd',
-    server: 'VantageMarkets-Live 19',
-    accessPoint: 'AS01',
+    id: _primaryDemoAccountId,
+    name: 'Demo Account One',
+    company: 'Demo Markets Ltd',
+    server: 'Demo-Live-01',
+    accessPoint: 'Demo Access 01',
     balance: 2292.60,
-    brand: DemoBrokerBrand.vantage,
+    brand: DemoBrokerBrand.unknown,
     historyDeposit: 318441.72,
     historyWithdrawal: -325690.38,
     historyProfit: 21081.96,
@@ -536,13 +542,13 @@ const demoAccountProfiles = <DemoAccountProfile>[
     historyBalance: 2301.60,
   ),
   DemoAccountProfile(
-    id: '463696038',
-    name: 'Mỗi Ngày Một Tỷ 🍀',
-    company: 'Exness Technologies Ltd',
-    server: 'Exness-MT5Trial17',
-    accessPoint: 'Access Point #2',
+    id: _largeDemoAccountId,
+    name: 'Demo Account Two',
+    company: 'Demo Markets Ltd',
+    server: 'Demo-Trial-02',
+    accessPoint: 'Demo Access 02',
     balance: 27297978.10,
-    brand: DemoBrokerBrand.exness,
+    brand: DemoBrokerBrand.unknown,
     historyDeposit: 12000119,
     historyWithdrawal: 0,
     historyProfit: 15297859.10,
@@ -552,13 +558,13 @@ const demoAccountProfiles = <DemoAccountProfile>[
     isDemo: true,
   ),
   DemoAccountProfile(
-    id: '425302695',
-    name: 'Mỗi Ngày Một Tỷ 🍀',
-    company: 'Exness Technologies Ltd',
-    server: 'Exness-MT5Real15',
-    accessPoint: 'Access Point #14',
+    id: _emptyDemoAccountId,
+    name: 'Demo Account Three',
+    company: 'Sample Markets Ltd',
+    server: 'Sample-Live-03',
+    accessPoint: 'Demo Access 03',
     balance: 0,
-    brand: DemoBrokerBrand.exness,
+    brand: DemoBrokerBrand.unknown,
     historyDeposit: 0,
     historyWithdrawal: 0,
     historyProfit: 0,
@@ -567,13 +573,13 @@ const demoAccountProfiles = <DemoAccountProfile>[
     historyBalance: 0,
   ),
   DemoAccountProfile(
-    id: '425297911',
-    name: 'Mỗi Ngày 10.000\$ 🍀',
-    company: 'Exness Technologies Ltd',
-    server: 'Exness-MT5Real15',
-    accessPoint: 'Access Point #14',
+    id: _alternateDemoAccountId,
+    name: 'Demo Account Four',
+    company: 'Sample Markets Ltd',
+    server: 'Sample-Live-04',
+    accessPoint: 'Demo Access 04',
     balance: 0,
-    brand: DemoBrokerBrand.exness,
+    brand: DemoBrokerBrand.unknown,
     historyDeposit: 0,
     historyWithdrawal: 0,
     historyProfit: 0,
@@ -647,12 +653,11 @@ final class LinkedTradingAccountsController
 
     _activationInFlight = true;
     try {
-      final result = await ref
-          .read(accountLinkRepositoryProvider)
+      final activation = await ref
+          .read(accountActivationCoordinatorProvider.notifier)
           .activate(accountId, metadata: ExV2CommandMetadata.create());
       if (!ref.mounted) return null;
-      ref.read(exV2AccountProvider.notifier).publishBootstrap(result.bootstrap);
-      return result;
+      return activation.accepted ? activation.result : null;
     } finally {
       _activationInFlight = false;
     }
@@ -1727,9 +1732,12 @@ class DemoTradingController extends Notifier<DemoTradingState> {
 
 DemoTradingState _buildAccountTradingFixture(String accountId) {
   return switch (accountId) {
-    '463696038' => _hugeAccountFixture(),
-    '425302695' ||
-    '425297911' => const DemoTradingState(positions: [], deals: [], balance: 0),
+    _largeDemoAccountId => _hugeAccountFixture(),
+    _emptyDemoAccountId || _alternateDemoAccountId => const DemoTradingState(
+      positions: [],
+      deals: [],
+      balance: 0,
+    ),
     _ => _smallAccountFixture(),
   };
 }
@@ -1740,7 +1748,7 @@ DemoTradingState _smallAccountFixture() {
   final positions = [
     for (var index = 0; index < openPrices.length; index++)
       DemoPosition(
-        id: '28210230${(index + 1).toString().padLeft(2, '0')}',
+        id: '$_primaryDemoAccountId${(index + 1).toString().padLeft(2, '0')}',
         symbol: 'XAUUSD+',
         side: 'BUY',
         volume: .25,
@@ -1896,7 +1904,7 @@ DemoTradingState _hugeAccountFixture() {
   final positions = [
     for (var index = 0; index < openPrices.length; index++)
       DemoPosition(
-        id: '463696038${(index + 1).toString().padLeft(2, '0')}',
+        id: '$_largeDemoAccountId${(index + 1).toString().padLeft(2, '0')}',
         symbol: 'XAUUSD',
         side: 'BUY',
         volume: 179,
@@ -2055,9 +2063,9 @@ final demoAccountProvider = Provider<DemoAccountSnapshot>((ref) {
     (total, position) => total + position.profit,
   );
   final margin = switch (account.id) {
-    '28210230' =>
+    _primaryDemoAccountId =>
       trading.positions.isEmpty ? 0.0 : 1231.48 * trading.positions.length / 6,
-    '463696038' =>
+    _largeDemoAccountId =>
       trading.positions.isEmpty
           ? 0.0
           : 1470684.33 * trading.positions.length / 10,
@@ -2156,21 +2164,34 @@ final chartObjectsProvider =
     );
 
 class MarketSymbolsController extends Notifier<List<String>> {
+  final Map<String, List<String>> _symbolsByAccount = <String, List<String>>{};
+  late String _accountScope;
+
   @override
-  List<String> build() => const ['XAUUSD+', 'BTCUSD'];
+  List<String> build() {
+    final serverMode = ref.watch(exV2EnabledProvider);
+    final accountId = serverMode
+        ? ref.watch(exV2AccountGenerationProvider).accountId
+        : ref.watch(activeDemoAccountIdProvider);
+    _accountScope = '${serverMode ? 'server' : 'demo'}:${accountId ?? 'none'}';
+    return _symbolsByAccount.putIfAbsent(
+      _accountScope,
+      () => _serverSelectedSymbols() ?? const ['XAUUSD+', 'BTCUSD'],
+    );
+  }
 
   void add(String symbol) {
-    if (!state.contains(symbol)) state = [...state, symbol];
+    if (!state.contains(symbol)) _commit([...state, symbol]);
   }
 
   void remove(String symbol) {
-    state = state.where((item) => item != symbol).toList();
+    _commit(state.where((item) => item != symbol).toList());
   }
 
   void removeAll(Iterable<String> symbols) {
     final removed = symbols.toSet();
     if (removed.isEmpty) return;
-    state = state.where((item) => !removed.contains(item)).toList();
+    _commit(state.where((item) => !removed.contains(item)).toList());
   }
 
   void reorder(int oldIndex, int newIndex) {
@@ -2178,7 +2199,26 @@ class MarketSymbolsController extends Notifier<List<String>> {
     final items = [...state];
     final item = items.removeAt(oldIndex);
     items.insert(newIndex, item);
-    state = items;
+    _commit(items);
+  }
+
+  List<String>? _serverSelectedSymbols() {
+    final settings = ref.read(exV2AccountProvider).value?.settings;
+    final value = settings?['marketSymbols'] ?? settings?['watchlist'];
+    if (value is! List) return null;
+    final symbols = value
+        .whereType<String>()
+        .map((symbol) => symbol.trim().toUpperCase())
+        .where((symbol) => symbol.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    return symbols.isEmpty ? null : List.unmodifiable(symbols);
+  }
+
+  void _commit(List<String> symbols) {
+    final next = List<String>.unmodifiable(symbols);
+    _symbolsByAccount[_accountScope] = next;
+    state = next;
   }
 }
 

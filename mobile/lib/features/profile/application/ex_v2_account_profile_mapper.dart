@@ -3,18 +3,25 @@ import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/profile/domain/account_presentation_profile.dart';
 
 abstract final class ExV2AccountProfileMapper {
-  static AccountPresentationMetadata metadata(JsonMap settings) {
+  static AccountPresentationMetadata metadata(
+    JsonMap settings, {
+    ExV2AccountPresentation? presentation,
+  }) {
+    final companyName =
+        _text(settings, const ['brokerCompany', 'companyName', 'company']) ??
+        presentation?.companyName ??
+        'Unavailable';
+    final tradingServer =
+        _text(settings, const ['tradingServer', 'mt5Server', 'server']) ??
+        presentation?.tradingServer ??
+        'Unavailable';
     return AccountPresentationMetadata(
-      companyName:
-          _text(settings, const ['brokerCompany', 'companyName', 'company']) ??
-          'Exness Technologies Ltd',
-      tradingServer:
-          _text(settings, const ['tradingServer', 'mt5Server', 'server']) ??
-          'Exness-MT5Real20',
+      companyName: companyName,
+      tradingServer: tradingServer,
       accessPoint:
           _text(settings, const ['accessPoint', 'mt5AccessPoint']) ??
-          'Access Point #9',
-      brand: DemoBrokerBrand.exness,
+          'Unavailable',
+      brand: _brand('${presentation?.brokerId ?? ''} $companyName'),
       accountMode:
           _text(settings, const ['accountMode', 'positionMode']) ?? 'Hedge',
       isMaster: _bool(settings, 'isMaster') ?? true,
@@ -23,7 +30,10 @@ abstract final class ExV2AccountProfileMapper {
 
   static DemoAccountProfile map(ExV2AccountViewState state) {
     final account = state.bootstrap.account;
-    final presentation = metadata(state.settings);
+    final presentation = metadata(
+      state.settings,
+      presentation: state.presentation,
+    );
     return DemoAccountProfile(
       id: account.accountCode,
       linkedAccountId: account.id,
@@ -65,5 +75,12 @@ abstract final class ExV2AccountProfileMapper {
       };
     }
     return null;
+  }
+
+  static DemoBrokerBrand _brand(String value) {
+    final normalized = value.toLowerCase();
+    if (normalized.contains('exness')) return DemoBrokerBrand.exness;
+    if (normalized.contains('vantage')) return DemoBrokerBrand.vantage;
+    return DemoBrokerBrand.unknown;
   }
 }

@@ -56,9 +56,9 @@ void main() {
     final accounts = container.read(demoAccountsProvider);
     expect(accounts, hasLength(1));
     expect(accounts.single.id, 'TEST-100');
-    expect(accounts.single.company, 'Exness Technologies Ltd');
-    expect(accounts.single.server, 'Exness-MT5Real20');
-    expect(accounts.single.accessPoint, 'Access Point #9');
+    expect(accounts.single.company, 'Unavailable');
+    expect(accounts.single.server, 'Unavailable');
+    expect(accounts.single.accessPoint, 'Unavailable');
   });
 
   test('bootstrap becomes visible before slower history endpoints', () async {
@@ -509,6 +509,7 @@ final class _AccountSwitchAdapter implements HttpClientAdapter {
 
 Map<String, Object?> _bootstrapForAccount(String id, String code) => {
   ..._bootstrap,
+  'version': id == 'account-1' ? 1 : 2,
   'activeAccount': {
     ..._bootstrap['activeAccount']! as Map<String, Object?>,
     'id': id,

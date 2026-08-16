@@ -119,6 +119,8 @@ final class ExV2AccountGeneration {
   int get hashCode => Object.hash(accountId, value);
 }
 
+enum ExV2BootstrapPublication { committed, idempotentReplay, rejectedStale }
+
 /// A stable UI generation that advances only after a different account
 /// bootstrap has been committed to [exV2AccountProvider]. Loading, refresh
 /// errors, and same-account bootstrap refreshes leave this token unchanged.
@@ -160,6 +162,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   bool _realtimeStarted = false;
   int _loadGeneration = 0;
   int _accountGeneration = 0;
+  int _publishedActivationAuthority = 0;
   final Set<String> _optimisticHiddenPositionIds = <String>{};
   final Set<String> _optimisticHiddenOrderIds = <String>{};
 
@@ -310,6 +313,12 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     ExV2AccountViewState incoming,
     ExV2AccountViewState? current,
   ) {
+    if (current != null &&
+        incoming.bootstrap.account.id == current.bootstrap.account.id &&
+        incoming.presentation == null &&
+        current.presentation != null) {
+      incoming = incoming.copyWith(presentation: current.presentation);
+    }
     if (current == null || current.pendingOperationIds.isEmpty) return incoming;
     final protectionIds = current.pendingOperationIds
         .where((id) => id.startsWith('protection:'))
@@ -1160,6 +1169,11 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     try {
       final core = await _loadCore();
       if (!ref.mounted || generation != _loadGeneration) return;
+      final current = state.value;
+      if (current != null &&
+          core.bootstrap.version < current.bootstrap.version) {
+        return;
+      }
       final overlaid = _applyOptimisticOverlay(core, state.value);
       state = AsyncData(overlaid);
       await _hydrateAndPublish(overlaid, generation);
@@ -1170,15 +1184,45 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     }
   }
 
-  void publishBootstrap(ExV2Bootstrap bootstrap) {
+  ExV2BootstrapPublication publishBootstrap(
+    ExV2Bootstrap bootstrap, {
+    int operationAuthority = 0,
+    ExV2AccountPresentation? presentation,
+  }) {
+    final current = state.value;
+    if (current != null) {
+      final currentVersion = current.bootstrap.version;
+      if (bootstrap.version < currentVersion) {
+        return ExV2BootstrapPublication.rejectedStale;
+      }
+      if (bootstrap.version == currentVersion) {
+        final sameIdentity =
+            bootstrap.account.id == current.bootstrap.account.id &&
+            bootstrap.summary.accountId == current.bootstrap.summary.accountId;
+        if (!sameIdentity ||
+            operationAuthority < _publishedActivationAuthority) {
+          return ExV2BootstrapPublication.rejectedStale;
+        }
+        _publishedActivationAuthority = operationAuthority;
+        if (presentation != null) {
+          state = AsyncData(current.copyWith(presentation: presentation));
+        }
+        return ExV2BootstrapPublication.idempotentReplay;
+      }
+    }
     _accountGeneration += 1;
+    _publishedActivationAuthority = operationAuthority;
     final generation = ++_loadGeneration;
     _refreshDebounce?.cancel();
     _optimisticHiddenPositionIds.clear();
     _optimisticHiddenOrderIds.clear();
-    final replacement = ExV2AccountViewState.fromBootstrap(bootstrap);
+    final replacement = ExV2AccountViewState.fromBootstrap(
+      bootstrap,
+      presentation: presentation,
+    );
     state = AsyncData(replacement);
     unawaited(_hydrateAndPublish(replacement, generation));
+    return ExV2BootstrapPublication.committed;
   }
 
   Future<void> _refreshAfterMutation() async {
@@ -1187,6 +1231,11 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     try {
       final core = await _loadCore();
       if (!ref.mounted || generation != _loadGeneration) return;
+      final current = state.value;
+      if (current != null &&
+          core.bootstrap.version < current.bootstrap.version) {
+        return;
+      }
       final overlaid = _applyOptimisticOverlay(core, state.value);
       state = AsyncData(overlaid);
       await _hydrateAndPublish(overlaid, generation);

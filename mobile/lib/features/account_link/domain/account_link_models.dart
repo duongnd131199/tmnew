@@ -38,7 +38,7 @@ final class MobileTradingServer {
   const MobileTradingServer({
     required this.id,
     required this.name,
-    this.brokerId,
+    required this.brokerId,
     this.accountType,
     this.description,
   });
@@ -47,21 +47,21 @@ final class MobileTradingServer {
       MobileTradingServer(
         id: _requiredString(json, 'id'),
         name: _requiredString(json, 'name'),
-        brokerId: _optionalString(json, 'brokerId'),
+        brokerId: _requiredString(json, 'brokerId'),
         accountType: _optionalString(json, 'accountType'),
         description: _optionalString(json, 'description'),
       );
 
   final String id;
   final String name;
-  final String? brokerId;
+  final String brokerId;
   final String? accountType;
   final String? description;
 
   AccountLinkJson toJson() => {
     'id': id,
     'name': name,
-    'brokerId': ?brokerId,
+    'brokerId': brokerId,
     'accountType': ?accountType,
     'description': ?description,
   };
@@ -89,7 +89,7 @@ final class LinkedTradingAccount {
         serverId: _requiredString(json, 'serverId'),
         serverName: _requiredString(json, 'serverName'),
         login: _requiredString(json, 'login'),
-        isActive: _optionalBool(json, 'isActive') ?? false,
+        isActive: _requiredBool(json, 'isActive'),
         displayName: _optionalString(json, 'displayName'),
         currency: _optionalString(json, 'currency'),
         status: _optionalString(json, 'status'),
@@ -153,12 +153,12 @@ final class LinkAccountResult {
 
   factory LinkAccountResult.fromJson(AccountLinkJson json) => LinkAccountResult(
     account: LinkedTradingAccount.fromJson(_requiredMap(json, 'account')),
-    reconnectGrant: _optionalString(json, 'reconnectGrant'),
-    alreadyLinked: _optionalBool(json, 'alreadyLinked') ?? false,
+    reconnectGrant: _requiredString(json, 'reconnectGrant'),
+    alreadyLinked: _requiredBool(json, 'alreadyLinked'),
   );
 
   final LinkedTradingAccount account;
-  final String? reconnectGrant;
+  final String reconnectGrant;
   final bool alreadyLinked;
 }
 
@@ -198,9 +198,10 @@ String? _optionalString(AccountLinkJson json, String key) {
   return value is String && value.trim().isNotEmpty ? value : null;
 }
 
-bool? _optionalBool(AccountLinkJson json, String key) {
+bool _requiredBool(AccountLinkJson json, String key) {
   final value = json[key];
-  return value is bool ? value : null;
+  if (value is bool) return value;
+  throw FormatException('$key must be a boolean');
 }
 
 AccountLinkJson _requiredMap(AccountLinkJson json, String key) {

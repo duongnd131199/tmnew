@@ -86,7 +86,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Mỗi Ngày Một Tỷ 🍀'), findsOneWidget);
+    expect(find.text(_exnessAccount.name), findsOneWidget);
     expect(find.text('Exness Technologies Ltd'), findsOneWidget);
     expect(
       find.text('109740422 - Exness-MT5Real20\nAccess Point #9'),
@@ -197,8 +197,8 @@ void main() {
       const ProviderScope(child: MaterialApp(home: SettingsScreen())),
     );
 
-    expect(find.text('Delete'), findsOneWidget);
-    expect(find.text('Vantage Markets (Pty) Ltd'), findsOneWidget);
+    expect(find.text('Demo Account One'), findsOneWidget);
+    expect(find.text('Demo Markets Ltd'), findsOneWidget);
 
     final accountIcon = find.byKey(const Key('settings-icon-Tai khoan moi'));
     final notificationBadge = find.byKey(
@@ -310,11 +310,11 @@ void main() {
     );
     expect(selectedLabel().style?.color, const Color(0xFFE84C4C));
 
-    container.read(activeDemoAccountIdProvider.notifier).select('425302695');
+    container.read(activeDemoAccountIdProvider.notifier).select('10001003');
     await tester.pump();
     expect(selectedLabel().style?.color, const Color(0xFF25A8F3));
 
-    container.read(activeDemoAccountIdProvider.notifier).select('28210230');
+    container.read(activeDemoAccountIdProvider.notifier).select('10001001');
     container
         .read(demoTradingProvider.notifier)
         .updateMarketPrice(symbol: 'XAUUSD+', bid: 4105.51, ask: 4105.64);

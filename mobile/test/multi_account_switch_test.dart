@@ -13,8 +13,10 @@ import 'package:trading_mobile/features/account_sync/data/device_token_store.dar
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/settings_screen.dart';
+import 'package:trading_mobile/features/market_watch/data/data_sources/realtime_market_service.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/providers/realtime_market_provider.dart';
 
 void main() {
   testWidgets('production Settings add opens broker discovery', (tester) async {
@@ -183,6 +185,49 @@ void main() {
     expect(find.text('Không thể chuyển tài khoản. Thử lại.'), findsOneWidget);
   });
 
+  testWidgets('offline account switch is disabled until reconnect', (
+    tester,
+  ) async {
+    final statuses = StreamController<MarketConnectionStatus>()
+      ..add(MarketConnectionStatus.disconnected);
+    addTearDown(statuses.close);
+    final fixture = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/profile',
+      connectionStatuses: statuses.stream,
+    );
+    addTearDown(fixture.dispose);
+
+    await tester.tap(find.byKey(const ValueKey('account-account-b')));
+    await tester.pump();
+    expect(fixture.adapter.activationCalls, 0);
+    expect(
+      fixture.container
+          .read(exV2AccountProvider)
+          .requireValue
+          ?.bootstrap
+          .account
+          .id,
+      'account-a',
+    );
+
+    statuses.add(MarketConnectionStatus.connected);
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('account-account-b')));
+    await tester.pumpAndSettle();
+    expect(fixture.adapter.activationCalls, 1);
+    expect(
+      fixture.container
+          .read(exV2AccountProvider)
+          .requireValue
+          ?.bootstrap
+          .account
+          .id,
+      'account-b',
+    );
+  });
+
   testWidgets(
     'activate success publishes B without any account A branch data',
     (tester) async {
@@ -248,6 +293,7 @@ Future<_RouteFixture> _pumpProductionRoute(
   bool activationFails = false,
   bool accountListFails = false,
   _UnavailableAccountState? unavailableAccountState,
+  Stream<MarketConnectionStatus>? connectionStatuses,
 }) async {
   tester.view.physicalSize = const Size(384, 848);
   tester.view.devicePixelRatio = 1;
@@ -296,6 +342,11 @@ Future<_RouteFixture> _pumpProductionRoute(
       exV2EnabledProvider.overrideWithValue(true),
       exV2DioProvider.overrideWithValue(dio),
       deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
+      marketConnectionStatusProvider.overrideWith(
+        (ref) =>
+            connectionStatuses ??
+            Stream.value(MarketConnectionStatus.connected),
+      ),
       accountOverride,
     ],
   );

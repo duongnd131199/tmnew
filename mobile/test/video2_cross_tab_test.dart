@@ -61,7 +61,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(container.read(activeDemoAccountIdProvider), '28210230');
+      expect(container.read(activeDemoAccountIdProvider), '10001001');
       expect(container.read(demoPositionsProvider), hasLength(6));
       expect(find.text('-128.00 USD'), findsOneWidget);
       expect(find.text('2 292.60'), findsOneWidget);
@@ -84,18 +84,12 @@ void main() {
         tester.getSize(find.byKey(const Key('account-broker-mark')).first),
         const Size.square(31),
       );
-      expect(
-        find.textContaining('28210230 - VantageMarkets-Live 19'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('463696038 - Exness-MT5Trial17'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('10001001 - Demo-Live-01'), findsOneWidget);
+      expect(find.textContaining('10001002 - Demo-Trial-02'), findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('account-425302695')));
+      await tester.tap(find.byKey(const ValueKey('account-10001003')));
       await tester.pumpAndSettle();
-      expect(container.read(activeDemoAccountIdProvider), '425302695');
+      expect(container.read(activeDemoAccountIdProvider), '10001003');
       expect(container.read(demoPositionsProvider), isEmpty);
       expect(container.read(demoAccountProvider).balance, 0);
       expect(find.text('USD'), findsOneWidget);
@@ -103,9 +97,9 @@ void main() {
 
       router.push('/profile');
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('account-463696038')));
+      await tester.tap(find.byKey(const ValueKey('account-10001002')));
       await tester.pumpAndSettle();
-      expect(container.read(activeDemoAccountIdProvider), '463696038');
+      expect(container.read(activeDemoAccountIdProvider), '10001002');
       expect(container.read(demoPositionsProvider), hasLength(10));
       expect(container.read(demoHistoryPositionsProvider), hasLength(37));
       expect(container.read(demoAccountProvider).balance, 27297978.10);
@@ -116,9 +110,9 @@ void main() {
 
       router.push('/profile');
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('account-28210230')));
+      await tester.tap(find.byKey(const ValueKey('account-10001001')));
       await tester.pumpAndSettle();
-      expect(container.read(activeDemoAccountIdProvider), '28210230');
+      expect(container.read(activeDemoAccountIdProvider), '10001001');
       expect(container.read(demoPositionsProvider), hasLength(6));
       expect(container.read(demoAccountProvider).balance, 2292.60);
       expect(find.text('-128.00 USD'), findsOneWidget);
@@ -186,7 +180,7 @@ void main() {
     useVideoViewport(tester);
     final container = createStableContainer();
     addTearDown(container.dispose);
-    container.read(activeDemoAccountIdProvider.notifier).select('463696038');
+    container.read(activeDemoAccountIdProvider.notifier).select('10001002');
     final router = GoRouter(
       initialLocation: '/trade',
       routes: [

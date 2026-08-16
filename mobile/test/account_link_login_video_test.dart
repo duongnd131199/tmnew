@@ -11,7 +11,11 @@ import 'package:trading_mobile/features/account_link/data/account_link_repositor
 import 'package:trading_mobile/features/account_link/data/account_reconnect_grant_store.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
+import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
+import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
+import 'package:trading_mobile/features/market_watch/data/data_sources/realtime_market_service.dart';
+import 'package:trading_mobile/shared/providers/realtime_market_provider.dart';
 
 void main() {
   testWidgets('12 second frame keeps the reference copy and vertical order', (
@@ -321,7 +325,6 @@ void main() {
           activationGate: activationGate,
           events: events,
         ),
-        onBootstrap: (_) => events.add('bootstrap'),
       );
       await tester.enterText(
         find.byKey(const Key('existing-account-login-field')),
@@ -332,6 +335,9 @@ void main() {
         'correct-password',
       );
       await tester.pump();
+      final providerContainer = ProviderScope.containerOf(
+        tester.element(find.byKey(const Key('existing-account-login-screen'))),
+      );
 
       await tester.tap(find.byKey(const Key('existing-account-login-button')));
       await tester.pump();
@@ -342,15 +348,67 @@ void main() {
       activationGate.complete();
       await tester.pumpAndSettle();
 
-      expect(events, [
-        'link',
-        'activate:start',
-        'activate:complete',
-        'bootstrap',
-      ]);
+      expect(events, ['link', 'activate:start', 'activate:complete']);
+      expect(
+        providerContainer
+            .read(exV2AccountProvider)
+            .requireValue
+            ?.bootstrap
+            .account
+            .id,
+        'account-1',
+      );
       expect(appRouter.state.uri.path, '/trade');
     },
   );
+
+  testWidgets('offline link stays disabled and reconnect enables it', (
+    tester,
+  ) async {
+    final statuses = StreamController<MarketConnectionStatus>()
+      ..add(MarketConnectionStatus.disconnected);
+    addTearDown(statuses.close);
+    final repository = _LoginRepository(activationGate: Completer<void>());
+    await _openForm(
+      tester,
+      repository: repository,
+      connectionStatuses: statuses.stream,
+    );
+    await tester.enterText(
+      find.byKey(const Key('existing-account-login-field')),
+      '100001',
+    );
+    await tester.enterText(
+      find.byKey(const Key('existing-account-password-field')),
+      'correct-password',
+    );
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(const Key('existing-account-login-button')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(repository.linkRequests, isEmpty);
+
+    statuses.add(MarketConnectionStatus.connected);
+    await tester.pump();
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(const Key('existing-account-login-button')),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.byKey(const Key('existing-account-login-button')));
+    await tester.pump();
+    await tester.pump();
+    expect(repository.linkRequests, hasLength(1));
+  });
 
   testWidgets('registration and forgot-password rows provide safe feedback', (
     tester,
@@ -388,7 +446,7 @@ void main() {
 Future<void> _openForm(
   WidgetTester tester, {
   required _LoginRepository repository,
-  void Function(ExV2Bootstrap bootstrap)? onBootstrap,
+  Stream<MarketConnectionStatus>? connectionStatuses,
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 844));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -399,9 +457,17 @@ Future<void> _openForm(
         accountReconnectGrantStoreProvider.overrideWithValue(
           _MemoryGrantStore(),
         ),
-        accountLinkBootstrapPublisherProvider.overrideWithValue(
-          onBootstrap ?? (_) {},
-        ),
+        if (connectionStatuses != null) ...[
+          exV2EnabledProvider.overrideWithValue(true),
+          marketConnectionStatusProvider.overrideWith(
+            (ref) => connectionStatuses,
+          ),
+          exV2AccountProvider.overrideWithBuild(
+            (ref, controller) => ExV2AccountViewState.fromBootstrap(
+              ExV2Bootstrap.fromJson(_bootstrapJson),
+            ),
+          ),
+        ],
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: appRouter),
     ),

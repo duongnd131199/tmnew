@@ -2,34 +2,54 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/profile/application/ex_v2_account_profile_mapper.dart';
+import 'package:trading_mobile/features/profile/domain/account_presentation_profile.dart';
 
 void main() {
-  test(
-    'live identity and finance do not leak transport fields into broker metadata',
-    () {
-      final state = _accountState(
-        accountCode: '109740422',
-        name: 'Mỗi Ngày Một Tỷ 🍀',
-        status: 'active',
-        balance: 154763.90,
-      );
+  test('missing presentation metadata uses neutral unavailable values', () {
+    final state = _accountState(
+      accountCode: '100001',
+      name: 'Server account',
+      status: 'active',
+      balance: 154763.90,
+    );
 
-      final profile = ExV2AccountProfileMapper.map(state);
+    final profile = ExV2AccountProfileMapper.map(state);
 
-      expect(profile.id, '109740422');
-      expect(profile.name, 'Mỗi Ngày Một Tỷ 🍀');
-      expect(profile.balance, 154763.90);
-      expect(profile.currency, 'USD');
-      expect(profile.company, 'Exness Technologies Ltd');
-      expect(profile.server, 'Exness-MT5Real20');
-      expect(profile.accessPoint, 'Access Point #9');
-      expect(profile.company, isNot('active'));
-      expect(profile.server, isNot('trochoi.top'));
-      expect(profile.accessPoint, isNot('EX V2'));
-    },
-  );
+    expect(profile.id, '100001');
+    expect(profile.name, 'Server account');
+    expect(profile.balance, 154763.90);
+    expect(profile.currency, 'USD');
+    expect(profile.company, 'Unavailable');
+    expect(profile.server, 'Unavailable');
+    expect(profile.accessPoint, 'Unavailable');
+    expect(profile.brand, DemoBrokerBrand.unknown);
+    expect(profile.company, isNot('active'));
+    expect(profile.server, isNot('trochoi.top'));
+    expect(profile.accessPoint, isNot('EX V2'));
+  });
 
-  test('canonical settings metadata wins over the Exness fallback', () {
+  test('activated linked-account metadata is visible before hydration', () {
+    final state = _accountState(
+      accountCode: '200002',
+      name: 'Second account',
+      status: 'active',
+      balance: 25,
+      presentation: const ExV2AccountPresentation(
+        brokerId: 'broker-second',
+        companyName: 'Second Broker Ltd',
+        serverId: 'server-second',
+        tradingServer: 'Second-Live-02',
+      ),
+    );
+
+    final profile = ExV2AccountProfileMapper.map(state);
+
+    expect(profile.company, 'Second Broker Ltd');
+    expect(profile.server, 'Second-Live-02');
+    expect(profile.brand, DemoBrokerBrand.unknown);
+  });
+
+  test('canonical settings metadata wins over activated metadata', () {
     final state = _accountState(
       accountCode: 'LIVE-7',
       name: 'Live account',
@@ -42,6 +62,12 @@ void main() {
         'accountMode': 'Netting',
         'isMaster': false,
       },
+      presentation: const ExV2AccountPresentation(
+        brokerId: 'broker-second',
+        companyName: 'Second Broker Ltd',
+        serverId: 'server-second',
+        tradingServer: 'Second-Live-02',
+      ),
     );
 
     final profile = ExV2AccountProfileMapper.map(state);
@@ -60,6 +86,7 @@ ExV2AccountViewState _accountState({
   required String status,
   required double balance,
   Map<String, dynamic> settings = const {},
+  ExV2AccountPresentation? presentation,
 }) {
   final bootstrap = ExV2Bootstrap.fromJson({
     'serverTime': '2026-08-14T08:00:00Z',
@@ -107,5 +134,6 @@ ExV2AccountViewState _accountState({
 
   return ExV2AccountViewState.fromBootstrap(
     bootstrap,
+    presentation: presentation,
   ).copyWith(settings: settings);
 }

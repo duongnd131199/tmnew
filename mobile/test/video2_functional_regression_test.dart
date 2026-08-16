@@ -175,18 +175,15 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Delete'), findsOneWidget);
-      expect(
-        find.textContaining('28210230 - VantageMarkets-Live 19'),
-        findsOneWidget,
-      );
+      expect(find.text('Demo Account One'), findsOneWidget);
+      expect(find.textContaining('10001001 - Demo-Live-01'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('settings-account')));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/profile');
-      expect(find.byKey(const ValueKey('account-28210230')), findsOneWidget);
+      expect(find.byKey(const ValueKey('account-10001001')), findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('account-28210230')));
+      await tester.tap(find.byKey(const ValueKey('account-10001001')));
       await tester.pumpAndSettle();
 
       expect(router.state.uri.path, '/account-detail');
@@ -334,7 +331,7 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
-      container.read(activeDemoAccountIdProvider.notifier).select('425302695');
+      container.read(activeDemoAccountIdProvider.notifier).select('10001003');
 
       await tester.pumpWidget(
         UncontrolledProviderScope(

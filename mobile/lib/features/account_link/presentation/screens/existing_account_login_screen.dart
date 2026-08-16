@@ -7,6 +7,7 @@ import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
+import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_visuals.dart';
 
@@ -45,6 +46,7 @@ class _ExistingAccountLoginScreenState
   Widget build(BuildContext context) {
     final asyncState = ref.watch(accountLinkControllerProvider);
     final state = asyncState.value ?? const AccountLinkState();
+    final mutationsConnected = ref.watch(accountMutationsConnectedProvider);
     final routeAuthorized = state.selectedBroker?.id == widget.brokerId;
     final formState = routeAuthorized ? state : const AccountLinkState();
     _synchronize(_loginController, formState.login);
@@ -157,7 +159,9 @@ class _ExistingAccountLoginScreenState
                             .read(accountLinkControllerProvider.notifier)
                             .updatePassword,
                         onSubmitted: (_) {
-                          if (state.canSubmit) unawaited(_submit());
+                          if (state.canSubmit && mutationsConnected) {
+                            unawaited(_submit());
+                          }
                         },
                       ),
                     ),
@@ -190,7 +194,8 @@ class _ExistingAccountLoginScreenState
               ),
             ),
             _LoginAction(
-              enabled: routeAuthorized && formState.canSubmit,
+              enabled:
+                  routeAuthorized && formState.canSubmit && mutationsConnected,
               busy:
                   state.phase == AccountLinkPhase.submitting ||
                   state.phase == AccountLinkPhase.activating,

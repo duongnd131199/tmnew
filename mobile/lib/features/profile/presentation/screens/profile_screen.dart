@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
@@ -14,21 +15,18 @@ class ProfileScreen extends ConsumerWidget {
     final serverMode = ref.watch(exV2EnabledProvider);
     final accounts = ref.watch(demoAccountsProvider);
     final serverAccount = ref.watch(exV2AccountProvider).value;
+    final mutationsConnected = ref.watch(accountMutationsConnectedProvider);
     final activeId = serverMode
         ? serverAccount?.bootstrap.account.id
         : ref.watch(activeDemoAccountIdProvider);
     ref.watch(demoTradingProvider);
     final tradingController = ref.read(demoTradingProvider.notifier);
-    final byId = {for (final account in accounts) account.id: account};
-    final order = switch (activeId) {
-      '425302695' => const ['425302695', '28210230', '463696038', '425297911'],
-      '463696038' => const ['463696038', '425302695', '28210230', '425297911'],
-      '425297911' => const ['425297911', '425302695', '28210230', '463696038'],
-      _ => const ['28210230', '463696038', '425302695', '425297911'],
-    };
-    final ordered = serverMode
-        ? accounts
-        : order.map((id) => byId[id]!).toList(growable: false);
+    bool isActiveAccount(DemoAccountProfile account) =>
+        (account.linkedAccountId ?? account.id) == activeId;
+    final ordered = [
+      ...accounts.where(isActiveAccount),
+      ...accounts.where((account) => !isActiveAccount(account)),
+    ];
 
     return Scaffold(
       body: SafeArea(
@@ -109,6 +107,8 @@ class ProfileScreen extends ConsumerWidget {
                               controller.select(account.id);
                             });
                           }
+                        : !mutationsConnected
+                        ? null
                         : () async {
                             final linkedAccountId = account.linkedAccountId;
                             if (linkedAccountId == null) return;
@@ -153,7 +153,7 @@ class _AccountRow extends StatelessWidget {
   final DemoAccountProfile account;
   final double? displayBalance;
   final bool active;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Material(

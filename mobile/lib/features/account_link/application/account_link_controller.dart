@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:trading_mobile/features/account_link/data/account_link_repository.dart';
+import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
+import 'package:trading_mobile/features/account_link/data/account_link_dependencies.dart';
 import 'package:trading_mobile/features/account_link/data/account_reconnect_grant_store.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
-import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
-import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
+
+export 'package:trading_mobile/features/account_link/data/account_link_dependencies.dart'
+    show accountLinkRepositoryProvider;
 
 enum AccountLinkPhase {
   idle,
@@ -95,20 +97,9 @@ final class AccountLinkState {
 
 const _absent = Object();
 
-typedef AccountLinkBootstrapPublisher = void Function(ExV2Bootstrap bootstrap);
-
-final accountLinkRepositoryProvider = Provider<AccountLinkRepository>(
-  (ref) => AccountLinkRepository(ref.watch(exV2ApiClientProvider)),
-);
-
 final accountReconnectGrantStoreProvider = Provider<AccountReconnectGrantStore>(
   (ref) => const SecureAccountReconnectGrantStore(FlutterSecureStorage()),
 );
-
-final accountLinkBootstrapPublisherProvider =
-    Provider<AccountLinkBootstrapPublisher>(
-      (ref) => ref.read(exV2AccountProvider.notifier).publishBootstrap,
-    );
 
 final accountLinkControllerProvider =
     AsyncNotifierProvider<AccountLinkController, AccountLinkState>(
@@ -195,7 +186,7 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
 
   void selectServer(MobileTradingServer server) {
     final selectedBrokerId = _current.selectedBroker?.id;
-    if (server.brokerId != null && server.brokerId != selectedBrokerId) {
+    if (server.brokerId != selectedBrokerId) {
       throw ArgumentError.value(
         server.brokerId,
         'server.brokerId',
@@ -231,6 +222,15 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
   }) async {
     final before = _current;
     if (_operationInFlight) return null;
+    if (!ref.read(accountMutationsConnectedProvider)) {
+      state = AsyncData(
+        before.copyWith(
+          phase: AccountLinkPhase.failed,
+          errorMessage: 'Connect to the network before linking an account',
+        ),
+      );
+      return null;
+    }
     if (!before.canSubmit) {
       state = AsyncData(
         before.copyWith(
@@ -266,7 +266,7 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
 
       final grantStore = ref.read(accountReconnectGrantStoreProvider);
       final grant = linked.reconnectGrant;
-      if (before.savePassword && grant != null) {
+      if (before.savePassword) {
         await grantStore.write(linked.account.id, grant);
       } else if (!before.savePassword) {
         await grantStore.delete(linked.account.id);
@@ -281,13 +281,25 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
           reconnectGrant: grant,
         ),
       );
-      final activated = await repository.activate(
-        linked.account.id,
-        metadata: activateMetadata ?? ExV2CommandMetadata.create(),
-      );
+      final activation = await ref
+          .read(accountActivationCoordinatorProvider.notifier)
+          .activate(
+            linked.account.id,
+            metadata: activateMetadata ?? ExV2CommandMetadata.create(),
+          );
       if (!ref.mounted) return null;
+      if (!activation.accepted) {
+        state = AsyncData(
+          _current.copyWith(
+            phase: AccountLinkPhase.failed,
+            password: '',
+            errorMessage: 'A newer account activation is already active',
+          ),
+        );
+        return null;
+      }
+      final activated = activation.result;
 
-      ref.read(accountLinkBootstrapPublisherProvider)(activated.bootstrap);
       state = AsyncData(
         _current.copyWith(
           phase: AccountLinkPhase.succeeded,

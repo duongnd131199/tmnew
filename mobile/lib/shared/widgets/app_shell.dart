@@ -99,7 +99,10 @@ class _AppShellState extends ConsumerState<AppShell>
                 color: AppColors.background,
               )
             : KeyedSubtree(
-                key: ValueKey('account-generation-$accountGeneration'),
+                key: ValueKey((
+                  accountGeneration.accountId,
+                  accountGeneration.value,
+                )),
                 child: AppTabScope(
                   index: widget.navigationShell.currentIndex,
                   child: widget.navigationShell,

@@ -185,6 +185,80 @@ void main() {
     );
   });
 
+  test('server brokerId is required and strictly typed', () {
+    for (final value in <Object?>[null, '', 42, false]) {
+      expect(
+        () => MobileTradingServer.fromJson({
+          'id': 'server-1',
+          'name': 'Example-Demo',
+          'brokerId': ?value,
+        }),
+        throwsFormatException,
+        reason: 'brokerId=$value must be rejected',
+      );
+    }
+  });
+
+  test('linked-account isActive is required and strictly typed', () {
+    expect(
+      () => LinkedTradingAccount.fromJson(
+        <String, Object?>{..._linkedAccountJson}..remove('isActive'),
+      ),
+      throwsFormatException,
+    );
+    for (final value in <Object?>[null, '', 0, 'true']) {
+      final json = <String, Object?>{
+        ..._linkedAccountJson,
+        if (value == null) ...{'isActive': null} else 'isActive': value,
+      };
+      expect(
+        () => LinkedTradingAccount.fromJson(json),
+        throwsFormatException,
+        reason: 'isActive=$value must be rejected',
+      );
+    }
+  });
+
+  test('link alreadyLinked is required and strictly typed', () {
+    expect(
+      () => LinkAccountResult.fromJson({
+        'account': _linkedAccountJson,
+        'reconnectGrant': 'opaque-grant-1',
+      }),
+      throwsFormatException,
+    );
+    for (final value in <Object?>[null, '', 0, 'false']) {
+      final json = <String, Object?>{
+        'account': _linkedAccountJson,
+        'reconnectGrant': 'opaque-grant-1',
+        if (value == null) ...{
+          'alreadyLinked': null,
+        } else
+          'alreadyLinked': value,
+      };
+      expect(
+        () => LinkAccountResult.fromJson(json),
+        throwsFormatException,
+        reason: 'alreadyLinked=$value must be rejected',
+      );
+    }
+  });
+
+  test('link reconnectGrant is required, string, and non-empty', () {
+    for (final value in <Object?>[null, '', '   ', 42, false]) {
+      final json = <String, Object?>{
+        'account': _linkedAccountJson,
+        'reconnectGrant': ?value,
+        'alreadyLinked': false,
+      };
+      expect(
+        () => LinkAccountResult.fromJson(json),
+        throwsFormatException,
+        reason: 'reconnectGrant=$value must be rejected',
+      );
+    }
+  });
+
   test('activate rejects a linked account id mismatch', () {
     final account = <String, Object?>{..._linkedAccountJson, 'id': 'account-x'};
 
