@@ -37,6 +37,7 @@ final class DemoAccountProfile {
     this.mode = 'Hedge',
     this.isMaster = true,
     this.isDemo = false,
+    this.linkedAccountId,
   });
 
   final String id;
@@ -50,6 +51,7 @@ final class DemoAccountProfile {
   final String mode;
   final bool isMaster;
   final bool isDemo;
+  final String? linkedAccountId;
   final double historyDeposit;
   final double historyWithdrawal;
   final double historyProfit;

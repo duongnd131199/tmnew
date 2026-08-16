@@ -292,6 +292,90 @@ void main() {
     expect(state.bootstrap.account.id, 'account-2');
     expect(state.bootstrap.summary.accountId, 'account-2');
   });
+
+  test(
+    'account generation changes only when a different bootstrap is committed',
+    () async {
+      final adapter = _GenerationAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+        ..httpClientAdapter = adapter;
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          exV2DioProvider.overrideWithValue(dio),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('test-token'),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(exV2AccountGenerationProvider);
+      await container.read(exV2AccountProvider.future);
+      await Future<void>.delayed(Duration.zero);
+      final accountA = container.read(exV2AccountGenerationProvider);
+      expect(accountA.accountId, 'account-1');
+
+      adapter.failBootstrap = true;
+      await container.read(exV2AccountProvider.notifier).refresh();
+      expect(container.read(exV2AccountProvider).hasError, isTrue);
+      expect(container.read(exV2AccountGenerationProvider), accountA);
+
+      adapter.failBootstrap = false;
+      await container.read(exV2AccountProvider.notifier).refresh();
+      expect(container.read(exV2AccountGenerationProvider), accountA);
+
+      container
+          .read(exV2AccountProvider.notifier)
+          .publishBootstrap(
+            ExV2Bootstrap.fromJson(
+              _bootstrapForAccount('account-1', 'TEST-100-REFRESHED'),
+            ),
+          );
+      expect(container.read(exV2AccountGenerationProvider), accountA);
+
+      container
+          .read(exV2AccountProvider.notifier)
+          .publishBootstrap(
+            ExV2Bootstrap.fromJson(
+              _bootstrapForAccount('account-2', 'TEST-200'),
+            ),
+          );
+      final accountB = container.read(exV2AccountGenerationProvider);
+      expect(accountB.accountId, 'account-2');
+      expect(accountB.value, accountA.value + 1);
+    },
+  );
+}
+
+final class _GenerationAdapter implements HttpClientAdapter {
+  bool failBootstrap = false;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final path = options.uri.path;
+    if (path.endsWith('/mobile/bootstrap')) {
+      if (failBootstrap) {
+        return ResponseBody.fromString(
+          jsonEncode({'code': 'unavailable', 'message': 'Unavailable'}),
+          503,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+      }
+      return _response(_bootstrapForAccount('account-1', 'TEST-100'));
+    }
+    if (path.endsWith('/settings')) return _response(<String, Object?>{});
+    return _response(<Object?>[]);
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 final class _HydrationSwitchAdapter implements HttpClientAdapter {

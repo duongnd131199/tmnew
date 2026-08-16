@@ -298,9 +298,9 @@ void main() {
       await tester.tap(find.byKey(const Key('settings-account')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('account-broker-mark')), findsOneWidget);
-      expect(find.byKey(const ValueKey('account-109740422')), findsOneWidget);
+      expect(find.byKey(const ValueKey('account-account-1')), findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('account-109740422')));
+      await tester.tap(find.byKey(const ValueKey('account-account-1')));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/account-detail');
 

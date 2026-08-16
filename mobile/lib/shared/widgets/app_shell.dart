@@ -32,7 +32,7 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell>
     with SingleTickerProviderStateMixin {
   late int _lastTabIndex;
-  String? _lastAccountGeneration;
+  ExV2AccountGeneration? _lastAccountGeneration;
   bool _accountGenerationInitialized = false;
   bool _resettingAccountScope = false;
   late final AnimationController _tabFadeController = AnimationController(

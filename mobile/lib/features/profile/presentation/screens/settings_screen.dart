@@ -12,8 +12,11 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final account = ref.watch(activeDemoAccountProvider);
+    final serverMode = ref.watch(exV2EnabledProvider);
     final serverState = ref.watch(exV2AccountProvider).value;
+    final account = serverMode && serverState == null
+        ? null
+        : ref.watch(activeDemoAccountProvider);
     final serverSettings = serverState?.settings ?? const <String, dynamic>{};
     final unreadValue =
         serverSettings['unreadNotifications'] ?? serverSettings['unreadCount'];
@@ -72,10 +75,11 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     _SettingsCard(
                       children: [
-                        _AccountCardHeader(
-                          account: account,
-                          onTap: () => context.push('/profile'),
-                        ),
+                        if (account != null)
+                          _AccountCardHeader(
+                            account: account,
+                            onTap: () => context.push('/profile'),
+                          ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.newAccount,
                           title: 'Tai khoan moi',
@@ -84,9 +88,9 @@ class SettingsScreen extends ConsumerWidget {
                           iconOffsetY: .6666666667,
                           titleOffsetY: -1,
                           titleScaleX: .97,
-                          onTap: serverState == null
-                              ? () => context.push('/register')
-                              : () => context.push('/accounts/add'),
+                          onTap: serverMode
+                              ? () => context.push('/accounts/add')
+                              : () => context.push('/register'),
                         ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.mail,

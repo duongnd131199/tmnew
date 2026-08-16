@@ -11,11 +11,12 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final serverMode = ref.watch(exV2EnabledProvider);
     final accounts = ref.watch(demoAccountsProvider);
     final serverAccount = ref.watch(exV2AccountProvider).value;
-    final linkedAccounts = ref.watch(linkedTradingAccountsProvider).value;
-    final activeId =
-        serverAccount?.accountCode ?? ref.watch(activeDemoAccountIdProvider);
+    final activeId = serverMode
+        ? serverAccount?.bootstrap.account.id
+        : ref.watch(activeDemoAccountIdProvider);
     ref.watch(demoTradingProvider);
     final tradingController = ref.read(demoTradingProvider.notifier);
     final byId = {for (final account in accounts) account.id: account};
@@ -25,7 +26,7 @@ class ProfileScreen extends ConsumerWidget {
       '425297911' => const ['425297911', '425302695', '28210230', '463696038'],
       _ => const ['28210230', '463696038', '425302695', '425297911'],
     };
-    final ordered = serverAccount != null
+    final ordered = serverMode
         ? accounts
         : order.map((id) => byId[id]!).toList(growable: false);
 
@@ -69,9 +70,9 @@ class ProfileScreen extends ConsumerWidget {
                     child: KeyedSubtree(
                       key: const Key('accounts-add'),
                       child: AccountRoundAddButton(
-                        onTap: serverAccount == null
-                            ? () => context.push('/register')
-                            : () => context.push('/accounts/add'),
+                        onTap: serverMode
+                            ? () => context.push('/accounts/add')
+                            : () => context.push('/register'),
                       ),
                     ),
                   ),
@@ -84,9 +85,10 @@ class ProfileScreen extends ConsumerWidget {
                 itemCount: ordered.length,
                 itemBuilder: (context, index) {
                   final account = ordered[index];
-                  final isActive = account.id == activeId;
+                  final rowId = account.linkedAccountId ?? account.id;
+                  final isActive = rowId == activeId;
                   return _AccountRow(
-                    key: ValueKey('account-${account.id}'),
+                    key: ValueKey('account-$rowId'),
                     account: account,
                     displayBalance: serverAccount != null && !isActive
                         ? null
@@ -97,7 +99,7 @@ class ProfileScreen extends ConsumerWidget {
                     active: isActive,
                     onTap: isActive
                         ? () => context.push('/account-detail')
-                        : serverAccount == null
+                        : !serverMode
                         ? () {
                             final controller = ref.read(
                               activeDemoAccountIdProvider.notifier,
@@ -108,14 +110,12 @@ class ProfileScreen extends ConsumerWidget {
                             });
                           }
                         : () async {
-                            final matches = linkedAccounts?.where(
-                              (linked) => linked.login == account.id,
-                            );
-                            if (matches == null || matches.isEmpty) return;
+                            final linkedAccountId = account.linkedAccountId;
+                            if (linkedAccountId == null) return;
                             try {
                               final activated = await ref
                                   .read(linkedTradingAccountsProvider.notifier)
-                                  .activate(matches.first.id);
+                                  .activate(linkedAccountId);
                               if (activated != null && context.mounted) {
                                 context.pop();
                               }
@@ -124,7 +124,7 @@ class ProfileScreen extends ConsumerWidget {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
-                                    'KhÃ´ng thá»ƒ chuyá»ƒn tÃ i khoáº£n. Thá»­ láº¡i.',
+                                    'Không thể chuyển tài khoản. Thử lại.',
                                   ),
                                 ),
                               );
@@ -200,7 +200,7 @@ class _AccountRow extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     displayBalance == null
-                        ? 'â€” ${account.currency}, ${account.mode}'
+                        ? '— ${account.currency}, ${account.mode}'
                         : '${_formatAccountBalance(displayBalance!)} '
                               '${account.currency}, ${account.mode}',
                     maxLines: 1,

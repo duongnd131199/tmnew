@@ -620,7 +620,7 @@ final class LinkedTradingAccountsController
   @override
   Future<List<LinkedTradingAccount>> build() async {
     if (!ref.watch(exV2EnabledProvider)) return const [];
-    final activeId = ref.watch(exV2AccountGenerationProvider);
+    final activeId = ref.watch(exV2AccountGenerationProvider).accountId;
     if (activeId == null) return const [];
 
     final accounts = await ref.read(accountLinkRepositoryProvider).accounts();
@@ -668,6 +668,7 @@ DemoAccountProfile _mapLinkedAccount(LinkedTradingAccount account) {
       : DemoBrokerBrand.unknown;
   return DemoAccountProfile(
     id: account.login,
+    linkedAccountId: account.id,
     name: account.displayName ?? account.brokerName,
     company: account.brokerName,
     server: account.serverName,
@@ -706,7 +707,7 @@ final activeDemoAccountProvider = Provider<DemoAccountProfile>((ref) {
   if (server != null) {
     final accounts = ref.watch(demoAccountsProvider);
     return accounts.firstWhere(
-      (account) => account.id == server.accountCode,
+      (account) => account.linkedAccountId == server.bootstrap.account.id,
       orElse: () => ExV2AccountProfileMapper.map(server),
     );
   }

@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,7 +9,9 @@ import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/features/chart/data/chart_market_warmup_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
+import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
+import 'package:trading_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
@@ -69,98 +75,272 @@ void main() {
     expect(find.text('captured:LOGIN-B'), findsOneWidget);
   });
 
-  testWidgets('B bootstrap removes A data from every account-scoped adapter', (
-    tester,
-  ) async {
-    final container = ProviderContainer(
-      overrides: [
-        exV2EnabledProvider.overrideWithValue(true),
-        exV2AccountProvider.overrideWithBuild(
-          (ref, controller) =>
-              ExV2AccountViewState.fromBootstrap(
-                ExV2Bootstrap.fromJson(_bootstrap('account-a', 'LOGIN-A')),
-              ).copyWith(
-                historyPositions: const [
-                  DemoHistoryPosition(
-                    id: 'history-a',
-                    title: 'A-HISTORY',
-                    profit: 1,
-                    time: '2026.08.16 08:00:00',
+  testWidgets(
+    'UI activation clears A data and retained stacks from every production branch',
+    (tester) async {
+      tester.view.physicalSize = const Size(384, 848);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final adapter = _CrossTabApiAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+        ..httpClientAdapter = adapter;
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          exV2DioProvider.overrideWithValue(dio),
+          deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
+          chartMarketWarmupProvider.overrideWith((ref) async {}),
+          exV2AccountProvider.overrideWithBuild(
+            (ref, controller) =>
+                ExV2AccountViewState.fromBootstrap(
+                  ExV2Bootstrap.fromJson(_bootstrap('account-a', 'LOGIN-A')),
+                ).copyWith(
+                  historyPositions: const [
+                    DemoHistoryPosition(
+                      id: 'history-a',
+                      title: 'A-HISTORY',
+                      profit: 1,
+                      time: '2026.08.16 08:00:00',
+                    ),
+                  ],
+                  notifications: const [
+                    {'id': 'notification-a', 'scope': 'A'},
+                  ],
+                  settings: const {'scope': 'A'},
+                ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final rootNavigatorKey = GlobalKey<NavigatorState>();
+      final router = GoRouter(
+        navigatorKey: rootNavigatorKey,
+        initialLocation: '/market',
+        routes: [
+          StatefulShellRoute.indexedStack(
+            builder: (context, state, navigationShell) =>
+                AppShell(navigationShell: navigationShell),
+            branches: [
+              _branch('/market', const _MarketProbe(), 'Market'),
+              _branch('/chart', const _ChartProbe(), 'Chart'),
+              _branch('/trade', const _TradeProbe(), 'Trade'),
+              _branch('/history', const _HistoryProbe(), 'History'),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/settings',
+                    builder: (context, state) => const _SettingsProbe(),
                   ),
                 ],
-                notifications: const [
-                  {'id': 'notification-a'},
-                ],
-                settings: const {'scope': 'A'},
               ),
+            ],
+          ),
+          GoRoute(
+            path: '/profile',
+            parentNavigatorKey: rootNavigatorKey,
+            builder: (context, state) => const ProfileScreen(),
+          ),
+          GoRoute(
+            path: '/account-detail',
+            parentNavigatorKey: rootNavigatorKey,
+            builder: (context, state) => const Scaffold(body: Text('DETAIL')),
+          ),
+          GoRoute(
+            path: '/wallet',
+            parentNavigatorKey: rootNavigatorKey,
+            builder: (context, state) => const _WalletProbe(),
+          ),
+          GoRoute(
+            path: '/notifications',
+            parentNavigatorKey: rootNavigatorKey,
+            builder: (context, state) => const _NotificationsProbe(),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (final deepPath in const [
+        '/market/deep',
+        '/chart/deep',
+        '/trade/deep',
+        '/history/deep',
+      ]) {
+        router.go(deepPath);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('deep:LOGIN-A'), findsOneWidget);
+      }
+      router.go('/settings');
+      await tester.pumpAndSettle();
+      expect(find.text('Settings:A'), findsOneWidget);
+
+      router.push('/profile');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('account-account-b')));
+      await tester.pumpAndSettle();
+
+      expect(adapter.activationCalls, 1);
+      expect(router.state.uri.path, '/settings');
+      expect(find.text('Settings:B'), findsOneWidget);
+
+      for (final tab in const [
+        ('Gia', '/market', 'Market:B-SYMBOL'),
+        ('Bieu do', '/chart', 'Chart:LOGIN-B'),
+        ('Giao dich', '/trade', 'Trade:position-b'),
+        ('Lich su', '/history', 'History:'),
+        ('Cai dat', '/settings', 'Settings:B'),
+      ]) {
+        await tester.tap(find.text(tab.$1));
+        await tester.pumpAndSettle();
+        expect(router.state.uri.path, tab.$2, reason: tab.$1);
+        expect(find.text(tab.$3), findsOneWidget, reason: tab.$1);
+        expect(find.textContaining('deep:LOGIN-A'), findsNothing);
+      }
+
+      router.push('/wallet');
+      await tester.pumpAndSettle();
+      expect(find.text('Wallet:20.0'), findsOneWidget);
+      expect(find.text('Wallet:10.0'), findsNothing);
+      router.pop();
+      await tester.pumpAndSettle();
+
+      router.push('/notifications');
+      await tester.pumpAndSettle();
+      expect(find.text('Notifications:notification-b'), findsOneWidget);
+      expect(find.textContaining('notification-a'), findsNothing);
+
+      final state = container.read(exV2AccountProvider).requireValue!;
+      expect(state.bootstrap.account.id, 'account-b');
+      expect(state.positions.any((item) => item.id == 'position-a'), isFalse);
+      expect(
+        state.historyPositions.any((item) => item.id == 'history-a'),
+        isFalse,
+      );
+      expect(state.settings['scope'], 'B');
+    },
+  );
+}
+
+StatefulShellBranch _branch(String path, Widget root, String label) =>
+    StatefulShellBranch(
+      routes: [
+        GoRoute(
+          path: path,
+          builder: (context, state) => root,
+          routes: [
+            GoRoute(
+              path: 'deep',
+              builder: (context, state) => _DeepAccountProbe(label: label),
+            ),
+          ],
         ),
       ],
     );
-    addTearDown(container.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: _CrossTabDataProbe()),
-      ),
-    );
-    await tester.pump();
-    expect(find.text('account:LOGIN-A'), findsOneWidget);
-    expect(find.text('positions:position-a'), findsOneWidget);
-    expect(find.text('history:history-a'), findsOneWidget);
-    expect(find.text('wallet:10.0'), findsOneWidget);
-    expect(find.text('notifications:notification-a'), findsOneWidget);
-    expect(find.text('settings:A'), findsOneWidget);
+class _DeepAccountProbe extends ConsumerStatefulWidget {
+  const _DeepAccountProbe({required this.label});
 
-    container
-        .read(exV2AccountProvider.notifier)
-        .publishBootstrap(
-          ExV2Bootstrap.fromJson(_bootstrap('account-b', 'LOGIN-B')),
-        );
-    await tester.pump();
+  final String label;
 
-    for (final oldValue in const [
-      'account:LOGIN-A',
-      'positions:position-a',
-      'history:history-a',
-      'wallet:10.0',
-      'notifications:notification-a',
-      'settings:A',
-    ]) {
-      expect(find.text(oldValue), findsNothing, reason: oldValue);
-    }
-    expect(find.text('account:LOGIN-B'), findsOneWidget);
-    expect(find.text('positions:position-b'), findsOneWidget);
-    expect(find.text('history:'), findsOneWidget);
-    expect(find.text('wallet:20.0'), findsOneWidget);
-    expect(find.text('notifications:'), findsOneWidget);
-    expect(find.text('settings:'), findsOneWidget);
-  });
+  @override
+  ConsumerState<_DeepAccountProbe> createState() => _DeepAccountProbeState();
 }
 
-class _CrossTabDataProbe extends ConsumerWidget {
-  const _CrossTabDataProbe();
+class _DeepAccountProbeState extends ConsumerState<_DeepAccountProbe> {
+  late final String _captured = ref
+      .read(exV2AccountProvider)
+      .requireValue!
+      .accountCode;
+
+  @override
+  Widget build(BuildContext context) =>
+      Scaffold(body: Text('${widget.label} deep:$_captured'));
+}
+
+class _MarketProbe extends ConsumerWidget {
+  const _MarketProbe();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    body: Text('Market:${ref.watch(demoPositionsProvider).single.symbol}'),
+  );
+}
+
+class _ChartProbe extends ConsumerWidget {
+  const _ChartProbe();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    body: Text(
+      'Chart:${ref.watch(exV2AccountProvider).requireValue!.accountCode}',
+    ),
+  );
+}
+
+class _TradeProbe extends ConsumerWidget {
+  const _TradeProbe();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    body: Text(
+      'Trade:${ref.watch(demoPositionsProvider).map((item) => item.id).join(',')}',
+    ),
+  );
+}
+
+class _HistoryProbe extends ConsumerWidget {
+  const _HistoryProbe();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    body: Text(
+      'History:${ref.watch(demoHistoryPositionsProvider).map((item) => item.id).join(',')}',
+    ),
+  );
+}
+
+class _SettingsProbe extends ConsumerWidget {
+  const _SettingsProbe();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    body: Text(
+      'Settings:${ref.watch(exV2AccountProvider).requireValue!.settings['scope'] ?? ''}',
+    ),
+  );
+}
+
+class _WalletProbe extends ConsumerWidget {
+  const _WalletProbe();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(exV2AccountProvider).requireValue!;
-    final positions = ref.watch(demoPositionsProvider);
-    final history = ref.watch(demoHistoryPositionsProvider);
     final wallet = ref.watch(exV2WalletViewProvider).requireValue;
+    return Scaffold(body: Text('Wallet:${wallet.wallet.totalBalance}'));
+  }
+}
+
+class _NotificationsProbe extends ConsumerWidget {
+  const _NotificationsProbe();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final notifications = ref.watch(exV2NotificationsProvider).requireValue;
     return Scaffold(
-      body: Column(
-        children: [
-          Text('account:${state.accountCode}'),
-          Text('positions:${positions.map((item) => item.id).join(',')}'),
-          Text('history:${history.map((item) => item.id).join(',')}'),
-          Text('wallet:${wallet.wallet.totalBalance}'),
-          Text(
-            'notifications:'
-            '${notifications.map((item) => item['id']).join(',')}',
-          ),
-          Text('settings:${state.settings['scope'] ?? ''}'),
-        ],
+      body: Text(
+        'Notifications:${notifications.map((item) => item['id']).join(',')}',
       ),
     );
   }
@@ -188,6 +368,97 @@ class _AccountScopedProbeState extends ConsumerState<_AccountScopedProbe> {
     return Scaffold(body: Text('captured:$_captured'));
   }
 }
+
+final class _CrossTabApiAdapter implements HttpClientAdapter {
+  int activationCalls = 0;
+  String activeAccountId = 'account-a';
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final path = options.uri.path;
+    if (path.endsWith('/mobile/accounts')) {
+      return _json([_linkedB, _linkedA]);
+    }
+    if (options.method == 'PUT' &&
+        path.endsWith('/mobile/accounts/account-b/activate')) {
+      activationCalls += 1;
+      activeAccountId = 'account-b';
+      return _json({
+        'account': {..._linkedB, 'isActive': true},
+        'bootstrap': _bootstrap('account-b', 'LOGIN-B'),
+      });
+    }
+    if (path.endsWith('/mobile/bootstrap')) {
+      return _json(
+        activeAccountId == 'account-a'
+            ? _bootstrap('account-a', 'LOGIN-A')
+            : _bootstrap('account-b', 'LOGIN-B'),
+      );
+    }
+    if (path.endsWith('/settings')) {
+      return _json({'scope': activeAccountId == 'account-a' ? 'A' : 'B'});
+    }
+    if (path.endsWith('/notifications')) {
+      final suffix = activeAccountId == 'account-a' ? 'a' : 'b';
+      return _json([
+        {'id': 'notification-$suffix', 'scope': suffix.toUpperCase()},
+      ]);
+    }
+    return _json(<Object?>[]);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+final class _MemoryTokenStore implements DeviceTokenStore {
+  @override
+  Future<void> delete() async {}
+
+  @override
+  Future<String?> read() async => 'device-token';
+
+  @override
+  Future<void> write(String token) async {}
+}
+
+ResponseBody _json(Object? value) => ResponseBody.fromString(
+  jsonEncode(value),
+  200,
+  headers: {
+    Headers.contentTypeHeader: [Headers.jsonContentType],
+  },
+);
+
+const _linkedA = <String, Object?>{
+  'id': 'account-a',
+  'brokerId': 'broker-a',
+  'brokerName': 'Broker A',
+  'serverId': 'server-a',
+  'serverName': 'BrokerA-MT5',
+  'login': 'LOGIN-A',
+  'isActive': true,
+  'displayName': 'Account A',
+  'currency': 'USD',
+  'status': 'active',
+};
+
+const _linkedB = <String, Object?>{
+  'id': 'account-b',
+  'brokerId': 'broker-b',
+  'brokerName': 'Broker B',
+  'serverId': 'server-b',
+  'serverName': 'BrokerB-MT5',
+  'login': 'LOGIN-B',
+  'isActive': false,
+  'displayName': 'Account B',
+  'currency': 'USD',
+  'status': 'active',
+};
 
 Map<String, Object?> _bootstrap(String id, String code) => {
   'serverTime': '2026-08-16T08:00:00Z',

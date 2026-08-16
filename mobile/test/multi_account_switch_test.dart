@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -44,6 +45,44 @@ void main() {
     expect(find.text('BROKER DISCOVERY'), findsOneWidget);
   });
 
+  for (final accountState in _UnavailableAccountState.values) {
+    testWidgets(
+      'production Settings add uses broker discovery while account is ${accountState.name}',
+      (tester) async {
+        final fixture = await _pumpProductionRoute(
+          tester,
+          initialLocation: '/settings',
+          unavailableAccountState: accountState,
+        );
+        addTearDown(fixture.dispose);
+
+        await tester.tap(find.byKey(const Key('settings-Tai khoan moi')));
+        await tester.pumpAndSettle();
+
+        expect(fixture.router.state.uri.path, '/accounts/add');
+        expect(find.text('BROKER DISCOVERY'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'production Profile add uses broker discovery while account is ${accountState.name}',
+      (tester) async {
+        final fixture = await _pumpProductionRoute(
+          tester,
+          initialLocation: '/profile',
+          unavailableAccountState: accountState,
+        );
+        addTearDown(fixture.dispose);
+
+        await tester.tap(find.byKey(const Key('accounts-add')));
+        await tester.pumpAndSettle();
+
+        expect(fixture.router.state.uri.path, '/accounts/add');
+        expect(find.text('BROKER DISCOVERY'), findsOneWidget);
+      },
+    );
+  }
+
   testWidgets(
     'linked accounts come from the server with active account first',
     (tester) async {
@@ -53,20 +92,20 @@ void main() {
       );
       addTearDown(fixture.dispose);
 
-      expect(find.byKey(const ValueKey('account-LOGIN-A')), findsOneWidget);
-      expect(find.byKey(const ValueKey('account-LOGIN-B')), findsOneWidget);
+      expect(find.byKey(const ValueKey('account-account-a')), findsOneWidget);
+      expect(find.byKey(const ValueKey('account-account-b')), findsOneWidget);
       expect(
-        tester.getTopLeft(find.byKey(const ValueKey('account-LOGIN-A'))).dy,
+        tester.getTopLeft(find.byKey(const ValueKey('account-account-a'))).dy,
         lessThan(
-          tester.getTopLeft(find.byKey(const ValueKey('account-LOGIN-B'))).dy,
+          tester.getTopLeft(find.byKey(const ValueKey('account-account-b'))).dy,
         ),
       );
       expect(fixture.adapter.accountListCalls, 1);
       expect(find.text('0.00 USD, Hedge'), findsNothing);
-      expect(find.text('â€” USD, Hedge'), findsOneWidget);
+      expect(find.text('— USD, Hedge'), findsOneWidget);
 
-      final activeRow = find.byKey(const ValueKey('account-LOGIN-A'));
-      final inactiveRow = find.byKey(const ValueKey('account-LOGIN-B'));
+      final activeRow = find.byKey(const ValueKey('account-account-a'));
+      final inactiveRow = find.byKey(const ValueKey('account-account-b'));
       expect(
         find.descendant(
           of: activeRow,
@@ -80,6 +119,20 @@ void main() {
           matching: find.byKey(const Key('account-chevron-glyph')),
         ),
         findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: activeRow,
+          matching: find.textContaining('LOGIN-A'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: inactiveRow,
+          matching: find.textContaining('LOGIN-A'),
+        ),
+        findsOneWidget,
       );
     },
   );
@@ -99,8 +152,8 @@ void main() {
         fixture.container.read(linkedTradingAccountsProvider).hasError,
         isTrue,
       );
-      expect(find.byKey(const ValueKey('account-LOGIN-A')), findsOneWidget);
-      expect(find.byKey(const ValueKey('account-LOGIN-B')), findsNothing);
+      expect(find.byKey(const ValueKey('account-account-a')), findsOneWidget);
+      expect(find.byKey(const ValueKey('account-account-b')), findsNothing);
     },
   );
 
@@ -114,7 +167,7 @@ void main() {
     );
     addTearDown(fixture.dispose);
 
-    await tester.tap(find.byKey(const ValueKey('account-LOGIN-B')));
+    await tester.tap(find.byKey(const ValueKey('account-account-b')));
     await tester.pumpAndSettle();
 
     expect(fixture.adapter.activationCalls, 1);
@@ -127,6 +180,7 @@ void main() {
     ]);
     expect(state.settings['scope'], 'A');
     expect(fixture.container.read(activeDemoAccountProvider).id, 'LOGIN-A');
+    expect(find.text('Không thể chuyển tài khoản. Thử lại.'), findsOneWidget);
   });
 
   testWidgets(
@@ -140,7 +194,7 @@ void main() {
       fixture.router.push('/profile');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const ValueKey('account-LOGIN-B')));
+      await tester.tap(find.byKey(const ValueKey('account-account-b')));
       await tester.pumpAndSettle();
 
       expect(fixture.adapter.activationCalls, 1);
@@ -158,7 +212,7 @@ void main() {
         isFalse,
       );
       expect(state.settings['scope'], isNot('A'));
-      expect(fixture.container.read(activeDemoAccountProvider).id, 'LOGIN-B');
+      expect(fixture.container.read(activeDemoAccountProvider).id, 'LOGIN-A');
       expect(
         fixture.container.read(demoPositionsProvider).map((item) => item.id),
         ['position-b'],
@@ -193,6 +247,7 @@ Future<_RouteFixture> _pumpProductionRoute(
   required String initialLocation,
   bool activationFails = false,
   bool accountListFails = false,
+  _UnavailableAccountState? unavailableAccountState,
 }) async {
   tester.view.physicalSize = const Size(384, 848);
   tester.view.devicePixelRatio = 1;
@@ -207,30 +262,41 @@ Future<_RouteFixture> _pumpProductionRoute(
   );
   final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
     ..httpClientAdapter = adapter;
+  final accountOverride = switch (unavailableAccountState) {
+    _UnavailableAccountState.loading => exV2AccountProvider.overrideWithBuild(
+      (ref, controller) => Completer<ExV2AccountViewState?>().future,
+    ),
+    _UnavailableAccountState.error => exV2AccountProvider.overrideWithBuild(
+      (ref, controller) => Future<ExV2AccountViewState?>.error(
+        StateError('bootstrap unavailable'),
+      ),
+    ),
+    null => exV2AccountProvider.overrideWithBuild(
+      (ref, controller) =>
+          ExV2AccountViewState.fromBootstrap(
+            ExV2Bootstrap.fromJson(_bootstrapA),
+          ).copyWith(
+            historyPositions: const [
+              DemoHistoryPosition(
+                id: 'history-a',
+                title: 'A-HISTORY',
+                profit: 1,
+                time: '2026.08.16 08:00:00',
+              ),
+            ],
+            notifications: const [
+              {'id': 'notification-a', 'scope': 'A'},
+            ],
+            settings: const {'scope': 'A'},
+          ),
+    ),
+  };
   final container = ProviderContainer(
     overrides: [
       exV2EnabledProvider.overrideWithValue(true),
       exV2DioProvider.overrideWithValue(dio),
       deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
-      exV2AccountProvider.overrideWithBuild(
-        (ref, controller) =>
-            ExV2AccountViewState.fromBootstrap(
-              ExV2Bootstrap.fromJson(_bootstrapA),
-            ).copyWith(
-              historyPositions: const [
-                DemoHistoryPosition(
-                  id: 'history-a',
-                  title: 'A-HISTORY',
-                  profit: 1,
-                  time: '2026.08.16 08:00:00',
-                ),
-              ],
-              notifications: const [
-                {'id': 'notification-a', 'scope': 'A'},
-              ],
-              settings: const {'scope': 'A'},
-            ),
-      ),
+      accountOverride,
     ],
   );
 
@@ -254,6 +320,11 @@ Future<_RouteFixture> _pumpProductionRoute(
         path: '/account-detail',
         builder: (context, state) => const Scaffold(body: Text('DETAIL')),
       ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) =>
+            const Scaffold(body: Text('OFFLINE REGISTRATION')),
+      ),
     ],
   );
   await tester.pumpWidget(
@@ -263,9 +334,13 @@ Future<_RouteFixture> _pumpProductionRoute(
     ),
   );
   await tester.pump();
-  await tester.pumpAndSettle();
+  if (unavailableAccountState != _UnavailableAccountState.loading) {
+    await tester.pumpAndSettle();
+  }
   return _RouteFixture(container, router, adapter);
 }
+
+enum _UnavailableAccountState { loading, error }
 
 final class _RouteFixture {
   const _RouteFixture(this.container, this.router, this.adapter);
@@ -376,11 +451,11 @@ const _linkedA = <String, Object?>{
 
 const _linkedB = <String, Object?>{
   'id': 'account-b',
-  'brokerId': 'broker-exness',
-  'brokerName': 'Exness Technologies Ltd',
+  'brokerId': 'broker-second',
+  'brokerName': 'Second Broker Ltd',
   'serverId': 'server-b',
-  'serverName': 'Exness-MT5Real',
-  'login': 'LOGIN-B',
+  'serverName': 'SecondBroker-MT5Real',
+  'login': 'LOGIN-A',
   'isActive': false,
   'displayName': 'Account B',
   'currency': 'USD',
@@ -449,7 +524,7 @@ const _bootstrapB = <String, Object?>{
   'device': {'id': 'device-1', 'name': 'Phone'},
   'activeAccount': {
     'id': 'account-b',
-    'accountCode': 'LOGIN-B',
+    'accountCode': 'LOGIN-A',
     'name': 'Account B',
     'currency': 'USD',
     'status': 'active',

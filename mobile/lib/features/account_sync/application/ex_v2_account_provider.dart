@@ -103,16 +103,53 @@ final exV2AccountProvider =
       ExV2AccountController.new,
     );
 
-/// The identity of the account-scoped UI generation.
-///
-/// Deriving this from the published bootstrap keeps the data replacement and
-/// branch reset on the same Riverpod notification. A separate mutable counter
-/// could expose a new branch with the previous account (or vice versa).
-final exV2AccountGenerationProvider = Provider<String?>((ref) {
-  return ref.watch(
-    exV2AccountProvider.select((value) => value.value?.bootstrap.account.id),
-  );
-});
+final class ExV2AccountGeneration {
+  const ExV2AccountGeneration({required this.accountId, required this.value});
+
+  final String? accountId;
+  final int value;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ExV2AccountGeneration &&
+      other.accountId == accountId &&
+      other.value == value;
+
+  @override
+  int get hashCode => Object.hash(accountId, value);
+}
+
+/// A stable UI generation that advances only after a different account
+/// bootstrap has been committed to [exV2AccountProvider]. Loading, refresh
+/// errors, and same-account bootstrap refreshes leave this token unchanged.
+final exV2AccountGenerationProvider =
+    NotifierProvider<ExV2AccountGenerationController, ExV2AccountGeneration>(
+      ExV2AccountGenerationController.new,
+    );
+
+final class ExV2AccountGenerationController
+    extends Notifier<ExV2AccountGeneration> {
+  String? _committedAccountId;
+  int _value = 0;
+
+  @override
+  ExV2AccountGeneration build() {
+    _committedAccountId = ref
+        .read(exV2AccountProvider)
+        .value
+        ?.bootstrap
+        .account
+        .id;
+    ref.listen(exV2AccountProvider, (_, next) {
+      final nextAccountId = next.value?.bootstrap.account.id;
+      if (nextAccountId == null || nextAccountId == _committedAccountId) return;
+      _committedAccountId = nextAccountId;
+      _value += 1;
+      state = ExV2AccountGeneration(accountId: nextAccountId, value: _value);
+    });
+    return ExV2AccountGeneration(accountId: _committedAccountId, value: _value);
+  }
+}
 
 typedef _AccountMutationScope = ({String accountId, int generation});
 

@@ -26,6 +26,7 @@ abstract final class ExV2AccountProfileMapper {
     final presentation = metadata(state.settings);
     return DemoAccountProfile(
       id: account.accountCode,
+      linkedAccountId: account.id,
       name: account.name,
       company: presentation.companyName,
       server: presentation.tradingServer,
