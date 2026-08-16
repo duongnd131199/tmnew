@@ -4,6 +4,7 @@ import 'package:trading_mobile/features/authentication/presentation/screens/logi
 import 'package:trading_mobile/features/authentication/presentation/screens/register_screen.dart';
 import 'package:trading_mobile/features/authentication/presentation/screens/splash_screen.dart';
 import 'package:trading_mobile/features/account_link/presentation/screens/broker_list_screen.dart';
+import 'package:trading_mobile/features/account_link/presentation/screens/existing_account_login_screen.dart';
 import 'package:trading_mobile/features/account_link/presentation/screens/trading_server_screen.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_indicators_screen.dart';
@@ -47,8 +48,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/accounts/add/:brokerId',
       parentNavigatorKey: _rootNavigatorKey,
-      pageBuilder: (context, state) =>
-          _iosSlidePage(state, const RegisterScreen()),
+      pageBuilder: (context, state) => _iosSlidePage(
+        state,
+        ExistingAccountLoginScreen(brokerId: state.pathParameters['brokerId']!),
+      ),
     ),
     GoRoute(
       path: '/accounts/add/:brokerId/servers',
