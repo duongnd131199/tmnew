@@ -105,6 +105,53 @@ void main() {
   );
 
   test(
+    'authoritative activation replaces a higher-version different account',
+    () async {
+      final repository = _OutOfOrderActivationRepository();
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(false),
+          accountLinkRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+      container
+          .read(exV2AccountProvider.notifier)
+          .publishBootstrap(_bootstrap('account-a', version: 50));
+
+      final activation = container
+          .read(accountActivationCoordinatorProvider.notifier)
+          .activate(
+            'account-b',
+            metadata: const ExV2CommandMetadata(
+              idempotencyKey: 'activate-lower-version-account',
+              correlationId: 'lower-version-account-correlation',
+            ),
+          );
+      repository.complete(
+        'account-b',
+        version: 1,
+        bootstrap: ExV2Bootstrap.fromJson({
+          ..._secondBrokerBootstrapJson,
+          'version': 1,
+        }),
+      );
+
+      final outcome = await activation;
+      final active = container.read(exV2AccountProvider).requireValue!;
+      expect(outcome.accepted, isTrue);
+      expect(outcome.publication, ExV2BootstrapPublication.committed);
+      expect(active.bootstrap.account.id, 'account-b');
+      expect(active.bootstrap.summary.accountId, 'account-b');
+      expect(active.balance, 1000);
+      expect(active.positions.single.id, 'second-position');
+      expect(active.presentation?.companyName, 'Second Broker Ltd');
+      expect(active.presentation?.tradingServer, 'Second-Live-02');
+    },
+  );
+
+  test(
     'second broker presentation survives core mutation reconciliation',
     () async {
       final repository = _OutOfOrderActivationRepository();

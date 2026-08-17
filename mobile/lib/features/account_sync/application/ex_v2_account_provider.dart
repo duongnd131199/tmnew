@@ -1457,27 +1457,35 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   ExV2BootstrapPublication publishBootstrap(
     ExV2Bootstrap bootstrap, {
     int operationAuthority = 0,
+    bool authoritativeAccountSwitch = false,
     ExV2AccountPresentation? presentation,
   }) {
     final current = state.value;
     if (current != null) {
       final currentVersion = current.bootstrap.version;
-      if (bootstrap.version < currentVersion) {
-        return ExV2BootstrapPublication.rejectedStale;
-      }
-      if (bootstrap.version == currentVersion) {
-        final sameIdentity =
-            bootstrap.account.id == current.bootstrap.account.id &&
-            bootstrap.summary.accountId == current.bootstrap.summary.accountId;
-        if (!sameIdentity ||
-            operationAuthority < _publishedActivationAuthority) {
+      final sameIdentity =
+          bootstrap.account.id == current.bootstrap.account.id &&
+          bootstrap.summary.accountId == current.bootstrap.summary.accountId;
+      if (!sameIdentity && authoritativeAccountSwitch) {
+        if (operationAuthority > 0 &&
+            operationAuthority <= _publishedActivationAuthority) {
           return ExV2BootstrapPublication.rejectedStale;
         }
-        _publishedActivationAuthority = operationAuthority;
-        if (presentation != null) {
-          state = AsyncData(current.copyWith(presentation: presentation));
+      } else {
+        if (bootstrap.version < currentVersion) {
+          return ExV2BootstrapPublication.rejectedStale;
         }
-        return ExV2BootstrapPublication.idempotentReplay;
+        if (bootstrap.version == currentVersion) {
+          if (!sameIdentity ||
+              operationAuthority < _publishedActivationAuthority) {
+            return ExV2BootstrapPublication.rejectedStale;
+          }
+          _publishedActivationAuthority = operationAuthority;
+          if (presentation != null) {
+            state = AsyncData(current.copyWith(presentation: presentation));
+          }
+          return ExV2BootstrapPublication.idempotentReplay;
+        }
       }
     }
     _accountGeneration += 1;

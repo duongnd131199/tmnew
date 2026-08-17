@@ -63,6 +63,7 @@ final class AccountActivationCoordinator extends Notifier<int> {
         .publishBootstrap(
           result.bootstrap,
           operationAuthority: authority,
+          authoritativeAccountSwitch: true,
           presentation: ExV2AccountPresentation(
             brokerId: account.brokerId,
             companyName: account.brokerName,

@@ -84,6 +84,7 @@ final class AccountPasswordLoginController
           .read(exV2AccountProvider.notifier)
           .publishBootstrap(
             result.bootstrap,
+            authoritativeAccountSwitch: true,
             presentation: ExV2AccountPresentation(
               brokerId: result.account.brokerId,
               companyName: result.account.brokerName,

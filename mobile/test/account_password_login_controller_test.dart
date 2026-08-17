@@ -112,7 +112,7 @@ void main() {
     );
   });
 
-  test('stale bootstrap publication deletes the newly stored token', () async {
+  test('new login replaces a higher-version different account', () async {
     final repository = _FakeLoginRepository();
     final tokenStore = _MemoryTokenStore();
     final harness = _harness(repository, tokenStore);
@@ -126,9 +126,18 @@ void main() {
       password: 'synthetic-sentinel',
     );
 
-    expect(accepted, isFalse);
-    expect(tokenStore.value, isNull);
-    expect(harness.state.phase, AccountPasswordLoginPhase.failed);
+    expect(accepted, isTrue);
+    expect(tokenStore.value, 'opaque-test-token');
+    expect(harness.state.phase, AccountPasswordLoginPhase.succeeded);
+    expect(
+      harness.container
+          .read(exV2AccountProvider)
+          .requireValue
+          ?.bootstrap
+          .account
+          .id,
+      'account-1',
+    );
   });
 }
 
