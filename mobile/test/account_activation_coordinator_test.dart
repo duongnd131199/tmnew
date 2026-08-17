@@ -245,6 +245,32 @@ void main() {
       );
     },
   );
+
+  test('market feed disconnection does not block REST activation', () async {
+    final repository = _OutOfOrderActivationRepository();
+    final container = ProviderContainer(
+      overrides: [
+        exV2EnabledProvider.overrideWithValue(false),
+        accountMutationsConnectedProvider.overrideWithValue(false),
+        accountLinkRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+
+    final activation = container
+        .read(accountActivationCoordinatorProvider.notifier)
+        .activate(
+          'account-b',
+          metadata: const ExV2CommandMetadata(
+            idempotencyKey: 'activate-with-feed-offline',
+            correlationId: 'activate-with-feed-offline-correlation',
+          ),
+        );
+    repository.complete('account-b', version: 1);
+
+    expect((await activation).accepted, isTrue);
+  });
 }
 
 final class _OutOfOrderActivationRepository implements AccountLinkRepository {

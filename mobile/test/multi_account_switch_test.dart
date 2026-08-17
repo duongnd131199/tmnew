@@ -192,7 +192,9 @@ void main() {
     addTearDown(fixture.dispose);
 
     await tester.tap(find.byKey(const ValueKey('account-account-b')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(fixture.adapter.activationCalls, 1);
     expect(fixture.router.state.uri.path, '/profile');
@@ -210,47 +212,24 @@ void main() {
     );
   });
 
-  testWidgets('offline account switch is disabled until reconnect', (
+  testWidgets('offline market feed does not block REST account switch', (
     tester,
   ) async {
-    final statuses = StreamController<MarketConnectionStatus>()
-      ..add(MarketConnectionStatus.disconnected);
-    addTearDown(statuses.close);
     final fixture = await _pumpProductionRoute(
       tester,
       initialLocation: '/profile',
-      connectionStatuses: statuses.stream,
+      connectionStatuses: Stream<MarketConnectionStatus>.value(
+        MarketConnectionStatus.disconnected,
+      ),
     );
     addTearDown(fixture.dispose);
 
-    await tester.tap(find.byKey(const ValueKey('account-account-b')));
-    await tester.pump();
+    final row = find.byKey(const ValueKey('account-account-b'));
+    final inkWell = tester.widget<InkWell>(
+      find.descendant(of: row, matching: find.byType(InkWell)),
+    );
+    expect(inkWell.onTap, isNotNull);
     expect(fixture.adapter.activationCalls, 0);
-    expect(
-      fixture.container
-          .read(exV2AccountProvider)
-          .requireValue
-          ?.bootstrap
-          .account
-          .id,
-      'account-a',
-    );
-
-    statuses.add(MarketConnectionStatus.connected);
-    await tester.pump();
-    await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('account-account-b')));
-    await tester.pumpAndSettle();
-    expect(fixture.adapter.activationCalls, 1);
-    expect(
-      fixture.container
-          .read(exV2AccountProvider)
-          .requireValue
-          ?.bootstrap
-          .account
-          .id,
-      'account-b',
-    );
   });
 
   testWidgets(

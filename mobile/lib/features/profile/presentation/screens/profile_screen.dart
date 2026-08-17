@@ -16,7 +16,6 @@ class ProfileScreen extends ConsumerWidget {
     final serverMode = ref.watch(exV2EnabledProvider);
     final accounts = ref.watch(demoAccountsProvider);
     final serverAccount = ref.watch(exV2AccountProvider).value;
-    final mutationsConnected = ref.watch(accountMutationsConnectedProvider);
     final activeId = serverMode
         ? serverAccount?.bootstrap.account.id
         : ref.watch(activeDemoAccountIdProvider);
@@ -108,8 +107,6 @@ class ProfileScreen extends ConsumerWidget {
                               controller.select(account.id);
                             });
                           }
-                        : !mutationsConnected
-                        ? null
                         : () async {
                             final linkedAccountId = account.linkedAccountId;
                             if (linkedAccountId == null) return;

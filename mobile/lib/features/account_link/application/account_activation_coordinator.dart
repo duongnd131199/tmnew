@@ -59,9 +59,6 @@ final class AccountActivationCoordinator extends Notifier<int> {
     String accountId, {
     required ExV2CommandMetadata metadata,
   }) async {
-    if (!ref.read(accountMutationsConnectedProvider)) {
-      throw const AccountMutationOffline();
-    }
     final authority = ++_nextAuthority;
     state = authority;
     final result = await ref
