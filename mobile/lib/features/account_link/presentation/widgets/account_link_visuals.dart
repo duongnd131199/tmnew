@@ -46,14 +46,19 @@ class AccountLinkToolbarButton extends StatelessWidget {
 }
 
 class AccountLinkBrokerMark extends StatelessWidget {
-  const AccountLinkBrokerMark({required this.broker, super.key});
+  const AccountLinkBrokerMark({
+    required this.broker,
+    this.displayAsExness = false,
+    super.key,
+  });
 
   final MobileBroker broker;
+  final bool displayAsExness;
 
   @override
   Widget build(BuildContext context) {
     final identity = '${broker.name} ${broker.companyName ?? ''}'.toLowerCase();
-    if (identity.contains('exness')) {
+    if (displayAsExness || identity.contains('exness')) {
       return SizedBox.square(
         key: ValueKey('broker-mark-${broker.id}'),
         dimension: AccountVisualMetrics.brokerMark,
@@ -61,10 +66,12 @@ class AccountLinkBrokerMark extends StatelessWidget {
           color: AppColors.brokerExness,
           child: Center(
             child: Text(
-              'EX',
+              displayAsExness ? 'exness' : 'EX',
               textScaler: TextScaler.noScaling,
               style: AppTypography.caption.copyWith(
                 color: AppColors.brokerMarkInk,
+                fontFamily: displayAsExness ? 'sans-serif' : null,
+                fontSize: displayAsExness ? 7 : null,
                 fontWeight: FontWeight.w800,
                 height: 1,
               ),

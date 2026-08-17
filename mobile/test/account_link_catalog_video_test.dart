@@ -163,6 +163,49 @@ void main() {
     expect(find.text('YODO-Demo-01'), findsNothing);
   });
 
+  testWidgets('YODO server block uses the complete reference presentation', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      repository: _LiveCatalogRepository(),
+      child: const ExistingAccountLoginScreen(brokerId: 'yodo-demo'),
+    );
+
+    expect(find.text('Exness Technologies Ltd'), findsOneWidget);
+    expect(find.text('YODO Demo Markets'), findsNothing);
+    expect(find.text('exness'), findsOneWidget);
+
+    final headerTitle = tester.widget<Text>(
+      find.text('Exness Technologies Ltd'),
+    );
+    final serverName = tester.widget<Text>(find.text('Exness-MT5Real20'));
+    expect(headerTitle.style?.fontFamily, 'sans-serif');
+    expect(serverName.style?.fontFamily, 'sans-serif');
+
+    final serverBlock = find.byKey(const Key('existing-account-server-row'));
+    expect(tester.getSize(serverBlock).height, 56);
+    expect(
+      tester
+          .widget<Material>(
+            find.descendant(of: serverBlock, matching: find.byType(Material)),
+          )
+          .color,
+      AppColors.surface,
+    );
+
+    final mark = find.byKey(const ValueKey('broker-mark-yodo-demo'));
+    expect(tester.getSize(mark), const Size.square(31));
+    expect(
+      tester
+          .widget<ColoredBox>(
+            find.descendant(of: mark, matching: find.byType(ColoredBox)),
+          )
+          .color,
+      AppColors.brokerExness,
+    );
+  });
+
   testWidgets(
     'broker frame exposes reference controls, rows, and text search',
     (tester) async {

@@ -104,6 +104,8 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
                           rowKey: option.rowKey,
                           server: option.server,
                           selected: option.isSelected(state?.selectedServer),
+                          referencePresentation:
+                              usesReferenceServerPresentation(widget.brokerId),
                           onTap: () => _select(option.server),
                         );
                       },
@@ -169,12 +171,14 @@ class _ServerRow extends StatelessWidget {
     required this.rowKey,
     required this.server,
     required this.selected,
+    required this.referencePresentation,
     required this.onTap,
   });
 
   final String rowKey;
   final MobileTradingServer server;
   final bool selected;
+  final bool referencePresentation;
   final VoidCallback onTap;
 
   @override
@@ -195,10 +199,14 @@ class _ServerRow extends StatelessWidget {
                       server.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.titleMedium.copyWith(
-                        color: AppColors.textPrimary,
-                        height: 1,
-                      ),
+                      style:
+                          (referencePresentation
+                                  ? AppTypography.referenceServerName
+                                  : AppTypography.titleMedium)
+                              .copyWith(
+                                color: AppColors.textPrimary,
+                                height: 1,
+                              ),
                     ),
                   ),
                   if (selected)

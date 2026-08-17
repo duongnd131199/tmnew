@@ -1,5 +1,10 @@
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 
+const referenceServerBrokerDisplayName = 'Exness Technologies Ltd';
+
+bool usesReferenceServerPresentation(String brokerId) =>
+    brokerId == 'yodo-demo';
+
 const referenceServerDisplayNames = <String>[
   'Exness-MT5Real20',
   'Exness-MT5Real17',
@@ -51,7 +56,7 @@ List<ReferenceServerOption> referenceServerOptions({
   required String brokerId,
   required List<MobileTradingServer> servers,
 }) {
-  if (brokerId != 'yodo-demo') {
+  if (!usesReferenceServerPresentation(brokerId)) {
     return [
       for (final server in servers)
         ReferenceServerOption(

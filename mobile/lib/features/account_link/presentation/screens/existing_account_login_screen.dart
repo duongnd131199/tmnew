@@ -50,6 +50,9 @@ class _ExistingAccountLoginScreenState
     final mutationsConnected = ref.watch(accountMutationsConnectedProvider);
     final routeAuthorized = state.selectedBroker?.id == widget.brokerId;
     final formState = routeAuthorized ? state : const AccountLinkState();
+    final referencePresentation = usesReferenceServerPresentation(
+      widget.brokerId,
+    );
     _synchronize(_loginController, formState.login);
     _synchronize(_passwordController, formState.password);
 
@@ -59,7 +62,10 @@ class _ExistingAccountLoginScreenState
       body: SafeArea(
         child: Column(
           children: [
-            _BrokerHeader(broker: formState.selectedBroker),
+            _BrokerHeader(
+              broker: formState.selectedBroker,
+              referencePresentation: referencePresentation,
+            ),
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -96,6 +102,7 @@ class _ExistingAccountLoginScreenState
                       key: const Key('existing-account-server-row'),
                       label: 'Máy chủ',
                       value: formState.selectedServer?.name ?? 'Chọn máy chủ',
+                      referencePresentation: referencePresentation,
                       onTap: !routeAuthorized
                           ? null
                           : () => context.push(
@@ -292,9 +299,13 @@ class _ExistingAccountLoginScreenState
 }
 
 class _BrokerHeader extends StatelessWidget {
-  const _BrokerHeader({required this.broker});
+  const _BrokerHeader({
+    required this.broker,
+    required this.referencePresentation,
+  });
 
   final MobileBroker? broker;
+  final bool referencePresentation;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -316,17 +327,23 @@ class _BrokerHeader extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.md),
               if (broker case final value?)
-                AccountLinkBrokerMark(broker: value),
+                AccountLinkBrokerMark(
+                  broker: value,
+                  displayAsExness: referencePresentation,
+                ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
-                  broker?.name ?? '',
+                  referencePresentation
+                      ? referenceServerBrokerDisplayName
+                      : broker?.name ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.titleMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                    height: 1,
-                  ),
+                  style:
+                      (referencePresentation
+                              ? AppTypography.referenceServerName
+                              : AppTypography.titleMedium)
+                          .copyWith(fontWeight: FontWeight.w700, height: 1),
                 ),
               ),
             ],
@@ -431,12 +448,14 @@ class _ValueRow extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onTap,
+    required this.referencePresentation,
     super.key,
   });
 
   final String label;
   final String value;
   final VoidCallback? onTap;
+  final bool referencePresentation;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -454,9 +473,11 @@ class _ValueRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
-                style: AppTypography.titleMedium.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+                style:
+                    (referencePresentation
+                            ? AppTypography.referenceServerName
+                            : AppTypography.titleMedium)
+                        .copyWith(color: AppColors.textSecondary),
               ),
             ),
             const SizedBox(width: AppSpacing.xxs),
