@@ -125,6 +125,8 @@ void main() {
         ),
       );
       expect(fixture.adapter.accountListCalls, 1);
+      expect(find.text('Account A'), findsNWidgets(2));
+      expect(find.text('Account B'), findsNothing);
       expect(find.text('0.00 USD, Hedge'), findsNothing);
       expect(find.text('USD, Hedge'), findsOneWidget);
 

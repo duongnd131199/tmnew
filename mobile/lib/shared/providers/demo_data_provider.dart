@@ -614,7 +614,7 @@ final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
       profiles.add(active);
       foundActive = true;
     } else {
-      profiles.add(_mapLinkedAccount(account));
+      profiles.add(_mapLinkedAccount(account, displayName: active.name));
     }
   }
   if (!foundActive) profiles.insert(0, active);
@@ -672,7 +672,10 @@ final class LinkedTradingAccountsController
   }
 }
 
-DemoAccountProfile _mapLinkedAccount(LinkedTradingAccount account) {
+DemoAccountProfile _mapLinkedAccount(
+  LinkedTradingAccount account, {
+  required String displayName,
+}) {
   final broker = '${account.brokerId} ${account.brokerName}'.toLowerCase();
   final brand = broker.contains('exness')
       ? DemoBrokerBrand.exness
@@ -684,7 +687,7 @@ DemoAccountProfile _mapLinkedAccount(LinkedTradingAccount account) {
   return DemoAccountProfile(
     id: account.login,
     linkedAccountId: account.id,
-    name: account.displayName ?? account.brokerName,
+    name: displayName,
     company: account.brokerName,
     server: account.serverName,
     accessPoint: '',
