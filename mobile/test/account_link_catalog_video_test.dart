@@ -70,6 +70,35 @@ void main() {
     }
   });
 
+  testWidgets('live catalog data keeps the video frame responsive', (
+    tester,
+  ) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.binding.setSurfaceSize(const Size(360, 844));
+    final repository = _LiveCatalogRepository();
+
+    await _pump(
+      tester,
+      repository: repository,
+      child: const BrokerListScreen(),
+    );
+
+    expect(find.text('YODO Demo Markets'), findsOneWidget);
+    expect(find.text('YODO Markets International Limited'), findsOneWidget);
+    expect(find.textContaining('Exness'), findsNothing);
+    expect(find.textContaining('MetaQuotes'), findsNothing);
+    expect(tester.takeException(), isNull);
+
+    await _pump(
+      tester,
+      repository: repository,
+      child: const TradingServerScreen(brokerId: 'yodo-demo'),
+    );
+
+    expect(find.text('YODO-Demo-01'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'broker frame exposes reference controls, rows, and text search',
     (tester) async {
@@ -546,6 +575,29 @@ class _CatalogRepository implements AccountLinkRepository {
     LinkAccountRequest request, {
     required ExV2CommandMetadata metadata,
   }) => throw UnimplementedError();
+}
+
+final class _LiveCatalogRepository extends _CatalogRepository {
+  @override
+  Future<List<MobileBroker>> brokers({String query = ''}) async => const [
+    MobileBroker(
+      id: 'yodo-demo',
+      name: 'YODO Demo Markets',
+      companyName: 'YODO Markets International Limited',
+    ),
+  ];
+
+  @override
+  Future<List<MobileTradingServer>> servers(
+    String brokerId, {
+    String query = '',
+  }) async => const [
+    MobileTradingServer(
+      id: 'yodo-demo-01',
+      name: 'YODO-Demo-01',
+      brokerId: 'yodo-demo',
+    ),
+  ];
 }
 
 final class _DeferredCatalogRepository extends _CatalogRepository {
