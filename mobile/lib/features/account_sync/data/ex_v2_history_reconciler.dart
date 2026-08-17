@@ -22,21 +22,31 @@ abstract final class ExV2HistoryReconciler {
 
     final positionId = _normalizedString(position, const ['id', 'positionId']);
     if (positionId != null) {
-      return _weightedPrice(
-        deals.where(
-          (deal) =>
-              _isExitDeal(deal) &&
-              _normalizedString(deal, const ['positionId']) == positionId,
-        ),
-      );
+      final linkedExits = deals
+          .where(
+            (deal) =>
+                _isExitDeal(deal) &&
+                _normalizedString(deal, const ['positionId']) == positionId,
+          )
+          .toList(growable: false);
+      if (linkedExits.isNotEmpty) return _weightedPrice(linkedExits);
     }
 
     final symbol = _normalizedString(position, const ['symbol']);
     final closedAt = _date(position, const ['closedAt', 'closedAtUtc']);
+    final positionVolume = _number(position, const [
+      'volume',
+      'initialVolume',
+    ]);
     if (symbol == null || closedAt == null) return null;
     final candidates = deals.where((deal) {
       if (!_isExitDeal(deal)) return false;
       if (_normalizedString(deal, const ['symbol']) != symbol) return false;
+      final dealVolume = _number(deal, const ['volume']);
+      if (positionVolume != null &&
+          (dealVolume == null || !_sameNumber(dealVolume, positionVolume))) {
+        return false;
+      }
       return _date(
             deal,
             const ['createdAt', 'createdAtUtc', 'time'],
@@ -113,5 +123,10 @@ abstract final class ExV2HistoryReconciler {
       if (parsed != null) return parsed.toUtc();
     }
     return null;
+  }
+
+  static bool _sameNumber(double first, double second) {
+    final tolerance = second.abs() * 1e-9 + 1e-12;
+    return (first - second).abs() <= tolerance;
   }
 }

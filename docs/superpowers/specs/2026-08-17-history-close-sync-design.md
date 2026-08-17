@@ -33,9 +33,9 @@ layer. It will:
 4. For one exit deal, use its execution price.
 5. For multiple exit deals, calculate the volume-weighted average:
    `sum(price * volume) / sum(volume)`.
-6. Refuse symbol/time guessing when identifiers are present but do not match.
-   A legacy fallback may match symbol and close timestamp only when it resolves
-   to one unambiguous exit group.
+6. Prefer linked identifiers. When legacy history-row IDs differ from deal
+   position IDs, fall back only to an exact symbol, close timestamp, and volume
+   match that resolves to one unambiguous exit group.
 7. Return null instead of inventing a financial value when price or positive
    volume is insufficient.
 

@@ -180,6 +180,38 @@ void main() {
     expect(price, 4321.25);
   });
 
+  test('legacy mismatched ids use an exact symbol-time-volume exit', () {
+    final price = ExV2HistoryReconciler.closePrice(
+      const {
+        'id': 'history-row-1',
+        'symbol': 'XAUUSD+',
+        'initialVolume': 0.01,
+        'status': 'closed',
+        'closedAtUtc': '2026-08-13T22:24:06Z',
+      },
+      const [
+        {
+          'positionId': 'canonical-position-1',
+          'dealType': 'out',
+          'symbol': 'XAUUSD+',
+          'volume': 0.01,
+          'price': 4369.553,
+          'createdAtUtc': '2026-08-13T22:24:06Z',
+        },
+        {
+          'positionId': 'another-position',
+          'dealType': 'out',
+          'symbol': 'XAUUSD+',
+          'volume': 1,
+          'price': 9999,
+          'createdAtUtc': '2026-08-13T22:24:06Z',
+        },
+      ],
+    );
+
+    expect(price, 4369.553);
+  });
+
   test('legacy symbol-time fallback refuses ambiguous exit groups', () {
     final price = ExV2HistoryReconciler.closePrice(
       const {
