@@ -1,7 +1,7 @@
 import 'package:trading_mobile/features/account_login/domain/account_password_login_models.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 
-final class AccountPasswordLoginRepository {
+class AccountPasswordLoginRepository {
   const AccountPasswordLoginRepository(this._client);
 
   final ExV2ApiClient _client;
