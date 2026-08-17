@@ -277,6 +277,34 @@ void main() {
     expect(fixture.adapter.activationCalls, 0);
   });
 
+  testWidgets('activate conflict keeps account A and exposes safe code', (
+    tester,
+  ) async {
+    final fixture = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/profile',
+      activationConflict: true,
+    );
+    addTearDown(fixture.dispose);
+
+    await tester.tap(find.byKey(const ValueKey('account-account-b')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(fixture.adapter.activatedAccountIds, ['account-b']);
+    expect(
+      fixture.container
+          .read(exV2AccountProvider)
+          .requireValue!
+          .bootstrap
+          .account
+          .id,
+      'account-a',
+    );
+    expect(find.textContaining('concurrency_conflict'), findsOneWidget);
+    expect(find.textContaining('corr-switch-safe'), findsOneWidget);
+  });
+
   testWidgets(
     'activate success publishes B without any account A branch data',
     (tester) async {
@@ -292,6 +320,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(fixture.adapter.activationCalls, 1);
+      expect(fixture.adapter.activatedAccountIds, ['account-b']);
       expect(fixture.router.state.uri.path, '/settings');
       final state = fixture.container.read(exV2AccountProvider).requireValue!;
       expect(state.bootstrap.account.id, 'account-b');
@@ -307,6 +336,10 @@ void main() {
       );
       expect(state.settings['scope'], isNot('A'));
       expect(fixture.container.read(activeDemoAccountProvider).id, 'LOGIN-A');
+      expect(
+        fixture.container.read(activeDemoAccountProvider).name,
+        'Account B',
+      );
       expect(
         fixture.container.read(demoPositionsProvider).map((item) => item.id),
         ['position-b'],
@@ -340,6 +373,7 @@ Future<_RouteFixture> _pumpProductionRoute(
   WidgetTester tester, {
   required String initialLocation,
   bool activationFails = false,
+  bool activationConflict = false,
   bool accountListFails = false,
   _UnavailableAccountState? unavailableAccountState,
   Completer<ExV2AccountViewState?>? bootstrapGate,
@@ -355,6 +389,7 @@ Future<_RouteFixture> _pumpProductionRoute(
 
   final adapter = _AccountApiAdapter(
     activationFails: activationFails,
+    activationConflict: activationConflict,
     accountListFails: accountListFails,
     technicalYodoMetadata: technicalYodoMetadata,
   );
@@ -470,15 +505,18 @@ final class _RouteFixture {
 final class _AccountApiAdapter implements HttpClientAdapter {
   _AccountApiAdapter({
     required this.activationFails,
+    required this.activationConflict,
     required this.accountListFails,
     required this.technicalYodoMetadata,
   });
 
   final bool activationFails;
+  final bool activationConflict;
   final bool accountListFails;
   final bool technicalYodoMetadata;
   int accountListCalls = 0;
   int activationCalls = 0;
+  final List<String> activatedAccountIds = [];
   String activeAccountId = 'account-a';
 
   @override
@@ -506,6 +544,14 @@ final class _AccountApiAdapter implements HttpClientAdapter {
     if (options.method == 'PUT' &&
         path.endsWith('/mobile/accounts/account-b/activate')) {
       activationCalls += 1;
+      activatedAccountIds.add('account-b');
+      if (activationConflict) {
+        return _json({
+          'code': 'concurrency_conflict',
+          'message': 'The operation conflicted with another account change.',
+          'correlationId': 'corr-switch-safe',
+        }, statusCode: 409);
+      }
       if (activationFails) {
         return _json({
           'code': 'activation_failed',
