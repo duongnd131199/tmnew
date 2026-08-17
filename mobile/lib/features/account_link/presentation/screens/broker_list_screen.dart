@@ -9,6 +9,7 @@ import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
+import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_toolbar.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_visuals.dart';
 
 class BrokerListScreen extends ConsumerStatefulWidget {
@@ -69,9 +70,13 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
         bottom: false,
         child: Column(
           children: [
-            _BrokerToolbar(
+            AccountLinkToolbar(
+              title: 'Brokers',
               onBack: () => Navigator.of(context).maybePop(),
-              onQr: _handleQr,
+              trailing: AccountLinkToolbarButton(
+                action: AccountLinkToolbarAction.qr,
+                onTap: _handleQr,
+              ),
             ),
             Expanded(
               child: switch ((failed, loading, brokers.isEmpty)) {
@@ -237,43 +242,6 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
       const SnackBar(content: Text('Nhập tài khoản bằng QR chưa được hỗ trợ')),
     );
   }
-}
-
-class _BrokerToolbar extends StatelessWidget {
-  const _BrokerToolbar({required this.onBack, required this.onQr});
-
-  final VoidCallback onBack;
-  final VoidCallback onQr;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 66,
-    child: Stack(
-      alignment: Alignment.center,
-      children: [
-        Text(
-          'Brokers',
-          style: AppTypography.titleMedium.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        Positioned(
-          left: AppSpacing.md,
-          child: AccountLinkToolbarButton(
-            action: AccountLinkToolbarAction.back,
-            onTap: onBack,
-          ),
-        ),
-        Positioned(
-          right: AppSpacing.md,
-          child: AccountLinkToolbarButton(
-            action: AccountLinkToolbarAction.qr,
-            onTap: onQr,
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 class _BrokerRow extends StatelessWidget {

@@ -14,6 +14,62 @@ import 'package:trading_mobile/features/account_link/presentation/screens/tradin
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 
 void main() {
+  testWidgets('broker toolbar spans the viewport without overlap', (
+    tester,
+  ) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    for (final width in const <double>[360, 390, 430]) {
+      await tester.binding.setSurfaceSize(Size(width, 844));
+      await _pump(
+        tester,
+        repository: _CatalogRepository(),
+        child: const BrokerListScreen(),
+      );
+
+      final screen = tester.getRect(
+        find.byKey(const Key('broker-list-screen')),
+      );
+      final back = tester.getRect(
+        find.byKey(const Key('account-link-back-button')),
+      );
+      final title = tester.getRect(find.text('Brokers'));
+      final qr = tester.getRect(
+        find.byKey(const Key('account-link-qr-button')),
+      );
+
+      expect(title.center.dx, closeTo(screen.center.dx, 1), reason: '$width');
+      expect(back.right, lessThan(title.left), reason: '$width');
+      expect(qr.left, greaterThan(title.right), reason: '$width');
+    }
+  });
+
+  testWidgets('server toolbar spans the viewport without overlap', (
+    tester,
+  ) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    for (final width in const <double>[360, 390, 430]) {
+      await tester.binding.setSurfaceSize(Size(width, 844));
+      await _pump(
+        tester,
+        repository: _CatalogRepository(),
+        child: const TradingServerScreen(brokerId: 'exness'),
+      );
+
+      final screen = tester.getRect(
+        find.byKey(const Key('trading-server-screen')),
+      );
+      final back = tester.getRect(
+        find.byKey(const Key('account-link-back-button')),
+      );
+      final title = tester.getRect(find.text('Máy chủ'));
+
+      expect(title.center.dx, closeTo(screen.center.dx, 1), reason: '$width');
+      expect(back.right, lessThan(title.left), reason: '$width');
+    }
+  });
+
   testWidgets(
     'broker frame exposes reference controls, rows, and text search',
     (tester) async {

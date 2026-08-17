@@ -8,7 +8,7 @@ import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
-import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_visuals.dart';
+import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_toolbar.dart';
 
 class TradingServerScreen extends ConsumerStatefulWidget {
   const TradingServerScreen({
@@ -52,26 +52,9 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
         bottom: false,
         child: Column(
           children: [
-            SizedBox(
-              height: 66,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Text(
-                    'Máy chủ',
-                    style: AppTypography.titleMedium.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Positioned(
-                    left: AppSpacing.md,
-                    child: AccountLinkToolbarButton(
-                      action: AccountLinkToolbarAction.back,
-                      onTap: () => Navigator.of(context).maybePop(),
-                    ),
-                  ),
-                ],
-              ),
+            AccountLinkToolbar(
+              title: 'Máy chủ',
+              onBack: () => Navigator.of(context).maybePop(),
             ),
             Expanded(
               child: switch ((
