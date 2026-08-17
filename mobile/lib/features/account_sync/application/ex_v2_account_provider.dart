@@ -24,10 +24,26 @@ final class ExV2Config {
   final String hubUrl;
 }
 
+final class ExV2LoginConfig {
+  const ExV2LoginConfig({required this.brokerId, required this.serverId});
+
+  static const production = ExV2LoginConfig(
+    brokerId: 'yodo-demo',
+    serverId: 'yodo-demo-01',
+  );
+
+  final String brokerId;
+  final String serverId;
+}
+
 final exV2EnabledProvider = Provider<bool>((ref) => false);
 final exV2RealtimeEnabledProvider = Provider<bool>((ref) => false);
 
 final exV2ConfigProvider = Provider<ExV2Config>((ref) => ExV2Config.production);
+
+final exV2LoginConfigProvider = Provider<ExV2LoginConfig>(
+  (ref) => ExV2LoginConfig.production,
+);
 
 final deviceTokenStoreProvider = Provider<DeviceTokenStore>(
   (ref) => const SecureDeviceTokenStore(FlutterSecureStorage()),

@@ -61,6 +61,20 @@ final class ExV2ApiClient {
     required ExV2CommandMetadata metadata,
   }) => _mutation('POST', path, body, metadata);
 
+  Future<Map<String, dynamic>> postLoginJson(
+    String path, {
+    required Map<String, dynamic> body,
+    required String installationId,
+    required ExV2CommandMetadata metadata,
+  }) => _mutation(
+    'POST',
+    path,
+    body,
+    metadata,
+    requiresDeviceToken: false,
+    extraHeaders: <String, dynamic>{'X-Installation-Id': installationId},
+  );
+
   Future<Map<String, dynamic>> putJson(
     String path, {
     required Map<String, dynamic> body,
@@ -76,13 +90,17 @@ final class ExV2ApiClient {
     String method,
     String path,
     Map<String, dynamic> body,
-    ExV2CommandMetadata metadata,
-  ) async {
+    ExV2CommandMetadata metadata, {
+    bool requiresDeviceToken = true,
+    Map<String, dynamic> extraHeaders = const <String, dynamic>{},
+  }) async {
     final response = await _request<dynamic>(
       method,
       path,
       data: body,
       metadata: metadata,
+      requiresDeviceToken: requiresDeviceToken,
+      extraHeaders: extraHeaders,
     );
     final value = response.data;
     if (value == null || value == '') return const {};
@@ -97,12 +115,18 @@ final class ExV2ApiClient {
     Object? data,
     Map<String, dynamic>? queryParameters,
     ExV2CommandMetadata? metadata,
+    bool requiresDeviceToken = true,
+    Map<String, dynamic> extraHeaders = const <String, dynamic>{},
   }) async {
-    final token = (await _tokenReader())?.trim();
-    if (token == null || token.isEmpty) throw const ExV2TokenMissing();
+    String? token;
+    if (requiresDeviceToken) {
+      token = (await _tokenReader())?.trim();
+      if (token == null || token.isEmpty) throw const ExV2TokenMissing();
+    }
     final correlationId = metadata?.correlationId ?? uuidV4();
     final headers = <String, dynamic>{
-      'X-Device-Token': token,
+      ...extraHeaders,
+      if (requiresDeviceToken) 'X-Device-Token': token,
       'X-Correlation-Id': correlationId,
       if (metadata != null) 'Idempotency-Key': metadata.idempotencyKey,
     };
