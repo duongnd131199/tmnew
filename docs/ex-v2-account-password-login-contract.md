@@ -1,10 +1,25 @@
 # EX V2 Account/Password Mobile Login Contract
 
+> Đây là file duy nhất cần đưa cho Codex trên server EX V2. Hãy đọc toàn bộ file, khám phá source/deployment thật trước khi sửa, viết test thất bại trước implementation và không sửa backend demo local trong `D:/mt5New/backend`.
+
 ## Mục đích
 
 Tài liệu này là contract triển khai cho source backend EX V2 thật. Flutter cần một lần đăng nhập bằng account/password để backend tự tạo device session, link và activate account. Người dùng không nhập device token; token vẫn tồn tại nội bộ để bảo vệ mọi API tài chính sau login.
 
 Không triển khai contract này trong `D:/mt5New/backend`; đó không phải service EX V2 đang phục vụ public base URL.
+
+## Hành vi Flutter mà backend phải đáp ứng
+
+Primary login UI chỉ hiển thị hai trường `Đăng nhập` và `Mật khẩu`. Flutter xử lý ngầm các giá trị sau:
+
+- `brokerId`: `yodo-demo`;
+- `serverId`: `yodo-demo-01`;
+- installation ID ổn định do app sinh một lần;
+- correlation ID và idempotency key;
+- lưu device token nội bộ sau success;
+- publish canonical bootstrap và mở thẳng màn hình Trade.
+
+Người dùng không nhập hoặc nhìn thấy device token, broker selector hay server selector. Khi secure storage đã có token hợp lệ, app gọi bootstrap như hiện tại. Khi token invalid/revoked hoặc chưa tồn tại, app hiển thị account/password login. Backend không được yêu cầu Flutter gửi password trong bất kỳ request nào sau login.
 
 ## Public route
 
