@@ -204,7 +204,10 @@ void main() {
     ]);
     expect(state.settings['scope'], 'A');
     expect(fixture.container.read(activeDemoAccountProvider).id, 'LOGIN-A');
-    expect(find.text('Không thể chuyển tài khoản. Thử lại.'), findsOneWidget);
+    expect(
+      find.text('Activation failed\nMã lỗi: activation_failed'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('offline account switch is disabled until reconnect', (
