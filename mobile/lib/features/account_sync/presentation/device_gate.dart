@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trading_mobile/app/router.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
+import 'package:trading_mobile/features/account_login/presentation/account_password_login_screen.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
-import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 
 class DeviceGate extends ConsumerStatefulWidget {
@@ -77,7 +77,7 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
     if (_tokenReadError != null) {
       return _AccountBootstrapUnavailable(
         key: const Key('device-token-read-error'),
-        message: 'Không thể đọc mã thiết bị.',
+        message: 'Không thể đọc phiên đăng nhập.',
         onRetry: () => _readToken(retry: true),
       );
     }
@@ -105,8 +105,8 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
             : _isDeviceAuthenticationFailure(error)
             ? _AccountBootstrapUnavailable(
                 key: const Key('device-authentication-error'),
-                message: 'Mã thiết bị đã hết hiệu lực.',
-                buttonLabel: 'Nhập mã khác',
+                message: 'Phiên đăng nhập đã hết hiệu lực.',
+                buttonLabel: 'Đăng nhập lại',
                 onRetry: () => unawaited(_resetDeviceAuthentication()),
               )
             : _AccountBootstrapUnavailable(
@@ -126,12 +126,16 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: _DeviceActivationScreen(
-        onActivated: () {
+      home: AccountPasswordLoginScreen(
+        onAuthenticated: () {
           if (!mounted) return;
-          ref.invalidate(exV2AccountProvider);
-          setState(() => _activated = true);
-          _armBootstrapTimeout();
+          setState(() {
+            _activated = true;
+            _accountlessUnlocked = false;
+          });
+          if (ref.read(exV2AccountProvider).isLoading) {
+            _armBootstrapTimeout();
+          }
         },
       ),
     );
@@ -292,89 +296,6 @@ class _AccountBootstrapAccountless extends StatelessWidget {
           ),
         ),
       ),
-    ),
-  );
-}
-
-class _DeviceActivationScreen extends ConsumerStatefulWidget {
-  const _DeviceActivationScreen({required this.onActivated});
-
-  final VoidCallback onActivated;
-
-  @override
-  ConsumerState<_DeviceActivationScreen> createState() =>
-      _DeviceActivationScreenState();
-}
-
-class _DeviceActivationScreenState
-    extends ConsumerState<_DeviceActivationScreen> {
-  final _controller = TextEditingController();
-  bool _submitting = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _activate() async {
-    if (_submitting) return;
-    setState(() {
-      _submitting = true;
-      _error = null;
-    });
-    try {
-      final service = DeviceActivationService(
-        ref.read(deviceTokenStoreProvider),
-      );
-      await service.activate(
-        _controller.text,
-        validate: (_) async {
-          await ref.read(exV2RepositoryProvider).status();
-        },
-      );
-      widget.onActivated();
-    } catch (_) {
-      if (mounted) {
-        setState(() => _error = 'Không thể xác thực thiết bị.');
-      }
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Kích hoạt thiết bị')),
-    body: ListView(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      children: [
-        const Text(
-          'Nhập token một lần. Tài khoản sử dụng trên app sẽ được chọn từ trang quản trị web.',
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        TextField(
-          controller: _controller,
-          obscureText: true,
-          enableSuggestions: false,
-          autocorrect: false,
-          decoration: InputDecoration(
-            labelText: 'Device token',
-            errorText: _error,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        FilledButton(
-          onPressed: _submitting ? null : _activate,
-          child: _submitting
-              ? const SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Kích hoạt'),
-        ),
-      ],
     ),
   );
 }

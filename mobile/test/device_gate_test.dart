@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
+import 'package:trading_mobile/features/account_login/data/account_password_login_dependencies.dart';
+import 'package:trading_mobile/features/account_login/data/account_password_login_repository.dart';
+import 'package:trading_mobile/features/account_login/data/installation_id_store.dart';
+import 'package:trading_mobile/features/account_login/domain/account_password_login_models.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
@@ -40,7 +41,7 @@ void main() {
     expect(find.text('SERVER APP'), findsNothing);
   });
 
-  testWidgets('token read retry starts a fresh read and reaches activation', (
+  testWidgets('token read retry starts a fresh read and reaches login', (
     tester,
   ) async {
     final store = _SequencedTokenStore([
@@ -67,90 +68,73 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(store.readCalls, 2);
-    expect(find.text('Kích hoạt thiết bị'), findsOneWidget);
+    expect(
+      find.byKey(const Key('account-password-login-screen')),
+      findsOneWidget,
+    );
     expect(find.text('SERVER APP'), findsNothing);
   });
 
-  testWidgets('missing token shows one-time activation instead of mock data', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          exV2EnabledProvider.overrideWithValue(true),
-          deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
-        ],
-        child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Kích hoạt thiết bị'), findsOneWidget);
-    expect(find.text('SERVER APP'), findsNothing);
-  });
-
-  testWidgets('activation validates the token through device status', (
-    tester,
-  ) async {
-    final adapter = _RecordingAdapter();
-    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
-      ..httpClientAdapter = adapter;
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          exV2EnabledProvider.overrideWithValue(true),
-          deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
-          exV2DioProvider.overrideWithValue(dio),
-          exV2AccountProvider.overrideWithBuild(
-            (ref, controller) async => _serverState,
-          ),
-        ],
-        child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byType(TextField), 'test-token');
-    await tester.tap(find.text('Kích hoạt'));
-    await tester.pumpAndSettle();
-
-    expect(adapter.paths, ['/ex/v2/api/mobile/status']);
-    expect(find.text('SERVER APP'), findsOneWidget);
-  });
-
-  testWidgets('activation arms the bootstrap watchdog', (tester) async {
-    final adapter = _RecordingAdapter();
-    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
-      ..httpClientAdapter = adapter;
-    final bootstrapGate = Completer<ExV2AccountViewState?>();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          exV2EnabledProvider.overrideWithValue(true),
-          deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
-          exV2DioProvider.overrideWithValue(dio),
-          exV2AccountProvider.overrideWithBuild(
-            (ref, controller) => bootstrapGate.future,
-          ),
-        ],
-        child: const MaterialApp(
-          home: DeviceGate(
-            startupTimeout: Duration(milliseconds: 100),
-            child: Text('SERVER APP'),
-          ),
+  testWidgets(
+    'missing token shows account password login without token input',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            exV2EnabledProvider.overrideWithValue(true),
+            deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
+          ],
+          child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
         ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('account-password-login-screen')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('account-login-field')), findsOneWidget);
+      expect(find.byKey(const Key('account-password-field')), findsOneWidget);
+      expect(find.text('Device token'), findsNothing);
+      expect(find.text('SERVER APP'), findsNothing);
+    },
+  );
+
+  testWidgets('account password login opens the app with canonical bootstrap', (
+    tester,
+  ) async {
+    final repository = _GateLoginRepository();
+    final tokenStore = _MemoryTokenStore();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          deviceTokenStoreProvider.overrideWithValue(tokenStore),
+          accountPasswordLoginRepositoryProvider.overrideWithValue(repository),
+          installationIdStoreProvider.overrideWithValue(_InstallationStore()),
+          exV2AccountProvider.overrideWithBuild(
+            (ref, controller) async => null,
+          ),
+        ],
+        child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'test-token');
-    await tester.tap(find.text('Kích hoạt'));
-    await tester.pump();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 101));
+    await tester.enterText(
+      find.byKey(const Key('account-login-field')),
+      '109740422',
+    );
+    await tester.enterText(
+      find.byKey(const Key('account-password-field')),
+      ' Test-Pass_123! ',
+    );
+    await tester.tap(find.byKey(const Key('account-login-submit')));
+    await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('account-bootstrap-timeout')), findsOneWidget);
-    expect(find.text('SERVER APP'), findsNothing);
+    expect(repository.requests.single.password, ' Test-Pass_123! ');
+    expect(await tokenStore.read(), 'opaque-test-token');
+    expect(find.text('SERVER APP'), findsOneWidget);
   });
 
   testWidgets('stored token opens the unchanged application', (tester) async {
@@ -288,7 +272,7 @@ void main() {
     expect(find.text('SERVER APP'), findsNothing);
   });
 
-  testWidgets('rejected device token can return to activation explicitly', (
+  testWidgets('rejected device token can return to account login explicitly', (
     tester,
   ) async {
     final store = _MemoryTokenStore('expired-token');
@@ -314,11 +298,14 @@ void main() {
       find.byKey(const Key('device-authentication-error')),
       findsOneWidget,
     );
-    await tester.tap(find.text('Nhập mã khác'));
+    await tester.tap(find.text('Đăng nhập lại'));
     await tester.pumpAndSettle();
 
     expect(await store.read(), isNull);
-    expect(find.text('Kích hoạt thiết bị'), findsOneWidget);
+    expect(
+      find.byKey(const Key('account-password-login-screen')),
+      findsOneWidget,
+    );
     expect(find.text('SERVER APP'), findsNothing);
   });
 
@@ -485,6 +472,38 @@ final _bootstrap = <String, Object?>{
   'integrityWarnings': 0,
 };
 
+final class _GateLoginRepository implements AccountPasswordLoginRepository {
+  final List<AccountPasswordLoginRequest> requests =
+      <AccountPasswordLoginRequest>[];
+
+  @override
+  Future<AccountPasswordLoginResult> login(
+    AccountPasswordLoginRequest request, {
+    required String installationId,
+    required ExV2CommandMetadata metadata,
+  }) async {
+    requests.add(request);
+    return AccountPasswordLoginResult(
+      deviceToken: 'opaque-test-token',
+      account: const LinkedTradingAccount(
+        id: 'account-1',
+        brokerId: 'yodo-demo',
+        brokerName: 'YODO Demo Markets',
+        serverId: 'yodo-demo-01',
+        serverName: 'YODO-Demo-01',
+        login: '109740422',
+        isActive: true,
+      ),
+      bootstrap: ExV2Bootstrap.fromJson(_bootstrap),
+    );
+  }
+}
+
+final class _InstallationStore implements InstallationIdStore {
+  @override
+  Future<String> readOrCreate() async => '11111111-1111-4111-8111-111111111111';
+}
+
 final class _MemoryTokenStore implements DeviceTokenStore {
   _MemoryTokenStore([this.value]);
   String? value;
@@ -516,27 +535,4 @@ final class _SequencedTokenStore implements DeviceTokenStore {
 
   @override
   Future<void> write(String token) async {}
-}
-
-final class _RecordingAdapter implements HttpClientAdapter {
-  final List<String> paths = <String>[];
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    paths.add(options.uri.path);
-    return ResponseBody.fromString(
-      jsonEncode(<String, Object?>{'deviceId': 'device-1', 'enabled': true}),
-      200,
-      headers: {
-        Headers.contentTypeHeader: [Headers.jsonContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
 }
