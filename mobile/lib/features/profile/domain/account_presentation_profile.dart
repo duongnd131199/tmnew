@@ -1,4 +1,4 @@
-enum DemoBrokerBrand { vantage, exness, unknown }
+enum DemoBrokerBrand { vantage, exness, yodo, unknown }
 
 final class AccountPresentationMetadata {
   const AccountPresentationMetadata({

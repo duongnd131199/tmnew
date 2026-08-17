@@ -126,7 +126,7 @@ void main() {
       );
       expect(fixture.adapter.accountListCalls, 1);
       expect(find.text('0.00 USD, Hedge'), findsNothing);
-      expect(find.text('— USD, Hedge'), findsOneWidget);
+      expect(find.text('USD, Hedge'), findsOneWidget);
 
       final activeRow = find.byKey(const ValueKey('account-account-a'));
       final inactiveRow = find.byKey(const ValueKey('account-account-b'));
@@ -158,6 +158,26 @@ void main() {
         ),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'Settings joins active broker metadata by account ID when logins match',
+    (tester) async {
+      final fixture = await _pumpProductionRoute(
+        tester,
+        initialLocation: '/settings',
+      );
+      addTearDown(fixture.dispose);
+
+      expect(fixture.adapter.accountListCalls, 1);
+      expect(find.text('Exness Technologies Ltd'), findsOneWidget);
+      expect(
+        find.text('LOGIN-A - Exness-MT5Trial\nAccess Point #1'),
+        findsOneWidget,
+      );
+      expect(find.text('Unavailable'), findsNothing);
+      expect(find.textContaining('Second Broker'), findsNothing);
     },
   );
 

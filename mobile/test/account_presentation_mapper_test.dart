@@ -5,7 +5,7 @@ import 'package:trading_mobile/features/profile/application/ex_v2_account_profil
 import 'package:trading_mobile/features/profile/domain/account_presentation_profile.dart';
 
 void main() {
-  test('missing presentation metadata uses neutral unavailable values', () {
+  test('missing presentation metadata never exposes unavailable copy', () {
     final state = _accountState(
       accountCode: '100001',
       name: 'Server account',
@@ -19,9 +19,9 @@ void main() {
     expect(profile.name, 'Server account');
     expect(profile.balance, 154763.90);
     expect(profile.currency, 'USD');
-    expect(profile.company, 'Unavailable');
-    expect(profile.server, 'Unavailable');
-    expect(profile.accessPoint, 'Unavailable');
+    expect(profile.company, 'Trading Account');
+    expect(profile.server, 'Trading Server');
+    expect(profile.accessPoint, 'Access Point #1');
     expect(profile.brand, DemoBrokerBrand.unknown);
     expect(profile.company, isNot('active'));
     expect(profile.server, isNot('trochoi.top'));
@@ -47,6 +47,28 @@ void main() {
     expect(profile.company, 'Second Broker Ltd');
     expect(profile.server, 'Second-Live-02');
     expect(profile.brand, DemoBrokerBrand.unknown);
+  });
+
+  test('YODO linked-account metadata selects the YODO presentation', () {
+    final state = _accountState(
+      accountCode: '200003',
+      name: 'Mỗi Ngày Một Tỷ 🍀',
+      status: 'active',
+      balance: 25,
+      presentation: const ExV2AccountPresentation(
+        brokerId: 'yodo-demo',
+        companyName: 'YODO Demo Markets',
+        serverId: 'yodo-demo-01',
+        tradingServer: 'YODO-Demo-01',
+      ),
+    );
+
+    final profile = ExV2AccountProfileMapper.map(state);
+
+    expect(profile.company, 'YODO Demo Markets');
+    expect(profile.server, 'YODO-Demo-01');
+    expect(profile.accessPoint, 'Access Point #1');
+    expect(profile.brand, DemoBrokerBrand.yodo);
   });
 
   test('canonical settings metadata wins over activated metadata', () {

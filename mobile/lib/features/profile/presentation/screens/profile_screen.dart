@@ -205,7 +205,7 @@ class _AccountRow extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     displayBalance == null
-                        ? '— ${account.currency}, ${account.mode}'
+                        ? '${account.currency}, ${account.mode}'
                         : '${_formatAccountBalance(displayBalance!)} '
                               '${account.currency}, ${account.mode}',
                     maxLines: 1,

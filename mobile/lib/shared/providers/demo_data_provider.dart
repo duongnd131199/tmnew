@@ -5,6 +5,7 @@ import 'package:trading_mobile/features/account_link/application/account_activat
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
+import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/market_watch/data/data_sources/mock_quote_service.dart';
 import 'package:trading_mobile/features/profile/application/ex_v2_account_profile_mapper.dart';
@@ -587,8 +588,23 @@ final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
         ? const <DemoAccountProfile>[]
         : ref.watch(demoAccountCatalogProvider);
   }
-  final active = ExV2AccountProfileMapper.map(server);
   final linked = ref.watch(linkedTradingAccountsProvider).value;
+  final linkedActive = linked
+      ?.where((account) => account.id == server.bootstrap.account.id)
+      .firstOrNull;
+  final active = ExV2AccountProfileMapper.map(
+    linkedActive == null
+        ? server
+        : server.copyWith(
+            presentation: ExV2AccountPresentation(
+              brokerId: linkedActive.brokerId,
+              companyName: linkedActive.brokerName,
+              serverId: linkedActive.serverId,
+              tradingServer: linkedActive.serverName,
+              accessPoint: 'Access Point #1',
+            ),
+          ),
+  );
   if (linked == null) return [active];
 
   final profiles = <DemoAccountProfile>[];
@@ -660,6 +676,8 @@ DemoAccountProfile _mapLinkedAccount(LinkedTradingAccount account) {
   final broker = '${account.brokerId} ${account.brokerName}'.toLowerCase();
   final brand = broker.contains('exness')
       ? DemoBrokerBrand.exness
+      : broker.contains('yodo')
+      ? DemoBrokerBrand.yodo
       : broker.contains('vantage')
       ? DemoBrokerBrand.vantage
       : DemoBrokerBrand.unknown;

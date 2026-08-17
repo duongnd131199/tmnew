@@ -56,9 +56,9 @@ void main() {
     final accounts = container.read(demoAccountsProvider);
     expect(accounts, hasLength(1));
     expect(accounts.single.id, 'TEST-100');
-    expect(accounts.single.company, 'Unavailable');
-    expect(accounts.single.server, 'Unavailable');
-    expect(accounts.single.accessPoint, 'Unavailable');
+    expect(accounts.single.company, 'Trading Account');
+    expect(accounts.single.server, 'Trading Server');
+    expect(accounts.single.accessPoint, 'Access Point #1');
   });
 
   test('bootstrap becomes visible before slower history endpoints', () async {

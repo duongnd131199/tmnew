@@ -8,12 +8,14 @@ final class ExV2AccountPresentation {
     required this.companyName,
     required this.serverId,
     required this.tradingServer,
+    this.accessPoint,
   });
 
   final String brokerId;
   final String companyName;
   final String serverId;
   final String tradingServer;
+  final String? accessPoint;
 }
 
 final class ExV2AccountViewState {

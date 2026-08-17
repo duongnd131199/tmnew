@@ -66,6 +66,30 @@ void main() {
     );
   });
 
+  testWidgets('YODO broker uses the reference yellow square without Exness', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: AccountBrokerMark(brand: DemoBrokerBrand.yodo)),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byKey(const Key('account-broker-mark'))),
+      const Size.square(31),
+    );
+    expect(find.text('yodo'), findsOneWidget);
+    expect(find.text('exness'), findsNothing);
+    final mark = tester.widget<ColoredBox>(
+      find.descendant(
+        of: find.byKey(const Key('account-broker-mark')),
+        matching: find.byType(ColoredBox),
+      ),
+    );
+    expect(mark.color, const Color(0xFFFFE500));
+  });
+
   testWidgets('hero broker marks scale every brand to 60 pixels', (
     tester,
   ) async {

@@ -10,17 +10,18 @@ abstract final class ExV2AccountProfileMapper {
     final companyName =
         _text(settings, const ['brokerCompany', 'companyName', 'company']) ??
         presentation?.companyName ??
-        'Unavailable';
+        'Trading Account';
     final tradingServer =
         _text(settings, const ['tradingServer', 'mt5Server', 'server']) ??
         presentation?.tradingServer ??
-        'Unavailable';
+        'Trading Server';
     return AccountPresentationMetadata(
       companyName: companyName,
       tradingServer: tradingServer,
       accessPoint:
           _text(settings, const ['accessPoint', 'mt5AccessPoint']) ??
-          'Unavailable',
+          presentation?.accessPoint ??
+          'Access Point #1',
       brand: _brand('${presentation?.brokerId ?? ''} $companyName'),
       accountMode:
           _text(settings, const ['accountMode', 'positionMode']) ?? 'Hedge',
@@ -79,6 +80,7 @@ abstract final class ExV2AccountProfileMapper {
 
   static DemoBrokerBrand _brand(String value) {
     final normalized = value.toLowerCase();
+    if (normalized.contains('yodo')) return DemoBrokerBrand.yodo;
     if (normalized.contains('exness')) return DemoBrokerBrand.exness;
     if (normalized.contains('vantage')) return DemoBrokerBrand.vantage;
     return DemoBrokerBrand.unknown;

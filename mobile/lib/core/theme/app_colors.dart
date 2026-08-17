@@ -14,6 +14,7 @@ abstract final class AppColors {
   static const warning = Color(0xFFFF9F0A);
   static const savePasswordEnabled = Color(0xFF30D158);
   static const brokerExness = Color(0xFFF8DF09);
+  static const brokerYodo = Color(0xFFFFE500);
   static const brokerVantage = Color(0xFF0B4347);
   static const brokerMarkInk = Color(0xFF171717);
   static const connectedIndicatorTop = Color(0xFF347EAA);
