@@ -83,18 +83,26 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.binding.setSurfaceSize(const Size(360, 844));
     final repository = _LiveCatalogRepository();
+    MobileBroker? selectedBroker;
 
     await _pump(
       tester,
       repository: repository,
-      child: const BrokerListScreen(),
+      child: BrokerListScreen(
+        onBrokerSelected: (broker) => selectedBroker = broker,
+      ),
     );
 
-    expect(find.text('YODO Demo Markets'), findsOneWidget);
-    expect(find.text('YODO Markets International Limited'), findsOneWidget);
-    expect(find.textContaining('Exness'), findsNothing);
+    expect(find.text('Exness Technologies Ltd'), findsOneWidget);
+    expect(find.text('Exness'), findsOneWidget);
+    expect(find.text('exness'), findsOneWidget);
+    expect(find.textContaining('YODO'), findsNothing);
     expect(find.textContaining('MetaQuotes'), findsNothing);
     expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const Key('broker-row-yodo-demo')));
+    expect(selectedBroker?.id, 'yodo-demo');
+    expect(selectedBroker?.name, 'YODO Demo Markets');
 
     await _pump(
       tester,

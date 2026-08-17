@@ -11,6 +11,7 @@ import 'package:trading_mobile/features/account_link/application/account_link_co
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_toolbar.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_visuals.dart';
+import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
 
 class BrokerListScreen extends ConsumerStatefulWidget {
   const BrokerListScreen({
@@ -169,10 +170,13 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
     if (normalized.isEmpty) return brokers;
     return brokers
         .where((broker) {
+          final presentation = referenceBrokerPresentation(broker);
           final searchable = [
             broker.name,
             broker.companyName,
             broker.description,
+            presentation.name,
+            presentation.companyName,
           ].whereType<String>().join(' ').toLowerCase();
           return searchable.contains(normalized);
         })
@@ -256,60 +260,76 @@ class _BrokerRow extends StatelessWidget {
   final VoidCallback onInfo;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 72,
-    child: Row(
-      children: [
-        const SizedBox(width: AppSpacing.md),
-        AccountLinkBrokerMark(broker: broker),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Material(
-            color: AppColors.transparent,
-            child: InkWell(
-              key: ValueKey('broker-row-${broker.id}'),
-              onTap: onTap,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      broker.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.titleMedium.copyWith(
-                        color: AppColors.textPrimary,
-                        height: 1.05,
-                      ),
-                    ),
-                    if (broker.companyName case final company?) ...[
-                      const SizedBox(height: AppSpacing.xs),
+  Widget build(BuildContext context) {
+    final presentation = referenceBrokerPresentation(broker);
+    final referencePresentation = presentation.displayAsExness;
+    return SizedBox(
+      height: 72,
+      child: Row(
+        children: [
+          const SizedBox(width: AppSpacing.md),
+          AccountLinkBrokerMark(
+            broker: broker,
+            displayAsExness: referencePresentation,
+          ),
+          SizedBox(
+            width: referencePresentation ? AppSpacing.md : AppSpacing.sm,
+          ),
+          Expanded(
+            child: Material(
+              color: AppColors.transparent,
+              child: InkWell(
+                key: ValueKey('broker-row-${broker.id}'),
+                onTap: onTap,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        company,
+                        presentation.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodyLarge.copyWith(
-                          color: AppColors.textSecondary,
-                          height: 1,
-                        ),
+                        style:
+                            (referencePresentation
+                                    ? AppTypography.referenceServerName
+                                    : AppTypography.titleMedium)
+                                .copyWith(
+                                  color: AppColors.textPrimary,
+                                  height: 1.05,
+                                ),
                       ),
+                      if (presentation.companyName case final company?) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          company,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodyLarge.copyWith(
+                            color: AppColors.textSecondary,
+                            fontFamily: referencePresentation
+                                ? 'sans-serif'
+                                : null,
+                            height: 1,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        AccountLinkInfoButton(
-          key: ValueKey('broker-info-${broker.id}'),
-          onTap: onInfo,
-        ),
-        const SizedBox(width: AppSpacing.xs),
-      ],
-    ),
-  );
+          AccountLinkInfoButton(
+            key: ValueKey('broker-info-${broker.id}'),
+            onTap: onInfo,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+        ],
+      ),
+    );
+  }
 }
 
 class _CatalogFailure extends StatelessWidget {

@@ -1,9 +1,37 @@
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 
 const referenceServerBrokerDisplayName = 'Exness Technologies Ltd';
+const referenceServerBrokerCompanyName = 'Exness';
 
 bool usesReferenceServerPresentation(String brokerId) =>
     brokerId == 'yodo-demo';
+
+final class ReferenceBrokerPresentation {
+  const ReferenceBrokerPresentation({
+    required this.name,
+    required this.companyName,
+    required this.displayAsExness,
+  });
+
+  final String name;
+  final String? companyName;
+  final bool displayAsExness;
+}
+
+ReferenceBrokerPresentation referenceBrokerPresentation(MobileBroker broker) {
+  if (usesReferenceServerPresentation(broker.id)) {
+    return const ReferenceBrokerPresentation(
+      name: referenceServerBrokerDisplayName,
+      companyName: referenceServerBrokerCompanyName,
+      displayAsExness: true,
+    );
+  }
+  return ReferenceBrokerPresentation(
+    name: broker.name,
+    companyName: broker.companyName,
+    displayAsExness: false,
+  );
+}
 
 const referenceServerDisplayNames = <String>[
   'Exness-MT5Real20',
