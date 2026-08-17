@@ -648,12 +648,14 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         return false;
       }
       _optimisticHiddenPositionIds.remove(positionId);
-      final reconciled = _mergeCoreWithHydrated(
-        core,
-        current,
+      final settledCurrent = current.copyWith(
         pendingOperationIds: {
           ...current.pendingOperationIds.where((id) => id != operationId),
         },
+      );
+      final reconciled = _applyOptimisticOverlay(
+        _mergeCoreWithHydrated(core, settledCurrent),
+        settledCurrent,
       );
       if (ref.mounted) state = AsyncData(reconciled);
       unawaited(refresh());
@@ -779,18 +781,23 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
           continue;
         }
         _optimisticHiddenPositionIds.remove(positionId);
+        final settledCurrent = latestCurrent.copyWith(
+          pendingOperationIds: {
+            ...latestCurrent.pendingOperationIds.where(
+              (id) => id != operationId,
+            ),
+          },
+        );
         state = AsyncData(
-          _mergeCoreWithHydrated(
-            core,
-            latestCurrent,
-            deals: snapshot.deals,
-            historyPositions: snapshot.positions,
-            historySummary: snapshot.summary,
-            pendingOperationIds: {
-              ...latestCurrent.pendingOperationIds.where(
-                (id) => id != operationId,
-              ),
-            },
+          _applyOptimisticOverlay(
+            _mergeCoreWithHydrated(
+              core,
+              settledCurrent,
+              deals: snapshot.deals,
+              historyPositions: snapshot.positions,
+              historySummary: snapshot.summary,
+            ),
+            settledCurrent,
           ),
         );
         return _closingDeal(snapshot.deals, positionId);
@@ -805,13 +812,15 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         current != null &&
         latestCore.bootstrap.version >= current.bootstrap.version) {
       _optimisticHiddenPositionIds.remove(positionId);
+      final settledCurrent = current.copyWith(
+        pendingOperationIds: {
+          ...current.pendingOperationIds.where((id) => id != operationId),
+        },
+      );
       state = AsyncData(
-        _mergeCoreWithHydrated(
-          latestCore,
-          current,
-          pendingOperationIds: {
-            ...current.pendingOperationIds.where((id) => id != operationId),
-          },
+        _applyOptimisticOverlay(
+          _mergeCoreWithHydrated(latestCore, settledCurrent),
+          settledCurrent,
         ),
       );
       unawaited(refresh());

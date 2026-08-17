@@ -221,6 +221,49 @@ void main() {
     await ordering;
   });
 
+  test(
+    'close history preserves a concurrent position protection edit',
+    () async {
+      final historyGate = Completer<void>();
+      final historyStarted = Completer<void>();
+      final adapter = _TradingAdapter()
+        ..created = true
+        ..oppositeCreated = true
+        ..postCloseHistoryGate = historyGate
+        ..postCloseHistoryStarted = historyStarted
+        ..protectionGate = Completer<void>();
+      final container = _container(adapter);
+      addTearDown(() {
+        if (!historyGate.isCompleted) historyGate.complete();
+        if (!(adapter.protectionGate?.isCompleted ?? true)) {
+          adapter.protectionGate!.complete();
+        }
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+
+      final closing = container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1');
+      await historyStarted.future;
+      final protecting = container
+          .read(exV2AccountProvider.notifier)
+          .updatePositionProtection(
+            positionId: 'server-position-2',
+            takeProfit: 4400,
+          );
+      await Future<void>.delayed(Duration.zero);
+      historyGate.complete();
+      await closing;
+
+      final state = container.read(exV2AccountProvider).value!;
+      expect(state.positions.single.id, 'server-position-2');
+      expect(state.positions.single.takeProfit, 4400);
+      adapter.protectionGate!.complete();
+      await protecting;
+    },
+  );
+
   test('committed close publishes matching deals and closed history', () async {
     final refreshGate = Completer<void>();
     final adapter = _TradingAdapter()
@@ -672,6 +715,7 @@ final class _TradingAdapter implements HttpClientAdapter {
   Completer<void>? postCloseRefreshGate;
   Completer<void>? postCloseHistoryGate;
   Completer<void>? postCloseHistoryStarted;
+  Completer<void>? protectionGate;
 
   @override
   Future<ResponseBody> fetch(
@@ -742,6 +786,11 @@ final class _TradingAdapter implements HttpClientAdapter {
       await closeByGate?.future;
       remainingVolume -= 0.004;
       oppositeCreated = false;
+      return _json(<String, Object?>{});
+    }
+    if (path.endsWith('/positions/server-position-2/protection') &&
+        options.method == 'PUT') {
+      await protectionGate?.future;
       return _json(<String, Object?>{});
     }
     if (path.endsWith('/orders/pending-order-1') &&
@@ -987,15 +1036,14 @@ Map<String, Object?> _bootstrap({
     'marginLevel': 0,
     'updatedAt': '2026-08-13T14:00:00Z',
   },
-  'positions': withPosition
-      ? [
-          <String, Object?>{
-            ..._bootstrapPosition,
-            'remainingVolume': remainingVolume,
-          },
-          if (withOppositePosition) _oppositeBootstrapPosition,
-        ]
-      : <Object?>[],
+  'positions': <Object?>[
+    if (withPosition)
+      <String, Object?>{
+        ..._bootstrapPosition,
+        'remainingVolume': remainingVolume,
+      },
+    if (withOppositePosition) _oppositeBootstrapPosition,
+  ],
   'pendingOrders': withPending ? [_pendingOrder] : <Object?>[],
   'recentDeals': <Object?>[],
   'wallet': {
