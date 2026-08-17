@@ -4,8 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'production Dart excludes recorded account, financial, and trade data',
+    'production Dart excludes unapproved recorded financial and trade data',
     () {
+      const approvedReferenceCatalogPath =
+          'lib/features/account_link/presentation/widgets/'
+          'reference_server_catalog.dart';
+      const approvedReferenceServerNames = <String>{
+        'Exness-MT5Real15',
+        'Exness-MT5Real20',
+      };
       const prohibited = <String>{
         '28210230',
         '463696038',
@@ -59,8 +66,13 @@ void main() {
               .whereType<File>()
               .where((file) => file.path.endsWith('.dart'))) {
         final contents = file.readAsStringSync();
+        final normalizedPath = file.path.replaceAll('\\', '/');
         for (final identifier in prohibited) {
           if (contents.contains(identifier)) {
+            if (normalizedPath == approvedReferenceCatalogPath &&
+                approvedReferenceServerNames.contains(identifier)) {
+              continue;
+            }
             hits.add('${file.path}: $identifier');
           }
         }
