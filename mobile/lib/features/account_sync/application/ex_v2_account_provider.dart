@@ -175,6 +175,7 @@ typedef _AccountMutationScope = ({String accountId, int generation});
 typedef _TradingHistorySnapshot = ({
   List<DemoDeal> deals,
   List<DemoHistoryPosition> positions,
+  ExV2HistorySummary summary,
 });
 
 final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
@@ -496,11 +497,13 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     List<DemoOrder>? orders,
     List<DemoDeal>? deals,
     List<DemoHistoryPosition>? historyPositions,
+    ExV2HistorySummary? historySummary,
     Set<String>? pendingOperationIds,
   }) => core.copyWith(
     orders: orders ?? hydrated.orders,
     deals: deals ?? hydrated.deals,
     historyPositions: historyPositions ?? hydrated.historyPositions,
+    historySummary: historySummary ?? hydrated.historySummary,
     historyTransactions: hydrated.historyTransactions,
     deposits: hydrated.deposits,
     withdrawals: hydrated.withdrawals,
@@ -664,8 +667,10 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     final current = state.value ?? fallback;
     var deals = current.deals;
     var historyPositions = current.historyPositions;
+    _TradingHistorySnapshot? snapshotOrNull;
     try {
       final snapshot = await _loadTradingHistorySnapshot(repository);
+      snapshotOrNull = snapshot;
       if (!_isMutationScopeCurrent(scope)) return null;
       if (snapshot.deals.isNotEmpty) deals = snapshot.deals;
       if (snapshot.positions.isNotEmpty) {
@@ -675,22 +680,27 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       // The command is already committed. History enrichment is best effort.
     }
     if (!_isMutationScopeCurrent(scope)) return null;
-    final closeDeal = deals
-        .where((deal) => deal.positionId == positionId && deal.entry == 'out')
-        .firstOrNull;
+    final closeDeal = _closingDeal(deals, positionId);
     final confirmed = _mergeCoreWithHydrated(
       visibleCore,
       current,
       deals: deals,
       historyPositions: historyPositions,
+      historySummary: snapshotOrNull?.summary,
       pendingOperationIds: {
         ...current.pendingOperationIds.where((id) => id != operationId),
       },
     );
-    if (ref.mounted) state = AsyncData(confirmed);
-    if (!isPartial &&
-        !_hasResolvedClosedHistory(historyPositions, positionId)) {
-      unawaited(_retryCommittedCloseHistory(positionId, scope));
+    final historyResolved =
+        isPartial || _hasResolvedClosedHistory(historyPositions, positionId);
+    if (historyResolved && ref.mounted) state = AsyncData(confirmed);
+    if (!isPartial && !historyResolved) {
+      return _retryCommittedCloseHistory(
+        positionId: positionId,
+        operationId: operationId,
+        fallback: current,
+        scope: scope,
+      );
     }
     unawaited(refresh());
     return closeDeal;
@@ -699,24 +709,29 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   Future<_TradingHistorySnapshot> _loadTradingHistorySnapshot(
     ExV2Repository repository,
   ) async {
-    final rows = await Future.wait<List<JsonMap>>([
+    final results = await Future.wait<Object>([
       repository.historyDeals(),
       repository.historyPositions(),
+      repository.historySummary(),
     ]);
-    final dealRows = rows[0];
+    final dealRows = results[0] as List<JsonMap>;
+    final positionRows = results[1] as List<JsonMap>;
     return (
       deals: _mapRows(dealRows, ExV2DemoMapper.historyDeal),
       positions: _mapRows(
-        ExV2HistoryReconciler.enrichClosedPositions(rows[1], dealRows),
+        ExV2HistoryReconciler.enrichClosedPositions(positionRows, dealRows),
         ExV2DemoMapper.historyPosition,
       ),
+      summary: results[2] as ExV2HistorySummary,
     );
   }
 
-  Future<void> _retryCommittedCloseHistory(
-    String positionId,
-    _AccountMutationScope scope,
-  ) async {
+  Future<DemoDeal?> _retryCommittedCloseHistory({
+    required String positionId,
+    required String operationId,
+    required ExV2AccountViewState fallback,
+    required _AccountMutationScope scope,
+  }) async {
     const delays = <Duration>[
       Duration(milliseconds: 150),
       Duration(milliseconds: 300),
@@ -724,26 +739,87 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       Duration(milliseconds: 1200),
     ];
     final repository = ref.read(exV2RepositoryProvider);
+    ExV2AccountViewState? latestCore;
+    _TradingHistorySnapshot? latestSnapshot;
     for (final delay in delays) {
       await Future<void>.delayed(delay);
-      if (!_isMutationScopeCurrent(scope)) return;
+      if (!_isMutationScopeCurrent(scope)) return null;
       try {
-        final snapshot = await _loadTradingHistorySnapshot(repository);
-        if (!_isMutationScopeCurrent(scope)) return;
+        final results = await Future.wait<Object>([
+          _loadCore(applyOptimisticHides: false),
+          _loadTradingHistorySnapshot(repository),
+        ]);
+        if (!_isMutationScopeCurrent(scope)) return null;
+        final core = results[0] as ExV2AccountViewState;
+        final snapshot = results[1] as _TradingHistorySnapshot;
+        latestCore = core;
+        latestSnapshot = snapshot;
         final current = state.value;
-        if (current == null) return;
-        final deals = snapshot.deals.isEmpty ? current.deals : snapshot.deals;
-        final positions = snapshot.positions.isEmpty
-            ? current.historyPositions
-            : snapshot.positions;
-        state = AsyncData(
-          current.copyWith(deals: deals, historyPositions: positions),
+        if (current == null) return null;
+        if (!_hasResolvedClosedHistory(snapshot.positions, positionId)) {
+          continue;
+        }
+        _optimisticHiddenPositionIds.remove(positionId);
+        final visibleCore = core.copyWith(
+          positions: core.positions
+              .where((position) => position.id != positionId)
+              .toList(growable: false),
         );
-        if (_hasResolvedClosedHistory(positions, positionId)) return;
+        state = AsyncData(
+          _mergeCoreWithHydrated(
+            visibleCore,
+            current,
+            deals: snapshot.deals,
+            historyPositions: snapshot.positions,
+            historySummary: snapshot.summary,
+            pendingOperationIds: {
+              ...current.pendingOperationIds.where((id) => id != operationId),
+            },
+          ),
+        );
+        return _closingDeal(snapshot.deals, positionId);
       } catch (_) {
         // A committed close remains final; retry the canonical history read.
       }
     }
+    if (!_isMutationScopeCurrent(scope)) return null;
+    final current = state.value ?? fallback;
+    final core = latestCore;
+    final snapshot = latestSnapshot;
+    if (core != null && snapshot != null && ref.mounted) {
+      state = AsyncData(
+        _mergeCoreWithHydrated(
+          core.copyWith(
+            positions: core.positions
+                .where((position) => position.id != positionId)
+                .toList(growable: false),
+          ),
+          current,
+          deals: snapshot.deals.isEmpty ? current.deals : snapshot.deals,
+          historyPositions: snapshot.positions.isEmpty
+              ? current.historyPositions
+              : snapshot.positions,
+          historySummary: snapshot.summary,
+          pendingOperationIds: {
+            ...current.pendingOperationIds.where((id) => id != operationId),
+          },
+        ),
+      );
+    } else {
+      _finishCommittedCloseWithoutDeal(operationId, fallback, scope);
+    }
+    return snapshot == null ? null : _closingDeal(snapshot.deals, positionId);
+  }
+
+  DemoDeal? _closingDeal(List<DemoDeal> deals, String positionId) {
+    final normalizedId = positionId.trim().toLowerCase();
+    return deals
+        .where(
+          (deal) =>
+              deal.positionId.trim().toLowerCase() == normalizedId &&
+              deal.entry == 'out',
+        )
+        .firstOrNull;
   }
 
   bool _hasResolvedClosedHistory(

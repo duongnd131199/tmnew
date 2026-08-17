@@ -202,49 +202,39 @@ void main() {
       'close-deal-1',
       'close-deal-2',
     ]);
-    expect(
-      state.historyPositions.single.id.toLowerCase(),
-      'server-position-1',
-    );
+    expect(state.historyPositions.single.id.toLowerCase(), 'server-position-1');
     expect(
       state.historyPositions.single.closePrice,
       closeTo(4365.58, 0.000001),
     );
   });
 
-  test('delayed closed history is reconciled without restoring Trade', () async {
-    final refreshGate = Completer<void>();
-    final adapter = _TradingAdapter(delayedClosedHistory: true)
-      ..created = true
-      ..postCloseRefreshGate = refreshGate;
-    final container = _container(adapter);
-    addTearDown(() {
-      if (!refreshGate.isCompleted) refreshGate.complete();
-      container.dispose();
-    });
-    await container.read(exV2AccountProvider.future);
+  test(
+    'close awaits matching balance history and summary without resending POST',
+    () async {
+      final adapter = _TradingAdapter(delayedClosedHistory: true)
+        ..created = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
 
-    await container
-        .read(exV2AccountProvider.notifier)
-        .closePosition('server-position-1');
-    for (
-      var attempt = 0;
-      attempt < 40 &&
-          (container
-                  .read(exV2AccountProvider)
-                  .value
-                  ?.historyPositions
-                  .isEmpty ??
-              true);
-      attempt++
-    ) {
-      await Future<void>.delayed(const Duration(milliseconds: 25));
-    }
+      await container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1');
 
-    final state = container.read(exV2AccountProvider).value!;
-    expect(state.positions, isEmpty);
-    expect(state.historyPositions.single.closePrice, isNotNull);
-  });
+      final state = container.read(exV2AccountProvider).value!;
+      expect(adapter.closePosts, 1);
+      expect(state.positions, isEmpty);
+      expect(state.balance, closeTo(5306.525, 0.000001));
+      expect(state.deals.map((deal) => deal.id), [
+        'close-deal-1',
+        'close-deal-2',
+      ]);
+      expect(state.historyPositions.single.closePrice, isNotNull);
+      expect(state.historySummary.realizedProfit, closeTo(306.525, 0.000001));
+      expect(state.historySummary.netChange, closeTo(306.525, 0.000001));
+    },
+  );
 
   test('close removes the position before the server responds', () async {
     final adapter = _TradingAdapter()..created = true;
@@ -614,6 +604,16 @@ final class _TradingAdapter implements HttpClientAdapter {
         ),
       );
     }
+    if (path.endsWith('/history/summary')) {
+      return _json({
+        'deposit': 0,
+        'withdrawal': 0,
+        'realizedProfit': closeCommitted ? 306.525 : 0,
+        'swap': 0,
+        'commission': 0,
+        'netChange': closeCommitted ? 306.525 : 0,
+      });
+    }
     if (path.endsWith('/settings')) return _json(<String, Object?>{});
     if (path.endsWith('/history/deals')) {
       if (closeCommitted) closedHistoryDealReads++;
@@ -667,7 +667,8 @@ final class _TradingAdapter implements HttpClientAdapter {
     }
     if (path.endsWith('/history/positions')) {
       if (closeCommitted) closedHistoryPositionReads++;
-      final delayed = closeCommitted &&
+      final delayed =
+          closeCommitted &&
           delayedClosedHistory &&
           closedHistoryPositionReads == 1;
       return _json({
@@ -745,11 +746,11 @@ Map<String, Object?> _bootstrap({
   'summary': {
     'accountId': 'account-1',
     'currency': 'USD',
-    'balance': 5000,
-    'equity': 5000,
+    'balance': withPosition ? 5000 : 5306.525,
+    'equity': withPosition ? 5000 : 5306.525,
     'profit': 0,
     'margin': 0,
-    'freeMargin': 5000,
+    'freeMargin': withPosition ? 5000 : 5306.525,
     'marginLevel': 0,
     'updatedAt': '2026-08-13T14:00:00Z',
   },
