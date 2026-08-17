@@ -159,6 +159,27 @@ void main() {
     expect(price, 1.2);
   });
 
+  test('one legacy exit without positionId remains unambiguous', () {
+    final price = ExV2HistoryReconciler.closePrice(
+      const {
+        'symbol': 'XAUUSD+',
+        'status': 'closed',
+        'closedAtUtc': '2026-08-17T08:00:00Z',
+      },
+      const [
+        {
+          'dealType': 'close',
+          'symbol': 'XAUUSD+',
+          'volume': 0.01,
+          'price': 4321.25,
+          'createdAtUtc': '2026-08-17T08:00:00Z',
+        },
+      ],
+    );
+
+    expect(price, 4321.25);
+  });
+
   test('legacy symbol-time fallback refuses ambiguous exit groups', () {
     final price = ExV2HistoryReconciler.closePrice(
       const {

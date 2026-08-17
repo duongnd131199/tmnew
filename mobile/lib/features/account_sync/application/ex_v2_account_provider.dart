@@ -172,6 +172,10 @@ final class ExV2AccountGenerationController
 }
 
 typedef _AccountMutationScope = ({String accountId, int generation});
+typedef _TradingHistorySnapshot = ({
+  List<DemoDeal> deals,
+  List<DemoHistoryPosition> positions,
+});
 
 final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   StreamSubscription<ExV2RealtimeEvent>? _realtimeSubscription;
@@ -491,11 +495,12 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     ExV2AccountViewState hydrated, {
     List<DemoOrder>? orders,
     List<DemoDeal>? deals,
+    List<DemoHistoryPosition>? historyPositions,
     Set<String>? pendingOperationIds,
   }) => core.copyWith(
     orders: orders ?? hydrated.orders,
     deals: deals ?? hydrated.deals,
-    historyPositions: hydrated.historyPositions,
+    historyPositions: historyPositions ?? hydrated.historyPositions,
     historyTransactions: hydrated.historyTransactions,
     deposits: hydrated.deposits,
     withdrawals: hydrated.withdrawals,
@@ -656,11 +661,16 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
                 .toList(growable: false),
           )
         : serverCore;
-    var deals = serverCore.deals;
+    final current = state.value ?? fallback;
+    var deals = current.deals;
+    var historyPositions = current.historyPositions;
     try {
-      final dealRows = await repository.historyDeals();
+      final snapshot = await _loadTradingHistorySnapshot(repository);
       if (!_isMutationScopeCurrent(scope)) return null;
-      deals = _mapRows(dealRows, ExV2DemoMapper.historyDeal);
+      if (snapshot.deals.isNotEmpty) deals = snapshot.deals;
+      if (snapshot.positions.isNotEmpty) {
+        historyPositions = snapshot.positions;
+      }
     } catch (_) {
       // The command is already committed. History enrichment is best effort.
     }
@@ -668,18 +678,84 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     final closeDeal = deals
         .where((deal) => deal.positionId == positionId && deal.entry == 'out')
         .firstOrNull;
-    final current = state.value ?? fallback;
     final confirmed = _mergeCoreWithHydrated(
       visibleCore,
       current,
-      deals: deals.isEmpty ? current.deals : deals,
+      deals: deals,
+      historyPositions: historyPositions,
       pendingOperationIds: {
         ...current.pendingOperationIds.where((id) => id != operationId),
       },
     );
     if (ref.mounted) state = AsyncData(confirmed);
+    if (!isPartial &&
+        !_hasResolvedClosedHistory(historyPositions, positionId)) {
+      unawaited(_retryCommittedCloseHistory(positionId, scope));
+    }
     unawaited(refresh());
     return closeDeal;
+  }
+
+  Future<_TradingHistorySnapshot> _loadTradingHistorySnapshot(
+    ExV2Repository repository,
+  ) async {
+    final rows = await Future.wait<List<JsonMap>>([
+      repository.historyDeals(),
+      repository.historyPositions(),
+    ]);
+    final dealRows = rows[0];
+    return (
+      deals: _mapRows(dealRows, ExV2DemoMapper.historyDeal),
+      positions: _mapRows(
+        ExV2HistoryReconciler.enrichClosedPositions(rows[1], dealRows),
+        ExV2DemoMapper.historyPosition,
+      ),
+    );
+  }
+
+  Future<void> _retryCommittedCloseHistory(
+    String positionId,
+    _AccountMutationScope scope,
+  ) async {
+    const delays = <Duration>[
+      Duration(milliseconds: 150),
+      Duration(milliseconds: 300),
+      Duration(milliseconds: 600),
+      Duration(milliseconds: 1200),
+    ];
+    final repository = ref.read(exV2RepositoryProvider);
+    for (final delay in delays) {
+      await Future<void>.delayed(delay);
+      if (!_isMutationScopeCurrent(scope)) return;
+      try {
+        final snapshot = await _loadTradingHistorySnapshot(repository);
+        if (!_isMutationScopeCurrent(scope)) return;
+        final current = state.value;
+        if (current == null) return;
+        final deals = snapshot.deals.isEmpty ? current.deals : snapshot.deals;
+        final positions = snapshot.positions.isEmpty
+            ? current.historyPositions
+            : snapshot.positions;
+        state = AsyncData(
+          current.copyWith(deals: deals, historyPositions: positions),
+        );
+        if (_hasResolvedClosedHistory(positions, positionId)) return;
+      } catch (_) {
+        // A committed close remains final; retry the canonical history read.
+      }
+    }
+  }
+
+  bool _hasResolvedClosedHistory(
+    List<DemoHistoryPosition> positions,
+    String positionId,
+  ) {
+    final normalizedId = positionId.trim().toLowerCase();
+    return positions.any(
+      (position) =>
+          position.id.trim().toLowerCase() == normalizedId &&
+          position.closePrice != null,
+    );
   }
 
   void _finishCommittedCloseWithoutDeal(

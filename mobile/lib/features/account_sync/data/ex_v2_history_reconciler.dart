@@ -45,6 +45,7 @@ abstract final class ExV2HistoryReconciler {
         .map((deal) => _normalizedString(deal, const ['positionId']))
         .whereType<String>()
         .toSet();
+    if (candidates.length == 1) return _weightedPrice(candidates);
     if (groupIds.length != 1 ||
         candidates.any(
           (deal) =>
