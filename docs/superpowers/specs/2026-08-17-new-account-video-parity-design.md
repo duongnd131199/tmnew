@@ -27,7 +27,7 @@ Video dài 77,23 giây, kích thước 576 x 1280. Các frame chính cho thấy:
 - Danh sách Brokers dùng toolbar ba vùng: Back, `Brokers` và QR.
 - Danh sách Máy chủ dùng Back bên trái, `Máy chủ` ở giữa và danh sách server nền surface.
 - Form broker có header Back + broker mark + broker name, tiếp theo là hai nhóm đăng ký và sử dụng tài khoản hiện có.
-- Theo frame thực tế, form dùng header cao 124 px với control ở offset 37 px; màn Máy chủ giữ 64 px khoảng thở giữa toolbar và danh sách.
+- Theo phép đo frame 14, form dùng header cao 124 px với control ở offset 37 px; màn Máy chủ giữ 43 logical px giữa toolbar và danh sách, đặt `server-list.top` tại 124 logical px sau SafeArea.
 - Search bar broker neo gần đáy nhưng di chuyển an toàn khi bàn phím mở.
 - Nút Đăng nhập nằm gần đáy, vô hiệu hóa cho đến khi form hợp lệ.
 

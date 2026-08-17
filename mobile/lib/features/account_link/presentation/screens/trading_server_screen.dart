@@ -56,7 +56,7 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
               title: 'Máy chủ',
               onBack: () => Navigator.of(context).maybePop(),
             ),
-            const SizedBox(height: 64),
+            const SizedBox(height: 43),
             Expanded(
               child: switch ((
                 failed || message != null,

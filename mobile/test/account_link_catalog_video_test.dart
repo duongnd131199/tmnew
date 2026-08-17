@@ -71,7 +71,7 @@ void main() {
       expect(back.top - screen.top, closeTo(37, 0.1), reason: '$width');
       expect(title.center.dx, closeTo(screen.center.dx, 1), reason: '$width');
       expect(back.right, lessThan(title.left), reason: '$width');
-      expect(list.top - screen.top, closeTo(145, 0.1), reason: '$width');
+      expect(list.top - screen.top, closeTo(124, 0.1), reason: '$width');
     }
   });
 

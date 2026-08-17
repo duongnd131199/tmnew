@@ -153,7 +153,7 @@ D:\toolchains\flutter\bin\flutter.bat test --reporter expanded test/account_link
 - Broker row giữ hit target 72, mark 31, info hit target 43.
 - List chỉ có top padding nhỏ và không chèn fixture.
 - Search field dùng SafeArea đáy, margin ngang 20–24 và pill border.
-- Server list dùng nền `AppColors.surface`, row pitch 56, divider inset 16 và check màu primary.
+- Server list bắt đầu tại top 124 sau SafeArea (toolbar 81 + gap 43), dùng nền `AppColors.surface`, row pitch 56, divider inset 16 và check màu primary.
 - Broker/server name dài dùng `maxLines: 1` + ellipsis.
 
 - [ ] **Step 4: Chạy GREEN ở width 360/390/430**
