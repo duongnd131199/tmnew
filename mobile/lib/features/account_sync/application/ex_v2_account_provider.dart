@@ -7,6 +7,7 @@ import 'package:trading_mobile/features/account_sync/application/ex_v2_account_v
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_demo_mapper.dart';
+import 'package:trading_mobile/features/account_sync/data/ex_v2_history_reconciler.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_repository.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_realtime_service.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
@@ -278,10 +279,10 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
 
   Future<ExV2AccountViewState> _hydrate(ExV2AccountViewState base) async {
     final repository = ref.read(exV2RepositoryProvider);
-    final results = await Future.wait<Object>([
+    final results = await Future.wait<Object?>([
       _readOr(repository.historyOrders(), const <JsonMap>[]),
-      _readOr(repository.historyDeals(), const <JsonMap>[]),
-      _readOr(repository.historyPositions(), const <JsonMap>[]),
+      _readOrNull(repository.historyDeals()),
+      _readOrNull(repository.historyPositions()),
       _readOr(repository.historyTransactions(), const <JsonMap>[]),
       _readOr(repository.deposits(), const <JsonMap>[]),
       _readOr(repository.withdrawals(), const <JsonMap>[]),
@@ -291,22 +292,23 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       _readOr(repository.historySummary(), const ExV2HistorySummary.empty()),
     ]);
     final orderRows = results[0] as List<JsonMap>;
-    final dealRows = results[1] as List<JsonMap>;
-    final historyRows = results[2] as List<JsonMap>;
+    final dealRows = results[1] as List<JsonMap>?;
+    final historyRows = results[2] as List<JsonMap>?;
+    final hasCoherentTradingHistory = dealRows != null && historyRows != null;
     return base.copyWith(
       orders: _mapRows(orderRows, ExV2DemoMapper.historyOrder),
-      deals: _mapRows(dealRows, ExV2DemoMapper.historyDeal),
-      historyPositions: _mapRows(
-        historyRows
-            .where((row) => row['status']?.toString().toLowerCase() == 'closed')
-            .toList(growable: false),
-        (row) {
-          final closePrice = _historyClosePrice(row, dealRows);
-          final enriched = <String, dynamic>{...row};
-          if (closePrice != null) enriched['closePrice'] = closePrice;
-          return ExV2DemoMapper.historyPosition(enriched);
-        },
-      ),
+      deals: hasCoherentTradingHistory
+          ? _mapRows(dealRows, ExV2DemoMapper.historyDeal)
+          : base.deals,
+      historyPositions: hasCoherentTradingHistory
+          ? _mapRows(
+              ExV2HistoryReconciler.enrichClosedPositions(
+                historyRows,
+                dealRows,
+              ),
+              ExV2DemoMapper.historyPosition,
+            )
+          : base.historyPositions,
       historyTransactions: results[3] as List<JsonMap>,
       deposits: results[4] as List<JsonMap>,
       withdrawals: results[5] as List<JsonMap>,
@@ -389,6 +391,14 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       return await operation;
     } catch (_) {
       return fallback;
+    }
+  }
+
+  Future<T?> _readOrNull<T>(Future<T> operation) async {
+    try {
+      return await operation;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -1192,9 +1202,12 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
           core.bootstrap.version < current.bootstrap.version) {
         return;
       }
-      final overlaid = _applyOptimisticOverlay(core, state.value);
-      state = AsyncData(overlaid);
-      await _hydrateAndPublish(overlaid, generation);
+      final overlaid = _applyOptimisticOverlay(core, current);
+      final staged = current == null
+          ? overlaid
+          : _mergeCoreWithHydrated(overlaid, current);
+      state = AsyncData(staged);
+      await _hydrateAndPublish(staged, generation);
     } catch (error, stackTrace) {
       if (ref.mounted && generation == _loadGeneration) {
         state = AsyncError(error, stackTrace);
@@ -1254,9 +1267,12 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
           core.bootstrap.version < current.bootstrap.version) {
         return;
       }
-      final overlaid = _applyOptimisticOverlay(core, state.value);
-      state = AsyncData(overlaid);
-      await _hydrateAndPublish(overlaid, generation);
+      final overlaid = _applyOptimisticOverlay(core, current);
+      final staged = current == null
+          ? overlaid
+          : _mergeCoreWithHydrated(overlaid, current);
+      state = AsyncData(staged);
+      await _hydrateAndPublish(staged, generation);
     } catch (_) {
       // The mutation is already committed. Keep the last confirmed state and
       // let the next realtime invalidation or manual refresh reconcile it.
@@ -1274,64 +1290,4 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       current.withMarketPrice(symbol: symbol, bid: bid, ask: ask),
     );
   }
-}
-
-double? _historyClosePrice(JsonMap position, List<JsonMap> deals) {
-  final directPrice = position['closePrice'];
-  if (directPrice is num) return directPrice.toDouble();
-
-  final positionId = position['id'];
-  if (positionId is String) {
-    final linkedPrices = deals
-        .where(
-          (deal) =>
-              deal['positionId'] == positionId && _isHistoryExitDeal(deal),
-        )
-        .map((deal) => deal['price'])
-        .whereType<num>()
-        .map((price) => price.toDouble())
-        .toSet();
-    if (linkedPrices.length == 1) return linkedPrices.single;
-  }
-
-  final closedAt = _historyDate(position, const ['closedAt', 'closedAtUtc']);
-  if (closedAt == null) return null;
-  final symbol = position['symbol']?.toString().toUpperCase();
-  final timestampPrices = deals
-      .where(_isHistoryExitDeal)
-      .where((deal) {
-        final dealSymbol = deal['symbol']?.toString().toUpperCase();
-        if (symbol != null && dealSymbol != symbol) return false;
-        final createdAt = _historyDate(deal, const [
-          'createdAt',
-          'createdAtUtc',
-          'time',
-        ]);
-        return createdAt == closedAt;
-      })
-      .map((deal) => deal['price'])
-      .whereType<num>()
-      .map((price) => price.toDouble())
-      .toSet();
-  return timestampPrices.length == 1 ? timestampPrices.single : null;
-}
-
-bool _isHistoryExitDeal(JsonMap deal) {
-  final value = (deal['dealType'] ?? deal['type'])?.toString().toLowerCase();
-  if (value == null) return false;
-  final normalized = value.replaceAll(RegExp(r'[_-]+'), ' ').trim();
-  return normalized == 'out' ||
-      normalized == 'out by' ||
-      normalized.contains('close') ||
-      normalized.contains('exit');
-}
-
-DateTime? _historyDate(JsonMap row, List<String> keys) {
-  for (final key in keys) {
-    final value = row[key];
-    if (value is! String) continue;
-    final parsed = DateTime.tryParse(value);
-    if (parsed != null) return parsed.toUtc();
-  }
-  return null;
 }

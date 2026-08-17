@@ -103,11 +103,14 @@ void main() {
     final state = container.read(exV2AccountProvider).value!;
 
     expect(state.orders.single.id, 'history-order-1');
-    expect(state.deals.single.id, 'history-deal-1');
-    expect(state.deals.single.entry, 'out');
+    expect(state.deals, hasLength(2));
+    expect(state.deals.every((deal) => deal.entry == 'out'), isTrue);
     expect(state.historyPositions.single.id, 'history-position-1');
     expect(state.historyPositions.single.volume, 0.01);
-    expect(state.historyPositions.single.closePrice, 4369.55);
+    expect(
+      state.historyPositions.single.closePrice,
+      closeTo(4369.4, 0.000001),
+    );
     expect(state.historyPositions.single.profit, -0.77);
     final profile = container.read(demoAccountsProvider).single;
     expect(profile.historyDeposit, 1200);
@@ -115,6 +118,41 @@ void main() {
     expect(profile.historyProfit, -12.34);
     expect(profile.historySwap, -1.25);
     expect(profile.historyCommission, -2.5);
+  });
+
+  test('transient history failure preserves the confirmed snapshot', () async {
+    final adapter = _BootstrapAdapter(productionHistory: true);
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+      ..httpClientAdapter = adapter;
+    final container = ProviderContainer(
+      overrides: [
+        exV2EnabledProvider.overrideWithValue(true),
+        exV2DioProvider.overrideWithValue(dio),
+        deviceTokenStoreProvider.overrideWithValue(
+          _MemoryTokenStore('test-token'),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(exV2AccountProvider.future);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    final confirmed = container.read(exV2AccountProvider).value!;
+    expect(confirmed.deals, hasLength(2));
+    expect(confirmed.historyPositions.single.closePrice, isNotNull);
+
+    adapter.failHistoryDeals = true;
+    await container.read(exV2AccountProvider.notifier).refresh();
+    final afterFailure = container.read(exV2AccountProvider).value!;
+
+    expect(afterFailure.deals.map((deal) => deal.id), [
+      'history-deal-1',
+      'history-deal-2',
+    ]);
+    expect(
+      afterFailure.historyPositions.single.closePrice,
+      confirmed.historyPositions.single.closePrice,
+    );
   });
 
   test('wallet request appears before the server responds', () async {
@@ -547,6 +585,7 @@ final class _BootstrapAdapter implements HttpClientAdapter {
   final bool productionHistory;
   final Completer<void>? mutationGate;
   final bool includeNotification;
+  bool failHistoryDeals = false;
 
   @override
   Future<ResponseBody> fetch(
@@ -555,6 +594,18 @@ final class _BootstrapAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     final path = options.uri.path;
+    if (failHistoryDeals && path.endsWith('/history/deals')) {
+      return ResponseBody.fromString(
+        jsonEncode({
+          'code': 'HISTORY_UNAVAILABLE',
+          'message': 'History is temporarily unavailable',
+        }),
+        503,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
     if (path.endsWith('/deposits') && options.method == 'POST') {
       await mutationGate?.future;
       return _jsonResponse({
@@ -631,16 +682,35 @@ Object? _productionHistoryPayload(String path) {
     });
   }
   if (path.endsWith('/history/deals')) {
-    return paged({
-      'id': 'history-deal-1',
-      'type': 'out',
-      'symbol': 'XAUUSD+',
-      'side': 'buy',
-      'volume': 0.01,
-      'price': 4369.55,
-      'profit': -0.77,
-      'createdAtUtc': '2026-08-13T15:24:00Z',
-    });
+    return {
+      'page': 1,
+      'pageSize': 50,
+      'total': 2,
+      'items': [
+        {
+          'id': 'history-deal-1',
+          'positionId': 'HISTORY-POSITION-1',
+          'type': 'out',
+          'symbol': 'XAUUSD+',
+          'side': 'buy',
+          'volume': 0.004,
+          'price': 4369.1,
+          'profit': -0.3,
+          'createdAtUtc': '2026-08-13T15:23:00Z',
+        },
+        {
+          'id': 'history-deal-2',
+          'positionId': 'history-position-1',
+          'dealType': 'close',
+          'symbol': 'XAUUSD+',
+          'side': 'buy',
+          'volume': 0.006,
+          'price': 4369.6,
+          'profit': -0.47,
+          'createdAtUtc': '2026-08-13T15:24:00Z',
+        },
+      ],
+    };
   }
   if (path.endsWith('/history/summary')) {
     return {
@@ -659,7 +729,7 @@ Object? _productionHistoryPayload(String path) {
       'total': 2,
       'items': [
         {
-          'id': 'history-position-1',
+          'positionId': 'history-position-1',
           'symbol': 'XAUUSD+',
           'side': 'sell',
           'initialVolume': 0.01,
