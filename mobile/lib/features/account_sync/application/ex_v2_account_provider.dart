@@ -192,9 +192,9 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       (accountId: current.bootstrap.account.id, generation: _accountGeneration);
 
   bool _isMutationScopeCurrent(_AccountMutationScope scope) {
+    if (!ref.mounted) return false;
     final current = state.value;
-    return ref.mounted &&
-        scope.generation == _accountGeneration &&
+    return scope.generation == _accountGeneration &&
         current != null &&
         current.bootstrap.account.id == scope.accountId &&
         current.bootstrap.summary.accountId == scope.accountId;

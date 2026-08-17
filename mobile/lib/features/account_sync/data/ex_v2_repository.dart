@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 
@@ -20,17 +22,18 @@ final class ExV2Repository {
   ).map(ExV2Position.fromJson).toList(growable: false);
 
   Future<List<JsonMap>> historyDeals({int page = 1, int pageSize = 50}) =>
-      _readMaps('/history/deals', page: page, pageSize: pageSize);
+      _readAllMaps('/history/deals', page: page, pageSize: pageSize);
 
   Future<List<JsonMap>> historyPositions({int page = 1, int pageSize = 50}) =>
-      _readMaps('/history/positions', page: page, pageSize: pageSize);
+      _readAllMaps('/history/positions', page: page, pageSize: pageSize);
 
   Future<List<JsonMap>> historyTransactions({
     int page = 1,
     int pageSize = 50,
   }) => _readMaps('/history/transactions', page: page, pageSize: pageSize);
 
-  Future<List<JsonMap>> historyOrders() => _readMaps('/history/orders');
+  Future<List<JsonMap>> historyOrders({int page = 1, int pageSize = 50}) =>
+      _readAllMaps('/history/orders', page: page, pageSize: pageSize);
 
   Future<ExV2HistorySummary> historySummary() async =>
       ExV2HistorySummary.fromJson(await _client.getJson('/history/summary'));
@@ -239,6 +242,32 @@ final class ExV2Repository {
       queryParameters: {'page': ?page, 'pageSize': ?pageSize},
     ),
   );
+
+  Future<List<JsonMap>> _readAllMaps(
+    String path, {
+    required int page,
+    required int pageSize,
+  }) async {
+    const maximumPages = 100;
+    final result = <JsonMap>[];
+    final seenRows = <String>{};
+    for (var offset = 0; offset < maximumPages; offset++) {
+      final rows = await _readMaps(
+        path,
+        page: page + offset,
+        pageSize: pageSize,
+      );
+      var added = 0;
+      for (final row in rows) {
+        if (seenRows.add(jsonEncode(row))) {
+          result.add(row);
+          added++;
+        }
+      }
+      if (rows.length < pageSize || added == 0) break;
+    }
+    return result;
+  }
 }
 
 List<JsonMap> _maps(List<dynamic> values) => values

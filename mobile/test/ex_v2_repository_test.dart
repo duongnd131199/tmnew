@@ -71,6 +71,51 @@ void main() {
       'reference': 'mobile',
     });
   });
+
+  test('history deals load every page required for reconciliation', () async {
+    final adapter = _PagedHistoryAdapter({
+      1: const [
+        {'id': 'deal-1'},
+        {'id': 'deal-2'},
+      ],
+      2: const [
+        {'id': 'deal-3'},
+      ],
+    });
+    final repository = ExV2Repository(
+      ExV2ApiClient(
+        dio: Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+          ..httpClientAdapter = adapter,
+        tokenReader: () async => 'test-token',
+      ),
+    );
+
+    final deals = await repository.historyDeals(pageSize: 2);
+
+    expect(deals.map((deal) => deal['id']), ['deal-1', 'deal-2', 'deal-3']);
+    expect(adapter.requestedPages, [1, 2]);
+  });
+
+  test('history pagination stops when a server repeats a full page', () async {
+    final adapter = _PagedHistoryAdapter({
+      1: const [
+        {'id': 'deal-1'},
+        {'id': 'deal-2'},
+      ],
+    }, repeatFirstPage: true);
+    final repository = ExV2Repository(
+      ExV2ApiClient(
+        dio: Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+          ..httpClientAdapter = adapter,
+        tokenReader: () async => 'test-token',
+      ),
+    );
+
+    final deals = await repository.historyDeals(pageSize: 2);
+
+    expect(deals.map((deal) => deal['id']), ['deal-1', 'deal-2']);
+    expect(adapter.requestedPages, [1, 2]);
+  });
 }
 
 class _JsonAdapter implements HttpClientAdapter {
@@ -88,6 +133,41 @@ class _JsonAdapter implements HttpClientAdapter {
     this.options = options;
     return ResponseBody.fromString(
       jsonEncode(body),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _PagedHistoryAdapter implements HttpClientAdapter {
+  _PagedHistoryAdapter(this.pages, {this.repeatFirstPage = false});
+
+  final Map<int, List<Map<String, Object?>>> pages;
+  final bool repeatFirstPage;
+  final List<int> requestedPages = [];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final page = int.parse(options.uri.queryParameters['page']!);
+    requestedPages.add(page);
+    final items = pages[page] ??
+        (repeatFirstPage ? pages[1]! : const <Map<String, Object?>>[]);
+    return ResponseBody.fromString(
+      jsonEncode({
+        'page': page,
+        'pageSize': options.uri.queryParameters['pageSize'],
+        'total': pages.values.fold<int>(0, (sum, rows) => sum + rows.length),
+        'items': items,
+      }),
       200,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],

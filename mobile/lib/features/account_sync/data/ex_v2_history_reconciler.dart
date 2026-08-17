@@ -6,13 +6,15 @@ abstract final class ExV2HistoryReconciler {
     List<JsonMap> deals,
   ) => [
     for (final position in positions)
-      if (_isClosed(position))
-        <String, dynamic>{
-          ...position,
-          if (closePrice(position, deals) case final price?)
-            'closePrice': price,
-        },
+      if (_isClosed(position)) _enrich(position, deals),
   ];
+
+  static JsonMap _enrich(JsonMap position, List<JsonMap> deals) {
+    final enriched = <String, dynamic>{...position};
+    final price = closePrice(position, deals);
+    if (price != null) enriched['closePrice'] = price;
+    return enriched;
+  }
 
   static double? closePrice(JsonMap position, List<JsonMap> deals) {
     final directPrice = _number(position, const ['closePrice', 'exitPrice']);

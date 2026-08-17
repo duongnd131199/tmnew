@@ -172,7 +172,51 @@ git add mobile/lib/features/account_sync/application/ex_v2_account_provider.dart
 git commit -m "fix: synchronize closed positions with history"
 ```
 
-### Task 4: Full verification and emulator inspection
+### Task 4: Load all paged trading history required for reconciliation
+
+**Files:**
+- Modify: `mobile/lib/features/account_sync/data/ex_v2_repository.dart:22-36`
+- Modify: `mobile/test/ex_v2_repository_test.dart`
+
+**Interfaces:**
+- Consumes: paged `/history/deals`, `/history/positions`, and `/history/orders` responses.
+- Produces: complete, de-duplicated trading history rows across pages so an older closed position can still find its linked exit deals.
+
+- [ ] **Step 1: Write a failing repository pagination test**
+
+Return a full first page and a shorter second page from a fake adapter. Assert `historyDeals(pageSize: 2)` returns all three rows in server order and sends `page=1`, then `page=2`.
+
+- [ ] **Step 2: Write a failing repeated-page safety test**
+
+Make the fake server ignore `page` and repeat the same full page. Assert the repository de-duplicates rows and stops after detecting that the next page adds nothing.
+
+- [ ] **Step 3: Run repository tests and verify RED**
+
+```powershell
+cd mobile
+D:\toolchains\flutter\bin\flutter.bat test --reporter expanded test/ex_v2_repository_test.dart
+```
+
+Expected: only the first page is returned before implementation.
+
+- [ ] **Step 4: Implement bounded all-page reads**
+
+Add a private `_readAllMaps` loop with an explicit maximum page count. Request sequential pages, preserve server order, de-duplicate exact repeated rows, and stop on an empty/short page or when a full page contributes no new rows. Route trading history deals, positions, and orders through it.
+
+- [ ] **Step 5: Verify pagination GREEN and history regressions**
+
+```powershell
+D:\toolchains\flutter\bin\flutter.bat test --reporter expanded --concurrency=1 test/ex_v2_repository_test.dart test/ex_v2_account_provider_test.dart test/ex_v2_trading_command_test.dart test/ex_v2_history_reconciler_test.dart
+```
+
+- [ ] **Step 6: Commit pagination support**
+
+```powershell
+git add mobile/lib/features/account_sync/data/ex_v2_repository.dart mobile/test/ex_v2_repository_test.dart
+git commit -m "fix: load complete trading history"
+```
+
+### Task 5: Full verification and emulator inspection
 
 **Files:**
 - Verify: `mobile/`
