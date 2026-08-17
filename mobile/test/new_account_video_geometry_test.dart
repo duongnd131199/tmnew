@@ -42,7 +42,7 @@ void main() {
       find.byKey(const Key('broker-mark-yodo-demo')),
     );
 
-    expect(header.height, 81);
+    expect(header.height, 124);
     expect(back.top - header.top, closeTo(37, 0.1));
     expect(brokerMark.center.dy, closeTo(back.center.dy, 0.1));
     expect(find.text('YODO Demo Markets'), findsOneWidget);

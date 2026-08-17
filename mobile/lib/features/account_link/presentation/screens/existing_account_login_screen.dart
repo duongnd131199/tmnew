@@ -295,7 +295,7 @@ class _BrokerHeader extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
     key: const Key('existing-account-header'),
     width: double.infinity,
-    height: 81,
+    height: 124,
     child: Stack(
       children: [
         Positioned(

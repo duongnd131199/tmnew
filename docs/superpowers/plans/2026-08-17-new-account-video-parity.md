@@ -193,7 +193,7 @@ D:\toolchains\flutter\bin\flutter.bat test --reporter expanded test/account_link
 
 - [ ] **Step 3: Hiệu chỉnh form tối thiểu**
 
-- Header cao 72, Back hit target 43, broker mark 31 và tên ellipsis.
+- Header form cao 124, control bắt đầu từ offset 37, Back hit target 43, broker mark 31 và tên ellipsis.
 - Section labels cao 42; registration rows min-height 92; value/input/save rows dùng cùng row frame.
 - `SingleChildScrollView` chịu keyboard inset; action nằm ngoài scroll content và SafeArea quản lý đáy.
 - Không thay `TextEditingController` synchronization hoặc password transform.
