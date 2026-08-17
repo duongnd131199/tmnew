@@ -277,6 +277,45 @@ void main() {
     },
   );
 
+  test('close waits until history summary reflects realized profit', () async {
+    final adapter = _TradingAdapter(delayedHistorySummary: true)
+      ..created = true;
+    final container = _container(adapter);
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+
+    await container
+        .read(exV2AccountProvider.notifier)
+        .closePosition('server-position-1');
+
+    final state = container.read(exV2AccountProvider).value!;
+    expect(adapter.closePosts, 1);
+    expect(adapter.postCloseHistorySummaryReads, greaterThanOrEqualTo(2));
+    expect(state.historySummary.realizedProfit, closeTo(306.525, 0.000001));
+  });
+
+  test(
+    'committed close keeps authoritative balance when history endpoint fails',
+    () async {
+      final adapter = _TradingAdapter(failPostCloseHistoryDeals: true)
+        ..created = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+
+      await container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1');
+
+      final state = container.read(exV2AccountProvider).value!;
+      expect(adapter.closePosts, 1);
+      expect(state.positions, isEmpty);
+      expect(state.balance, closeTo(5306.525, 0.000001));
+      expect(state.deals, isEmpty);
+      expect(state.historyPositions, isEmpty);
+    },
+  );
+
   test('close removes the position before the server responds', () async {
     final adapter = _TradingAdapter()..created = true;
     adapter.closeGate = Completer<void>();
@@ -321,6 +360,7 @@ void main() {
     await closing;
     expect(adapter.lastCloseData?['volume'], 0.004);
     expect(adapter.closePosts, 1);
+    expect(adapter.preCloseHistoryDealReads, greaterThanOrEqualTo(1));
     expect(
       container.read(exV2AccountProvider).value?.positions.single.volume,
       closeTo(0.006, 0.000001),
@@ -399,6 +439,10 @@ void main() {
       expect(closeDeal, isNull);
       expect(adapter.closePosts, 1);
       expect(container.read(exV2AccountProvider).value?.positions, isEmpty);
+      expect(
+        container.read(exV2AccountProvider).value?.balance,
+        closeTo(5306.525, 0.000001),
+      );
       expect(
         container.read(exV2AccountProvider).value?.pendingOperationIds,
         isEmpty,
@@ -518,6 +562,8 @@ final class _TradingAdapter implements HttpClientAdapter {
     this.delayedClosedHistory = false,
     this.staleBootstrapReadsAfterClose = 0,
     this.failFirstPostCloseBootstrap = false,
+    this.delayedHistorySummary = false,
+    this.failPostCloseHistoryDeals = false,
   });
 
   final bool rejectOrder;
@@ -529,6 +575,8 @@ final class _TradingAdapter implements HttpClientAdapter {
   final bool delayedClosedHistory;
   final int staleBootstrapReadsAfterClose;
   final bool failFirstPostCloseBootstrap;
+  final bool delayedHistorySummary;
+  final bool failPostCloseHistoryDeals;
   int orderPosts = 0;
   int closePosts = 0;
   int closeByPosts = 0;
@@ -540,6 +588,8 @@ final class _TradingAdapter implements HttpClientAdapter {
   int closedHistoryDealReads = 0;
   int closedHistoryPositionReads = 0;
   int postCloseBootstrapReads = 0;
+  int preCloseHistoryDealReads = 0;
+  int postCloseHistorySummaryReads = 0;
   Map<String, dynamic>? lastOrderData;
   final List<String> clientOrderIds = <String>[];
   Map<String, dynamic>? lastCloseData;
@@ -592,7 +642,9 @@ final class _TradingAdapter implements HttpClientAdapter {
       }
       await closeGate?.future;
       final requestedVolume = (lastCloseData?['volume'] as num?)?.toDouble();
-      if (requestedVolume != null && requestedVolume < remainingVolume) {
+      final partialExecution =
+          requestedVolume != null && requestedVolume < remainingVolume;
+      if (partialExecution) {
         remainingVolume -= requestedVolume;
       } else {
         remainingVolume = 0;
@@ -605,9 +657,11 @@ final class _TradingAdapter implements HttpClientAdapter {
       return _json({
         ..._bootstrapPosition,
         'remainingVolume': remainingVolume,
-        'realizedProfit': 306.525,
-        'status': 'closed',
-        'closedAt': '2026-08-13T16:31:10Z',
+        'realizedProfit': partialExecution ? 120.0 : 306.525,
+        'status': partialExecution ? 'open' : 'closed',
+        'closedAt': partialExecution
+            ? '2026-08-13T16:30:10Z'
+            : '2026-08-13T16:31:10Z',
       });
     }
     if (path.endsWith('/positions/server-position-1/close-by') &&
@@ -665,24 +719,36 @@ final class _TradingAdapter implements HttpClientAdapter {
       );
     }
     if (path.endsWith('/history/summary')) {
+      if (remainingVolume < 0.01) postCloseHistorySummaryReads++;
       final realizedProfit = closeCommitted
           ? 306.525
           : remainingVolume < 0.01
           ? 120.0
           : 0.0;
+      final visibleRealizedProfit =
+          delayedHistorySummary && postCloseHistorySummaryReads == 1
+          ? 0.0
+          : realizedProfit;
       return _json({
         'deposit': 0,
         'withdrawal': 0,
-        'realizedProfit': realizedProfit,
+        'realizedProfit': visibleRealizedProfit,
         'swap': 0,
         'commission': 0,
-        'netChange': realizedProfit,
+        'netChange': visibleRealizedProfit,
       });
     }
     if (path.endsWith('/settings')) return _json(<String, Object?>{});
     if (path.endsWith('/history/deals')) {
       final hasCloseExecution = remainingVolume < 0.01;
+      if (!hasCloseExecution) preCloseHistoryDealReads++;
       if (hasCloseExecution) closedHistoryDealReads++;
+      if (hasCloseExecution && failPostCloseHistoryDeals) {
+        return _json({
+          'code': 'HISTORY_UNAVAILABLE',
+          'message': 'History unavailable',
+        }, statusCode: 503);
+      }
       if (closeCommitted && !_concurrentRefreshTriggered) {
         _concurrentRefreshTriggered = true;
         scheduleMicrotask(() => onClosedHistoryRead?.call());

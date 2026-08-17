@@ -559,14 +559,15 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
 
     var commandCommitted = false;
     try {
+      final repository = ref.read(exV2RepositoryProvider);
+      final baselineSnapshot = await _loadTradingHistorySnapshot(repository);
+      if (!_isMutationScopeCurrent(scope)) return null;
       try {
-        await ref
-            .read(exV2RepositoryProvider)
-            .closePosition(
-              positionId: positionId,
-              volume: volume,
-              metadata: ExV2CommandMetadata.create(),
-            );
+        await repository.closePosition(
+          positionId: positionId,
+          volume: volume,
+          metadata: ExV2CommandMetadata.create(),
+        );
         commandCommitted = true;
         if (!_isMutationScopeCurrent(scope)) return null;
       } on ExV2RequestFailure {
@@ -589,7 +590,9 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         isPartial: isPartial,
         closeVolume: closeVolume,
         expectedRemainingVolume: originalPosition.volume - closeVolume,
-        baselineExitVolume: _exitVolume(before.deals, positionId),
+        baselineExitVolume: _exitVolume(baselineSnapshot.deals, positionId),
+        baselineExitProfit: _exitProfit(baselineSnapshot.deals),
+        baselineHistoryRealizedProfit: baselineSnapshot.summary.realizedProfit,
         minimumBootstrapVersion: before.bootstrap.version,
         scope: scope,
       );
@@ -664,6 +667,8 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     required double closeVolume,
     required double expectedRemainingVolume,
     required double baselineExitVolume,
+    required double baselineExitProfit,
+    required double baselineHistoryRealizedProfit,
     required int minimumBootstrapVersion,
     required _AccountMutationScope scope,
   }) async {
@@ -675,6 +680,8 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       closeVolume: closeVolume,
       expectedRemainingVolume: expectedRemainingVolume,
       baselineExitVolume: baselineExitVolume,
+      baselineExitProfit: baselineExitProfit,
+      baselineHistoryRealizedProfit: baselineHistoryRealizedProfit,
       minimumBootstrapVersion: minimumBootstrapVersion,
       scope: scope,
     );
@@ -708,6 +715,8 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     required double closeVolume,
     required double expectedRemainingVolume,
     required double baselineExitVolume,
+    required double baselineExitProfit,
+    required double baselineHistoryRealizedProfit,
     required int minimumBootstrapVersion,
     required _AccountMutationScope scope,
   }) async {
@@ -719,17 +728,13 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       Duration(milliseconds: 1200),
     ];
     final repository = ref.read(exV2RepositoryProvider);
+    ExV2AccountViewState? latestAuthoritativeCore;
     for (final delay in delays) {
       await Future<void>.delayed(delay);
       if (!_isMutationScopeCurrent(scope)) return null;
       try {
-        final results = await Future.wait<Object>([
-          _loadCore(applyOptimisticHides: false),
-          _loadTradingHistorySnapshot(repository),
-        ]);
+        final core = await _loadCore(applyOptimisticHides: false);
         if (!_isMutationScopeCurrent(scope)) return null;
-        final core = results[0] as ExV2AccountViewState;
-        final snapshot = results[1] as _TradingHistorySnapshot;
         final current = state.value;
         if (current == null) return null;
         final snapshotMatchesScope =
@@ -738,17 +743,30 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         final snapshotIsCurrent =
             core.bootstrap.version > minimumBootstrapVersion &&
             core.bootstrap.version >= current.bootstrap.version;
-        if (!snapshotMatchesScope ||
-            !snapshotIsCurrent ||
-            !_isCommittedCloseVisible(
-              core: core,
-              snapshot: snapshot,
-              positionId: positionId,
-              isPartial: isPartial,
-              closeVolume: closeVolume,
-              expectedRemainingVolume: expectedRemainingVolume,
-              baselineExitVolume: baselineExitVolume,
-            )) {
+        if (!snapshotMatchesScope || !snapshotIsCurrent) {
+          continue;
+        }
+        if (_isCoreCloseVisible(
+          core: core,
+          positionId: positionId,
+          isPartial: isPartial,
+          expectedRemainingVolume: expectedRemainingVolume,
+        )) {
+          latestAuthoritativeCore = core;
+        }
+        final snapshot = await _loadTradingHistorySnapshot(repository);
+        if (!_isMutationScopeCurrent(scope)) return null;
+        if (!_isCommittedCloseVisible(
+          core: core,
+          snapshot: snapshot,
+          positionId: positionId,
+          isPartial: isPartial,
+          closeVolume: closeVolume,
+          expectedRemainingVolume: expectedRemainingVolume,
+          baselineExitVolume: baselineExitVolume,
+          baselineExitProfit: baselineExitProfit,
+          baselineHistoryRealizedProfit: baselineHistoryRealizedProfit,
+        )) {
           continue;
         }
         _optimisticHiddenPositionIds.remove(positionId);
@@ -770,6 +788,24 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       }
     }
     if (!_isMutationScopeCurrent(scope)) return null;
+    final latestCore = latestAuthoritativeCore;
+    final current = state.value;
+    if (latestCore != null &&
+        current != null &&
+        latestCore.bootstrap.version >= current.bootstrap.version) {
+      _optimisticHiddenPositionIds.remove(positionId);
+      state = AsyncData(
+        _mergeCoreWithHydrated(
+          latestCore,
+          current,
+          pendingOperationIds: {
+            ...current.pendingOperationIds.where((id) => id != operationId),
+          },
+        ),
+      );
+      unawaited(refresh());
+      return null;
+    }
     _finishCommittedCloseWithoutDeal(operationId, fallback, scope);
     return null;
   }
@@ -782,22 +818,54 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     required double closeVolume,
     required double expectedRemainingVolume,
     required double baselineExitVolume,
+    required double baselineExitProfit,
+    required double baselineHistoryRealizedProfit,
+  }) {
+    const tolerance = 0.000000001;
+    final coreIsCurrent = _isCoreCloseVisible(
+      core: core,
+      positionId: positionId,
+      isPartial: isPartial,
+      expectedRemainingVolume: expectedRemainingVolume,
+    );
+    final historyIsCurrent =
+        isPartial || _hasResolvedClosedHistory(snapshot.positions, positionId);
+    final newExitVolume =
+        _exitVolume(snapshot.deals, positionId) - baselineExitVolume;
+    final expectedHistoryRealizedProfit =
+        baselineHistoryRealizedProfit +
+        (_exitProfit(snapshot.deals) - baselineExitProfit);
+    final summaryIsCurrent =
+        (snapshot.summary.realizedProfit - expectedHistoryRealizedProfit)
+            .abs() <=
+        tolerance;
+    return coreIsCurrent &&
+        historyIsCurrent &&
+        newExitVolume + tolerance >= closeVolume &&
+        summaryIsCurrent;
+  }
+
+  bool _isCoreCloseVisible({
+    required ExV2AccountViewState core,
+    required String positionId,
+    required bool isPartial,
+    required double expectedRemainingVolume,
   }) {
     const tolerance = 0.000000001;
     final normalizedId = positionId.trim().toLowerCase();
     final serverPosition = core.positions
         .where((position) => position.id.trim().toLowerCase() == normalizedId)
         .firstOrNull;
-    final positionIsCurrent = isPartial
+    return isPartial
         ? serverPosition != null &&
               (serverPosition.volume - expectedRemainingVolume).abs() <=
                   tolerance
-        : serverPosition == null &&
-              _hasResolvedClosedHistory(snapshot.positions, positionId);
-    final newExitVolume =
-        _exitVolume(snapshot.deals, positionId) - baselineExitVolume;
-    return positionIsCurrent && newExitVolume + tolerance >= closeVolume;
+        : serverPosition == null;
   }
+
+  double _exitProfit(List<DemoDeal> deals) => deals
+      .where((deal) => deal.entry == 'out')
+      .fold<double>(0, (total, deal) => total + deal.profit);
 
   double _exitVolume(List<DemoDeal> deals, String positionId) {
     final normalizedId = positionId.trim().toLowerCase();
