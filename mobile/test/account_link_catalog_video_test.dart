@@ -38,6 +38,8 @@ void main() {
         find.byKey(const Key('account-link-qr-button')),
       );
 
+      expect(screen.top, 0);
+      expect(back.top - screen.top, closeTo(37, 0.1), reason: '$width');
       expect(title.center.dx, closeTo(screen.center.dx, 1), reason: '$width');
       expect(back.right, lessThan(title.left), reason: '$width');
       expect(qr.left, greaterThan(title.right), reason: '$width');
@@ -65,6 +67,7 @@ void main() {
       );
       final title = tester.getRect(find.text('Máy chủ'));
 
+      expect(back.top - screen.top, closeTo(37, 0.1), reason: '$width');
       expect(title.center.dx, closeTo(screen.center.dx, 1), reason: '$width');
       expect(back.right, lessThan(title.left), reason: '$width');
     }

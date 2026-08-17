@@ -294,30 +294,39 @@ class _BrokerHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     key: const Key('existing-account-header'),
-    height: 72,
-    child: Row(
+    width: double.infinity,
+    height: 81,
+    child: Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: AppSpacing.md),
-          child: AccountLinkToolbarButton(
-            action: AccountLinkToolbarAction.back,
-            onTap: () => Navigator.of(context).maybePop(),
+        Positioned(
+          left: AppSpacing.md,
+          right: AppSpacing.md,
+          top: 37,
+          height: 43,
+          child: Row(
+            children: [
+              AccountLinkToolbarButton(
+                action: AccountLinkToolbarAction.back,
+                onTap: () => Navigator.of(context).maybePop(),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              if (broker case final value?)
+                AccountLinkBrokerMark(broker: value),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  broker?.name ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.titleMedium.copyWith(
+                    fontWeight: FontWeight.w700,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
-        if (broker case final value?) AccountLinkBrokerMark(broker: value),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            broker?.name ?? '',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.titleMedium.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.md),
       ],
     ),
   );

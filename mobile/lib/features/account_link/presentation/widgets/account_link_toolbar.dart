@@ -18,27 +18,37 @@ class AccountLinkToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     width: double.infinity,
-    height: 66,
+    height: 81,
     child: Stack(
-      alignment: Alignment.center,
       children: [
-        Text(
-          title,
-          key: const Key('account-link-toolbar-title'),
-          textAlign: TextAlign.center,
-          style: AppTypography.titleMedium.copyWith(
-            fontWeight: FontWeight.w700,
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 49,
+          child: IgnorePointer(
+            child: Center(
+              child: Text(
+                title,
+                key: const Key('account-link-toolbar-title'),
+                textAlign: TextAlign.center,
+                style: AppTypography.titleMedium.copyWith(
+                  fontWeight: FontWeight.w700,
+                  height: 1,
+                ),
+              ),
+            ),
           ),
         ),
         Positioned(
           left: AppSpacing.md,
+          top: 37,
           child: AccountLinkToolbarButton(
             action: AccountLinkToolbarAction.back,
             onTap: onBack,
           ),
         ),
         if (trailing case final action?)
-          Positioned(right: AppSpacing.md, child: action),
+          Positioned(right: AppSpacing.md, top: 37, child: action),
       ],
     ),
   );
