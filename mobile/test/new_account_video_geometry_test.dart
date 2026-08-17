@@ -45,7 +45,8 @@ void main() {
     expect(header.height, 124);
     expect(back.top - header.top, closeTo(37, 0.1));
     expect(brokerMark.center.dy, closeTo(back.center.dy, 0.1));
-    expect(find.text('YODO Demo Markets'), findsOneWidget);
+    expect(find.text('Exness Technologies Ltd'), findsOneWidget);
+    expect(find.text('YODO Demo Markets'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
