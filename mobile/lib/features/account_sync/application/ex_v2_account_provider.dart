@@ -575,7 +575,6 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         if (await _reconcileMissingPosition(
           positionId: positionId,
           operationId: operationId,
-          fallback: before,
           scope: scope,
         )) {
           return null;
@@ -632,18 +631,23 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   Future<bool> _reconcileMissingPosition({
     required String positionId,
     required String operationId,
-    required ExV2AccountViewState fallback,
     required _AccountMutationScope scope,
   }) async {
     try {
       if (!_isMutationScopeCurrent(scope)) return false;
       final core = await _loadCore(applyOptimisticHides: false);
       if (!_isMutationScopeCurrent(scope)) return false;
+      final current = state.value;
+      if (current == null ||
+          core.bootstrap.account.id != scope.accountId ||
+          core.bootstrap.summary.accountId != scope.accountId ||
+          core.bootstrap.version < current.bootstrap.version) {
+        return false;
+      }
       if (core.positions.any((position) => position.id == positionId)) {
         return false;
       }
       _optimisticHiddenPositionIds.remove(positionId);
-      final current = state.value ?? fallback;
       final reconciled = _mergeCoreWithHydrated(
         core,
         current,
@@ -756,6 +760,11 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         }
         final snapshot = await _loadTradingHistorySnapshot(repository);
         if (!_isMutationScopeCurrent(scope)) return null;
+        final latestCurrent = state.value;
+        if (latestCurrent == null ||
+            core.bootstrap.version < latestCurrent.bootstrap.version) {
+          continue;
+        }
         if (!_isCommittedCloseVisible(
           core: core,
           snapshot: snapshot,
@@ -773,12 +782,14 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         state = AsyncData(
           _mergeCoreWithHydrated(
             core,
-            current,
+            latestCurrent,
             deals: snapshot.deals,
             historyPositions: snapshot.positions,
             historySummary: snapshot.summary,
             pendingOperationIds: {
-              ...current.pendingOperationIds.where((id) => id != operationId),
+              ...latestCurrent.pendingOperationIds.where(
+                (id) => id != operationId,
+              ),
             },
           ),
         );

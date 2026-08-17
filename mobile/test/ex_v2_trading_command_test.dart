@@ -180,6 +180,47 @@ void main() {
     expect(container.read(exV2AccountProvider).value?.positions, isEmpty);
   });
 
+  test('close history cannot overwrite a newer optimistic command', () async {
+    final historyGate = Completer<void>();
+    final historyStarted = Completer<void>();
+    final adapter = _TradingAdapter()
+      ..created = true
+      ..postCloseHistoryGate = historyGate
+      ..postCloseHistoryStarted = historyStarted
+      ..orderGate = Completer<void>();
+    final container = _container(adapter);
+    addTearDown(() {
+      if (!historyGate.isCompleted) historyGate.complete();
+      container.dispose();
+    });
+    await container.read(exV2AccountProvider.future);
+
+    final closing = container
+        .read(exV2AccountProvider.notifier)
+        .closePosition('server-position-1');
+    await historyStarted.future;
+    final ordering = container
+        .read(exV2AccountProvider.notifier)
+        .createOrder(symbol: 'XAUUSD+', side: 'buy', volume: 0.02);
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      container
+          .read(exV2AccountProvider)
+          .value!
+          .orders
+          .any((row) => row.status == 'sending'),
+      isTrue,
+    );
+    historyGate.complete();
+    await closing;
+
+    final state = container.read(exV2AccountProvider).value!;
+    expect(state.orders.any((row) => row.status == 'sending'), isTrue);
+    expect(state.balance, closeTo(5306.525, 0.000001));
+    adapter.orderGate!.complete();
+    await ordering;
+  });
+
   test('committed close publishes matching deals and closed history', () async {
     final refreshGate = Completer<void>();
     final adapter = _TradingAdapter()
@@ -469,6 +510,31 @@ void main() {
     );
   });
 
+  test(
+    'position-not-found cannot publish bootstrap from another account',
+    () async {
+      final adapter = _TradingAdapter(
+        stalePositionOnClose: true,
+        switchAccountAfterRejectedClose: true,
+      )..created = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+
+      await expectLater(
+        container
+            .read(exV2AccountProvider.notifier)
+            .closePosition('server-position-1'),
+        throwsA(isA<ExV2RequestFailure>()),
+      );
+
+      final state = container.read(exV2AccountProvider).value!;
+      expect(state.bootstrap.account.id, 'account-1');
+      expect(state.bootstrap.summary.accountId, 'account-1');
+      expect(state.positions.single.id, 'server-position-1');
+    },
+  );
+
   test('limit and stop UI orders use the server pending contract', () async {
     final adapter = _TradingAdapter();
     final container = _container(adapter);
@@ -564,6 +630,7 @@ final class _TradingAdapter implements HttpClientAdapter {
     this.failFirstPostCloseBootstrap = false,
     this.delayedHistorySummary = false,
     this.failPostCloseHistoryDeals = false,
+    this.switchAccountAfterRejectedClose = false,
   });
 
   final bool rejectOrder;
@@ -577,6 +644,7 @@ final class _TradingAdapter implements HttpClientAdapter {
   final bool failFirstPostCloseBootstrap;
   final bool delayedHistorySummary;
   final bool failPostCloseHistoryDeals;
+  final bool switchAccountAfterRejectedClose;
   int orderPosts = 0;
   int closePosts = 0;
   int closeByPosts = 0;
@@ -585,6 +653,7 @@ final class _TradingAdapter implements HttpClientAdapter {
   bool oppositeCreated = false;
   bool pending = false;
   bool closeCommitted = false;
+  bool rejectedCloseOccurred = false;
   int closedHistoryDealReads = 0;
   int closedHistoryPositionReads = 0;
   int postCloseBootstrapReads = 0;
@@ -601,6 +670,8 @@ final class _TradingAdapter implements HttpClientAdapter {
   Completer<void>? orderGate;
   Completer<void>? cancelGate;
   Completer<void>? postCloseRefreshGate;
+  Completer<void>? postCloseHistoryGate;
+  Completer<void>? postCloseHistoryStarted;
 
   @override
   Future<ResponseBody> fetch(
@@ -629,6 +700,7 @@ final class _TradingAdapter implements HttpClientAdapter {
       lastCloseData = (options.data as Map).cast<String, dynamic>();
       if (stalePositionOnClose) {
         created = false;
+        rejectedCloseOccurred = true;
         return _json({
           'code': 'POSITION_NOT_FOUND',
           'message': 'Position not found',
@@ -715,6 +787,9 @@ final class _TradingAdapter implements HttpClientAdapter {
           withPending: pending,
           remainingVolume: staleAfterClose ? 0.01 : remainingVolume,
           withOppositePosition: oppositeCreated,
+          accountId: rejectedCloseOccurred && switchAccountAfterRejectedClose
+              ? 'account-2'
+              : 'account-1',
         ),
       );
     }
@@ -743,6 +818,12 @@ final class _TradingAdapter implements HttpClientAdapter {
       final hasCloseExecution = remainingVolume < 0.01;
       if (!hasCloseExecution) preCloseHistoryDealReads++;
       if (hasCloseExecution) closedHistoryDealReads++;
+      if (hasCloseExecution && postCloseHistoryGate != null) {
+        if (!(postCloseHistoryStarted?.isCompleted ?? true)) {
+          postCloseHistoryStarted!.complete();
+        }
+        await postCloseHistoryGate!.future;
+      }
       if (hasCloseExecution && failPostCloseHistoryDeals) {
         return _json({
           'code': 'HISTORY_UNAVAILABLE',
@@ -883,19 +964,20 @@ Map<String, Object?> _bootstrap({
   bool withPending = false,
   double remainingVolume = 0.01,
   bool withOppositePosition = false,
+  String accountId = 'account-1',
 }) => {
   'serverTime': '2026-08-13T14:00:00Z',
   'version': version,
   'device': {'id': 'device-1', 'name': 'Phone'},
   'activeAccount': {
-    'id': 'account-1',
+    'id': accountId,
     'accountCode': 'TEST-100',
     'name': 'Demo account',
     'currency': 'USD',
     'status': 'active',
   },
   'summary': {
-    'accountId': 'account-1',
+    'accountId': accountId,
     'currency': 'USD',
     'balance': withPosition ? 5000 : 5306.525,
     'equity': withPosition ? 5000 : 5306.525,
