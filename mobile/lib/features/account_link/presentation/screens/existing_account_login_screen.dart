@@ -10,6 +10,7 @@ import 'package:trading_mobile/features/account_link/application/account_link_co
 import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_visuals.dart';
+import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
 
 class ExistingAccountLoginScreen extends ConsumerStatefulWidget {
   const ExistingAccountLoginScreen({required this.brokerId, super.key});
@@ -251,7 +252,11 @@ class _ExistingAccountLoginScreenState
       return;
     }
     if (state.selectedServer == null && state.servers.isNotEmpty) {
-      controller.selectServer(state.servers.first);
+      final options = referenceServerOptions(
+        brokerId: widget.brokerId,
+        servers: state.servers,
+      );
+      controller.selectServer(options.first.server);
     }
   }
 

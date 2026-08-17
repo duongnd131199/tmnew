@@ -9,6 +9,7 @@ import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_toolbar.dart';
+import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
 
 class TradingServerScreen extends ConsumerStatefulWidget {
   const TradingServerScreen({
@@ -44,6 +45,10 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
         asyncState.isLoading || state?.phase == AccountLinkPhase.loadingCatalog;
     final failed = state?.phase == AccountLinkPhase.failed;
     final servers = state?.servers ?? const <MobileTradingServer>[];
+    final options = referenceServerOptions(
+      brokerId: widget.brokerId,
+      servers: servers,
+    );
     final message = _routeError ?? state?.errorMessage;
 
     return Scaffold(
@@ -92,13 +97,14 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
                         parent: AlwaysScrollableScrollPhysics(),
                       ),
                       itemExtent: 56,
-                      itemCount: servers.length,
+                      itemCount: options.length,
                       itemBuilder: (context, index) {
-                        final server = servers[index];
+                        final option = options[index];
                         return _ServerRow(
-                          server: server,
-                          selected: state?.selectedServer?.id == server.id,
-                          onTap: () => _select(server),
+                          rowKey: option.rowKey,
+                          server: option.server,
+                          selected: option.isSelected(state?.selectedServer),
+                          onTap: () => _select(option.server),
                         );
                       },
                     ),
@@ -160,18 +166,20 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
 
 class _ServerRow extends StatelessWidget {
   const _ServerRow({
+    required this.rowKey,
     required this.server,
     required this.selected,
     required this.onTap,
   });
 
+  final String rowKey;
   final MobileTradingServer server;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => Material(
-    key: ValueKey('server-row-${server.id}'),
+    key: ValueKey('server-row-$rowKey'),
     color: AppColors.transparent,
     child: InkWell(
       onTap: onTap,
@@ -202,7 +210,7 @@ class _ServerRow extends StatelessWidget {
             ),
           ),
           Positioned(
-            key: ValueKey('server-divider-${server.id}'),
+            key: ValueKey('server-divider-$rowKey'),
             left: AppSpacing.md,
             right: AppSpacing.md,
             bottom: 0,

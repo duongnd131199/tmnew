@@ -10,6 +10,7 @@ import 'package:trading_mobile/features/account_link/application/account_link_co
 import 'package:trading_mobile/features/account_link/data/account_link_repository.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_link/presentation/screens/broker_list_screen.dart';
+import 'package:trading_mobile/features/account_link/presentation/screens/existing_account_login_screen.dart';
 import 'package:trading_mobile/features/account_link/presentation/screens/trading_server_screen.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 
@@ -100,8 +101,65 @@ void main() {
       child: const TradingServerScreen(brokerId: 'yodo-demo'),
     );
 
-    expect(find.text('YODO-Demo-01'), findsOneWidget);
+    expect(find.text('Exness-MT5Real20'), findsOneWidget);
+    expect(find.text('Exness-MT5Real17'), findsOneWidget);
+    expect(find.text('Exness-MT5Real32'), findsOneWidget);
+    expect(find.text('YODO-Demo-01'), findsNothing);
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Exness-MT5Real20')).dy,
+      lessThan(tester.getTopLeft(find.text('Exness-MT5Real17')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Exness-MT5Real17')).dy,
+      lessThan(tester.getTopLeft(find.text('Exness-MT5Real32')).dy),
+    );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reference server name keeps the live server identity', (
+    tester,
+  ) async {
+    MobileTradingServer? selected;
+    await _pump(
+      tester,
+      repository: _LiveCatalogRepository(),
+      child: TradingServerScreen(
+        brokerId: 'yodo-demo',
+        onSelected: (value) => selected = value,
+      ),
+    );
+
+    final list = tester.widget<ListView>(find.byKey(const Key('server-list')));
+    expect(list.childrenDelegate.estimatedChildCount, 24);
+
+    await tester.tap(find.text('Exness-MT5Real17'));
+    await tester.pump();
+
+    expect(selected?.name, 'Exness-MT5Real17');
+    expect(selected?.id, 'yodo-demo-01');
+    expect(selected?.brokerId, 'yodo-demo');
+
+    await tester.drag(
+      find.byKey(const Key('server-list')),
+      const Offset(0, -1200),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Exness-MT5Real24'), findsOneWidget);
+  });
+
+  testWidgets('YODO account form defaults to the reference first server', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      repository: _LiveCatalogRepository(),
+      child: const ExistingAccountLoginScreen(brokerId: 'yodo-demo'),
+    );
+
+    expect(find.text('Exness-MT5Real20'), findsOneWidget);
+    expect(find.text('YODO-Demo-01'), findsNothing);
   });
 
   testWidgets(
