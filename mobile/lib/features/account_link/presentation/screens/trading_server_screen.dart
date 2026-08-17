@@ -185,28 +185,30 @@ class _ServerRow extends StatelessWidget {
       onTap: onTap,
       child: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    server.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.titleMedium.copyWith(
-                      color: AppColors.textPrimary,
-                      height: 1,
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      server.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.titleMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        height: 1,
+                      ),
                     ),
                   ),
-                ),
-                if (selected)
-                  const Icon(
-                    Icons.check_rounded,
-                    color: AppColors.primary,
-                    size: AppIconSizes.medium,
-                  ),
-              ],
+                  if (selected)
+                    const Icon(
+                      Icons.check_rounded,
+                      color: AppColors.primary,
+                      size: AppIconSizes.medium,
+                    ),
+                ],
+              ),
             ),
           ),
           Positioned(
@@ -214,7 +216,11 @@ class _ServerRow extends StatelessWidget {
             left: AppSpacing.md,
             right: AppSpacing.md,
             bottom: 0,
-            child: const Divider(height: 1, thickness: .6),
+            child: const Divider(
+              height: 1,
+              thickness: .6,
+              color: AppColors.divider,
+            ),
           ),
         ],
       ),

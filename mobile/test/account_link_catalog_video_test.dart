@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/app/router.dart';
+import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
@@ -468,6 +469,22 @@ void main() {
       56,
     );
     expect(find.byKey(const Key('server-divider-server-1')), findsOneWidget);
+    final firstRow = tester.getRect(
+      find.byKey(const Key('server-row-server-1')),
+    );
+    final firstLabel = tester.getRect(find.text('Exness-MT5Real1'));
+    expect(firstLabel.center.dy, closeTo(firstRow.center.dy, 0.5));
+    expect(
+      tester
+          .widget<Divider>(
+            find.descendant(
+              of: find.byKey(const Key('server-divider-server-1')),
+              matching: find.byType(Divider),
+            ),
+          )
+          .color,
+      AppColors.divider,
+    );
     expect(find.text('Exness-MT5Real15'), findsNothing);
 
     await tester.drag(
