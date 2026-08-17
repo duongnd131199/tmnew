@@ -20,6 +20,16 @@ final class AccountMutationOffline implements Exception {
   String toString() => 'Account mutations are unavailable while offline';
 }
 
+final class AccountActivationIdentityMismatch implements Exception {
+  const AccountActivationIdentityMismatch();
+
+  String get message =>
+      'Máy chủ trả về dữ liệu của tài khoản khác. Vui lòng thử lại.';
+
+  @override
+  String toString() => message;
+}
+
 final accountActivationCoordinatorProvider =
     NotifierProvider<AccountActivationCoordinator, int>(
       AccountActivationCoordinator.new,
@@ -58,6 +68,11 @@ final class AccountActivationCoordinator extends Notifier<int> {
         .read(accountLinkRepositoryProvider)
         .activate(accountId, metadata: metadata);
     final account = result.account;
+    if (account.id != accountId ||
+        result.bootstrap.account.id != accountId ||
+        result.bootstrap.summary.accountId != accountId) {
+      throw const AccountActivationIdentityMismatch();
+    }
     final publication = ref
         .read(exV2AccountProvider.notifier)
         .publishBootstrap(

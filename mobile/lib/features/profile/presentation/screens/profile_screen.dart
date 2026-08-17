@@ -145,6 +145,7 @@ class ProfileScreen extends ConsumerWidget {
 String _safeAccountSwitchMessage(Object error) => switch (error) {
   ExV2RequestFailure failure => failure.safeDisplayMessage,
   ExV2ClientFailure failure => failure.message,
+  AccountActivationIdentityMismatch failure => failure.message,
   _ => 'Không thể chuyển tài khoản. Thử lại.',
 };
 

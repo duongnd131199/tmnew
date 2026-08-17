@@ -203,6 +203,48 @@ void main() {
       expect(profile.server, 'Second-Live-02');
     },
   );
+
+  test(
+    'activation rejects a canonical bootstrap for another account',
+    () async {
+      final repository = _OutOfOrderActivationRepository();
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(false),
+          accountLinkRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+      container
+          .read(exV2AccountProvider.notifier)
+          .publishBootstrap(_bootstrap('account-a', version: 10));
+
+      final activation = container
+          .read(accountActivationCoordinatorProvider.notifier)
+          .activate(
+            'account-b',
+            metadata: const ExV2CommandMetadata(
+              idempotencyKey: 'activate-identity-check',
+              correlationId: 'activate-identity-check-correlation',
+            ),
+          );
+      repository.complete(
+        'account-b',
+        version: 11,
+        bootstrap: _bootstrap('account-a', version: 11),
+      );
+
+      await expectLater(
+        activation,
+        throwsA(isA<AccountActivationIdentityMismatch>()),
+      );
+      expect(
+        container.read(exV2AccountProvider).requireValue?.bootstrap.account.id,
+        'account-a',
+      );
+    },
+  );
 }
 
 final class _OutOfOrderActivationRepository implements AccountLinkRepository {
