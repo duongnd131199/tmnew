@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
+import 'package:trading_mobile/features/account_link/data/linked_account_presentation_store.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
+import 'package:trading_mobile/features/account_link/domain/linked_account_presentation.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
@@ -592,15 +594,27 @@ final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
   final linkedActive = linked
       ?.where((account) => account.id == server.bootstrap.account.id)
       .firstOrNull;
+  final selectedPresentations = <String, LinkedAccountPresentation?>{
+    for (final account in linked ?? const <LinkedTradingAccount>[])
+      account.id: ref
+          .watch(linkedAccountPresentationProvider(account.id))
+          .value,
+  };
+  final activePresentation = linkedActive == null
+      ? null
+      : resolveLinkedAccountPresentation(
+          linkedActive,
+          selectedPresentations[linkedActive.id],
+        );
   final active = ExV2AccountProfileMapper.map(
     linkedActive == null
         ? server
         : server.copyWith(
             presentation: ExV2AccountPresentation(
               brokerId: linkedActive.brokerId,
-              companyName: linkedActive.brokerName,
+              companyName: activePresentation!.companyName,
               serverId: linkedActive.serverId,
-              tradingServer: linkedActive.serverName,
+              tradingServer: activePresentation.serverName,
               accessPoint: 'Access Point #1',
             ),
           ),
@@ -614,7 +628,16 @@ final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
       profiles.add(active);
       foundActive = true;
     } else {
-      profiles.add(_mapLinkedAccount(account, displayName: active.name));
+      profiles.add(
+        _mapLinkedAccount(
+          account,
+          displayName: account.displayName ?? active.name,
+          presentation: resolveLinkedAccountPresentation(
+            account,
+            selectedPresentations[account.id],
+          ),
+        ),
+      );
     }
   }
   if (!foundActive) profiles.insert(0, active);
@@ -675,8 +698,10 @@ final class LinkedTradingAccountsController
 DemoAccountProfile _mapLinkedAccount(
   LinkedTradingAccount account, {
   required String displayName,
+  required LinkedAccountPresentation presentation,
 }) {
-  final broker = '${account.brokerId} ${account.brokerName}'.toLowerCase();
+  final broker = '${account.brokerId} ${presentation.companyName}'
+      .toLowerCase();
   final brand = broker.contains('exness')
       ? DemoBrokerBrand.exness
       : broker.contains('yodo')
@@ -688,8 +713,8 @@ DemoAccountProfile _mapLinkedAccount(
     id: account.login,
     linkedAccountId: account.id,
     name: displayName,
-    company: account.brokerName,
-    server: account.serverName,
+    company: presentation.companyName,
+    server: presentation.serverName,
     accessPoint: '',
     balance: 0,
     brand: brand,

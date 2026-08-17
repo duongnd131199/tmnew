@@ -41,22 +41,7 @@ class AccountBrokerMark extends StatelessWidget {
               ),
             ),
           ),
-          DemoBrokerBrand.yodo => ColoredBox(
-            color: AppColors.brokerYodo,
-            child: Center(
-              child: Text(
-                'yodo',
-                textScaler: TextScaler.noScaling,
-                style: TextStyle(
-                  color: AppColors.brokerMarkInk,
-                  fontFamily: 'sans-serif',
-                  fontSize: size * .226,
-                  fontWeight: FontWeight.w700,
-                  height: 1,
-                ),
-              ),
-            ),
-          ),
+          DemoBrokerBrand.yodo => const ColoredBox(color: AppColors.brokerYodo),
           DemoBrokerBrand.vantage => CustomPaint(
             painter: const _VantageLogoPainter(),
           ),

@@ -125,8 +125,8 @@ void main() {
         ),
       );
       expect(fixture.adapter.accountListCalls, 1);
-      expect(find.text('Account A'), findsNWidgets(2));
-      expect(find.text('Account B'), findsNothing);
+      expect(find.text('Account A'), findsOneWidget);
+      expect(find.text('Account B'), findsOneWidget);
       expect(find.text('0.00 USD, Hedge'), findsNothing);
       expect(find.text('USD, Hedge'), findsOneWidget);
 
@@ -182,6 +182,29 @@ void main() {
       expect(find.textContaining('Second Broker'), findsNothing);
     },
   );
+
+  testWidgets('technical YODO metadata never leaks into account UI', (
+    tester,
+  ) async {
+    final fixture = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/settings',
+      technicalYodoMetadata: true,
+    );
+    addTearDown(fixture.dispose);
+
+    expect(find.text('Exness Technologies Ltd'), findsOneWidget);
+    expect(
+      find.text('LOGIN-A - Exness-MT5Real20\nAccess Point #1'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('YODO'), findsNothing);
+    expect(find.textContaining('yodo'), findsNothing);
+
+    fixture.router.push('/profile');
+    await tester.pumpAndSettle();
+    expect(find.text('exness'), findsNWidgets(2));
+  });
 
   testWidgets(
     'account-list failure stays an error while bootstrap account remains visible',
@@ -321,6 +344,7 @@ Future<_RouteFixture> _pumpProductionRoute(
   _UnavailableAccountState? unavailableAccountState,
   Completer<ExV2AccountViewState?>? bootstrapGate,
   Stream<MarketConnectionStatus>? connectionStatuses,
+  bool technicalYodoMetadata = false,
 }) async {
   tester.view.physicalSize = const Size(384, 848);
   tester.view.devicePixelRatio = 1;
@@ -332,6 +356,7 @@ Future<_RouteFixture> _pumpProductionRoute(
   final adapter = _AccountApiAdapter(
     activationFails: activationFails,
     accountListFails: accountListFails,
+    technicalYodoMetadata: technicalYodoMetadata,
   );
   final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
     ..httpClientAdapter = adapter;
@@ -446,10 +471,12 @@ final class _AccountApiAdapter implements HttpClientAdapter {
   _AccountApiAdapter({
     required this.activationFails,
     required this.accountListFails,
+    required this.technicalYodoMetadata,
   });
 
   final bool activationFails;
   final bool accountListFails;
+  final bool technicalYodoMetadata;
   int accountListCalls = 0;
   int activationCalls = 0;
   String activeAccountId = 'account-a';
@@ -470,7 +497,11 @@ final class _AccountApiAdapter implements HttpClientAdapter {
           'message': 'Unavailable',
         }, statusCode: 503);
       }
-      return _json([_linkedB, _linkedA]);
+      return _json(
+        technicalYodoMetadata
+            ? [_linkedYodoB, _linkedYodoA]
+            : [_linkedB, _linkedA],
+      );
     }
     if (options.method == 'PUT' &&
         path.endsWith('/mobile/accounts/account-b/activate')) {
@@ -543,6 +574,32 @@ const _linkedB = <String, Object?>{
   'serverId': 'server-b',
   'serverName': 'SecondBroker-MT5Real',
   'login': 'LOGIN-A',
+  'isActive': false,
+  'displayName': 'Account B',
+  'currency': 'USD',
+  'status': 'active',
+};
+
+const _linkedYodoA = <String, Object?>{
+  'id': 'account-a',
+  'brokerId': 'yodo-demo',
+  'brokerName': 'YODO Demo Markets',
+  'serverId': 'yodo-demo-01',
+  'serverName': 'YODO-Demo-01',
+  'login': 'LOGIN-A',
+  'isActive': true,
+  'displayName': 'Account A',
+  'currency': 'USD',
+  'status': 'active',
+};
+
+const _linkedYodoB = <String, Object?>{
+  'id': 'account-b',
+  'brokerId': 'yodo-demo',
+  'brokerName': 'YODO Demo Markets',
+  'serverId': 'yodo-demo-01',
+  'serverName': 'YODO-Demo-01',
+  'login': 'LOGIN-B',
   'isActive': false,
   'displayName': 'Account B',
   'currency': 'USD',

@@ -1,5 +1,6 @@
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
+import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
 import 'package:trading_mobile/features/profile/domain/account_presentation_profile.dart';
 
 abstract final class ExV2AccountProfileMapper {
@@ -7,14 +8,25 @@ abstract final class ExV2AccountProfileMapper {
     JsonMap settings, {
     ExV2AccountPresentation? presentation,
   }) {
-    final companyName =
-        _text(settings, const ['brokerCompany', 'companyName', 'company']) ??
-        presentation?.companyName ??
-        'Trading Account';
-    final tradingServer =
-        _text(settings, const ['tradingServer', 'mt5Server', 'server']) ??
-        presentation?.tradingServer ??
-        'Trading Server';
+    final preferSelectedPresentation = usesReferenceServerPresentation(
+      presentation?.brokerId ?? '',
+    );
+    final settingsCompany = _text(settings, const [
+      'brokerCompany',
+      'companyName',
+      'company',
+    ]);
+    final settingsServer = _text(settings, const [
+      'tradingServer',
+      'mt5Server',
+      'server',
+    ]);
+    final companyName = preferSelectedPresentation
+        ? presentation?.companyName ?? settingsCompany ?? 'Trading Account'
+        : settingsCompany ?? presentation?.companyName ?? 'Trading Account';
+    final tradingServer = preferSelectedPresentation
+        ? presentation?.tradingServer ?? settingsServer ?? 'Trading Server'
+        : settingsServer ?? presentation?.tradingServer ?? 'Trading Server';
     return AccountPresentationMetadata(
       companyName: companyName,
       tradingServer: tradingServer,
@@ -80,8 +92,8 @@ abstract final class ExV2AccountProfileMapper {
 
   static DemoBrokerBrand _brand(String value) {
     final normalized = value.toLowerCase();
-    if (normalized.contains('yodo')) return DemoBrokerBrand.yodo;
     if (normalized.contains('exness')) return DemoBrokerBrand.exness;
+    if (normalized.contains('yodo')) return DemoBrokerBrand.yodo;
     if (normalized.contains('vantage')) return DemoBrokerBrand.vantage;
     return DemoBrokerBrand.unknown;
   }

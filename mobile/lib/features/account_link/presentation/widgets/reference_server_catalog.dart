@@ -33,8 +33,10 @@ ReferenceBrokerPresentation referenceBrokerPresentation(MobileBroker broker) {
   );
 }
 
+const referenceDefaultServerDisplayName = 'Exness-MT5Real20';
+
 const referenceServerDisplayNames = <String>[
-  'Exness-MT5Real20',
+  referenceDefaultServerDisplayName,
   'Exness-MT5Real17',
   'Exness-MT5Real32',
   'Exness-MT5Trial5',

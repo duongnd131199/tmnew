@@ -66,7 +66,7 @@ void main() {
     );
   });
 
-  testWidgets('YODO broker uses the reference yellow square without Exness', (
+  testWidgets('technical YODO broker uses a neutral yellow mark without text', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -79,7 +79,7 @@ void main() {
       tester.getSize(find.byKey(const Key('account-broker-mark'))),
       const Size.square(31),
     );
-    expect(find.text('yodo'), findsOneWidget);
+    expect(find.text('yodo'), findsNothing);
     expect(find.text('exness'), findsNothing);
     final mark = tester.widget<ColoredBox>(
       find.descendant(
