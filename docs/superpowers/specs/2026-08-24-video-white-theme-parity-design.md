@@ -1,7 +1,9 @@
 # Video White Theme Parity Design
 
-**Date:** 2026-08-24  
-**Reference:** `giaoDienMau/giaodientrang.MP4`  
+**Date:** 2026-08-24
+
+**Reference:** `giaoDienMau/giaodientrang.MP4`
+
 **Reference properties:** 79.6 seconds, 384 x 848 pixels, 30 fps
 
 ## Goal
@@ -254,4 +256,3 @@ The work is complete only when:
   backend tests all pass from the final tree;
 - the final emulator smoke covers Prices, Chart, Trade, History, Settings,
   account list, add-account form, server picker, and the demonstrated sheets.
-
