@@ -7,13 +7,17 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/market_watch/presentation/screens/market_watch_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
+import 'test_support/load_test_fonts.dart';
 import 'test_support/video_reference_fixtures.dart';
 
 void main() {
+  setUpAll(loadMt5TestFonts);
+
   Future<ProviderContainer> pumpMarket(
     WidgetTester tester, {
     ProviderContainer? container,
@@ -106,21 +110,31 @@ void main() {
     expect(searchRect.top, closeTo(61.3666666667, .1));
 
     final headerTitle = tester.widget<Text>(find.text('Gia'));
-    expect(headerTitle.style?.fontFamily, 'sans-serif');
-    expect(headerTitle.style?.fontSize, 20.5);
+    expect(headerTitle.style, AppTypography.toolbarTitle);
     final dailyChange = tester.widget<Text>(
       find.byKey(const ValueKey('market-change-XAUUSD+')),
     );
-    expect(dailyChange.style?.fontFamily, 'sans-serif-condensed');
-    expect(dailyChange.style?.fontSize, 17);
-    final symbol = tester.widget<Text>(find.text('XAUUSD'));
-    expect(symbol.style?.fontFamily, 'sans-serif-condensed');
-    expect(symbol.style?.fontSize, 18);
+    expect(dailyChange.style, AppTypography.quoteChange);
+    final symbolFinder = find.byKey(const ValueKey('market-symbol-XAUUSD+'));
+    final symbol = tester.widget<Text>(symbolFinder);
+    expect(symbol.style, AppTypography.quoteSymbol);
+    expect(tester.getTopLeft(symbolFinder).dy, closeTo(142.0666666667, .75));
     final tickTime = tester.widget<Text>(
       find.byKey(const ValueKey('market-time-XAUUSD+')),
     );
-    expect(tickTime.style?.fontFamily, 'sans-serif-condensed');
-    expect(tickTime.style?.fontSize, 17);
+    expect(tickTime.style, AppTypography.quoteMeta);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
+          .style,
+      AppTypography.quoteMeta,
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
+          .style,
+      AppTypography.quoteMeta,
+    );
 
     final xauBid = tester.widget<Text>(
       find.byKey(const ValueKey('market-bid-XAUUSD+')),
@@ -129,9 +143,9 @@ void main() {
         .cast<TextSpan>()
         .toList();
     expect(bidSpans[0].text, '4104.');
-    expect(bidSpans[0].style?.fontSize, 18.5);
+    expect(bidSpans[0].style, AppTypography.quotePriceMajor);
     expect(bidSpans[1].text, '09');
-    expect(bidSpans[1].style?.fontSize, 29);
+    expect(bidSpans[1].style, AppTypography.quotePriceMinor);
 
     final btcBid = tester.widget<Text>(
       find.byKey(const ValueKey('market-bid-BTCUSD')),

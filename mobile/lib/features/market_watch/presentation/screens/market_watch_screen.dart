@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/chart/application/chart_timeframe_session.dart';
 import 'package:trading_mobile/features/chart/presentation/navigation/chart_navigation.dart';
@@ -235,7 +237,7 @@ class _QuotesHeader extends StatelessWidget {
     return SizedBox(
       // At the reference 1.5x raster scale this 90 px band starts the first
       // quote row at physical y=171. The controls below map to y=91..155.
-      height: 90,
+      height: TabReferenceMetrics.quoteHeaderHeight,
       child: Stack(
         children: [
           Positioned(
@@ -253,24 +255,10 @@ class _QuotesHeader extends StatelessWidget {
             right: 0,
             top: 47.5,
             child: IgnorePointer(
-              child: Transform.translate(
-                offset: const Offset(1, .6666666667),
-                child: Transform.scale(
-                  scaleX: .96,
-                  scaleY: 1.045,
-                  alignment: Alignment.bottomCenter,
-                  child: const Text(
-                    'Gia',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontFamily: 'sans-serif',
-                      fontSize: 20.5,
-                      fontWeight: FontWeight.w500,
-                      height: 1,
-                    ),
-                  ),
-                ),
+              child: const Text(
+                'Gia',
+                textAlign: TextAlign.center,
+                style: AppTypography.toolbarTitle,
               ),
             ),
           ),
@@ -778,7 +766,7 @@ class _SwipeQuoteRowState extends State<_SwipeQuoteRow> {
       onHorizontalDragEnd: _endDrag,
       onHorizontalDragCancel: _cancelDrag,
       child: SizedBox(
-        height: 78,
+        height: TabReferenceMetrics.quoteRowHeight,
         child: Stack(
           children: [
             if (!_hasDelete)
@@ -987,7 +975,7 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
       onTap: widget.onTap,
       onLongPress: widget.onTap,
       child: SizedBox(
-        height: 78,
+        height: TabReferenceMetrics.quoteRowHeight,
         child: Stack(
           children: [
             if (live.symbol.startsWith('XAUUSD'))
@@ -1015,35 +1003,16 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
                     ),
                   ],
                 ),
-                style: const TextStyle(
-                  fontFamily: 'sans-serif-condensed',
-                  fontSize: 17,
-                  letterSpacing: .6,
-                  height: 1,
-                ),
+                style: AppTypography.quoteChange,
               ),
             ),
             Positioned(
               left: 8,
               top: 28.0666666667,
-              child: Transform.translate(
-                offset: Offset(isBtcUsd ? .6666666667 : -.6666666667, 0),
-                child: Transform.scale(
-                  scaleX: isBtcUsd ? .90 : 1.01,
-                  scaleY: isBtcUsd ? 1.11 : 1.10,
-                  alignment: Alignment.topLeft,
-                  child: Text(
-                    displayTradingSymbol(live.symbol),
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontFamily: 'sans-serif-condensed',
-                      fontSize: 18,
-                      height: 1,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -.15,
-                    ),
-                  ),
-                ),
+              child: Text(
+                displayTradingSymbol(live.symbol),
+                key: ValueKey('market-symbol-${live.symbol}'),
+                style: AppTypography.quoteSymbol,
               ),
             ),
             Positioned(
@@ -1051,42 +1020,18 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
               top: isBtcUsd ? 54 : 54.6666666667,
               child: Row(
                 children: [
-                  Transform.scale(
-                    scaleX: 1,
-                    scaleY: isBtcUsd ? .985 : .93,
-                    alignment: isBtcUsd
-                        ? Alignment.bottomCenter
-                        : Alignment.topCenter,
-                    child: Text(
-                      meta.time,
-                      key: ValueKey('market-time-${live.symbol}'),
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontFamily: 'sans-serif-condensed',
-                        fontSize: 17,
-                        height: 1,
-                      ),
-                    ),
+                  Text(
+                    meta.time,
+                    key: ValueKey('market-time-${live.symbol}'),
+                    style: AppTypography.quoteMeta,
                   ),
                   SizedBox(width: isBtcUsd ? 6.3333333333 : 5.6666666667),
                   const _SpreadGlyph(),
                   const SizedBox(width: 4),
-                  Transform.scale(
-                    scaleX: 1,
-                    scaleY: isBtcUsd ? .985 : .93,
-                    alignment: isBtcUsd
-                        ? Alignment.bottomCenter
-                        : Alignment.topCenter,
-                    child: Text(
-                      meta.spread,
-                      key: ValueKey('market-spread-${live.symbol}'),
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontFamily: 'sans-serif-condensed',
-                        fontSize: 17,
-                        height: 1,
-                      ),
-                    ),
+                  Text(
+                    meta.spread,
+                    key: ValueKey('market-spread-${live.symbol}'),
+                    style: AppTypography.quoteMeta,
                   ),
                 ],
               ),
@@ -1120,37 +1065,19 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
             Positioned(
               right: isBtcUsd ? 94.1 : 94.1333333333,
               top: isBtcUsd ? 54 : 54.6666666667,
-              child: Transform.scale(
-                scaleX: isBtcUsd ? .91 : 1.03,
-                scaleY: isBtcUsd ? .79 : .90,
-                alignment: Alignment.bottomRight,
-                child: Text(
-                  'L: ${meta.low}',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontFamily: 'sans-serif-condensed',
-                    fontSize: 17,
-                    height: 1,
-                  ),
-                ),
+              child: Text(
+                'L: ${meta.low}',
+                key: ValueKey('market-low-${live.symbol}'),
+                style: AppTypography.quoteMeta,
               ),
             ),
             Positioned(
               right: isBtcUsd ? 6 : 4.6666666667,
               top: isBtcUsd ? 53.6666666667 : 54.6666666667,
-              child: Transform.scale(
-                scaleX: isBtcUsd ? .87 : .95,
-                scaleY: isBtcUsd ? .75 : .90,
-                alignment: Alignment.bottomRight,
-                child: Text(
-                  'H: ${meta.high}',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontFamily: 'sans-serif-condensed',
-                    fontSize: 17,
-                    height: 1,
-                  ),
-                ),
+              child: Text(
+                'H: ${meta.high}',
+                key: ValueKey('market-high-${live.symbol}'),
+                style: AppTypography.quoteMeta,
               ),
             ),
           ],
@@ -1191,40 +1118,19 @@ class _QuotePrice extends StatelessWidget {
     final leading = value.substring(0, splitAt);
     final pipDigits = value.substring(splitAt);
 
-    return Transform.scale(
-      scaleX: .935,
-      scaleY: 1.03,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
       alignment: Alignment.bottomRight,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.bottomRight,
-        child: Text.rich(
-          key: textKey,
-          TextSpan(
-            children: [
-              TextSpan(
-                text: leading,
-                style: const TextStyle(
-                  fontSize: 18.5,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              TextSpan(
-                text: pipDigits,
-                style: const TextStyle(
-                  fontSize: 29,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          maxLines: 1,
-          style: TextStyle(
-            color: color,
-            height: 1,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
+      child: Text.rich(
+        key: textKey,
+        TextSpan(
+          children: [
+            TextSpan(text: leading, style: AppTypography.quotePriceMajor),
+            TextSpan(text: pipDigits, style: AppTypography.quotePriceMinor),
+          ],
         ),
+        maxLines: 1,
+        style: TextStyle(color: color, height: 1),
       ),
     );
   }
