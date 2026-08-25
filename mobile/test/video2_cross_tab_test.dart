@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/features/market_watch/presentation/screens/market_watch_screen.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.dart';
@@ -276,7 +277,10 @@ void main() {
       final second = tester.getRect(
         find.byKey(ValueKey('trade-position-${positions[1].id}')),
       );
-      expect((second.top - first.top) * 1.5, closeTo(92.625, .01));
+      expect(
+        (second.top - first.top) * 1.5,
+        closeTo(TabReferenceMetrics.tradePositionRowHeight * 1.5, .01),
+      );
     },
   );
 

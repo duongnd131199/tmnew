@@ -189,8 +189,8 @@ void main() {
       find.text('Exness Technologies Ltd'),
     );
     final serverName = tester.widget<Text>(find.text('Exness-MT5Real20'));
-    expect(headerTitle.style?.fontFamily, 'sans-serif');
-    expect(serverName.style?.fontFamily, 'sans-serif');
+    expect(headerTitle.style?.fontFamily, AppTypography.plainFamily);
+    expect(serverName.style?.fontFamily, AppTypography.plainFamily);
 
     final serverBlock = find.byKey(const Key('existing-account-server-row'));
     expect(tester.getSize(serverBlock).height, 56);

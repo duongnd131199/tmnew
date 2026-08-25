@@ -13,6 +13,8 @@ import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/providers/realtime_market_provider.dart';
 
+import 'test_support/load_test_fonts.dart';
+
 const _timeframes = <String, Duration>{
   'M1': Duration(minutes: 1),
   'M5': Duration(minutes: 5),
@@ -42,7 +44,10 @@ extension on _GoldenZoom {
 }
 
 void main() {
-  setUpAll(_loadGoldenFonts);
+  setUpAll(() async {
+    await _loadGoldenFonts();
+    await loadMt5TestFonts();
+  });
 
   for (final timeframe in _timeframes.keys) {
     for (final zoom in _GoldenZoom.values) {

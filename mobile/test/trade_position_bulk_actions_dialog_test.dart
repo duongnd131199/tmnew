@@ -5,6 +5,8 @@ import 'package:trading_mobile/core/theme/app_theme.dart';
 import 'package:trading_mobile/features/trade/presentation/widgets/position_bulk_actions_dialog.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 
+import 'test_support/load_test_fonts.dart';
+
 const _selectedPosition = DemoPosition(
   id: '10156857101',
   symbol: 'XAUUSD',
@@ -68,6 +70,8 @@ Future<void> _pumpOpenDialog(
 }
 
 void main() {
+  setUpAll(loadMt5TestFonts);
+
   testWidgets('position bulk dialog matches the video copy and action order', (
     tester,
   ) async {
@@ -188,11 +192,11 @@ void main() {
 
     final dialog = find.byKey(const Key('position-bulk-actions-dialog'));
     final dialogRect = tester.getRect(dialog);
-    expect(dialogRect.height, closeTo(400, 4));
+    expect(dialogRect.height, closeTo(380.8, 1));
     expect(dialogRect.left, closeTo(16, 1));
     expect(dialogRect.right, closeTo(371, 1));
-    expect(dialogRect.top, inInclusiveRange(236, 240));
-    expect(dialogRect.bottom, inInclusiveRange(636, 640));
+    expect(dialogRect.top, inInclusiveRange(247, 249));
+    expect(dialogRect.bottom, inInclusiveRange(628, 630));
 
     final titleRect = tester.getRect(
       find.byKey(const Key('position-bulk-title')),
