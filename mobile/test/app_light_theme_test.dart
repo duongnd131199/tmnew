@@ -13,10 +13,10 @@ void main() {
     expect(AppColors.sheetSurface, const Color(0xFFF1F1F1));
     expect(AppColors.sheetActionSurface, const Color(0xFFEAEAEA));
     expect(AppColors.disabledSurface, const Color(0xFFF1F1F1));
-    expect(AppColors.primary, const Color(0xFF0A6CF1));
-    expect(AppColors.negative, const Color(0xFFD83048));
+    expect(AppColors.primary, const Color(0xFF007FFF));
+    expect(AppColors.negative, const Color(0xFFE42D30));
     expect(AppColors.textPrimary, const Color(0xFF111111));
-    expect(AppColors.textSecondary, const Color(0xFF66666B));
+    expect(AppColors.textSecondary, const Color(0xFF5C5C60));
     expect(AppColors.textTertiary, const Color(0xFF9A9A9F));
     expect(AppColors.divider, const Color(0xFFD9D9DE));
   });

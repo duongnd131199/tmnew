@@ -14,11 +14,11 @@ abstract final class AppColors {
   static const navigationSelectedSurface = Color(0xFFE8E8E8);
   static const navigationUnselected = Color(0xFF303030);
   static const dimBarrier = Color(0x39000000);
-  static const primary = Color(0xFF0A6CF1);
+  static const primary = Color(0xFF007FFF);
   static const primaryMuted = Color(0xFFDCEBFF);
-  static const positive = Color(0xFF0A6CF1);
-  static const negative = Color(0xFFD83048);
-  static const destructive = Color(0xFFD83048);
+  static const positive = Color(0xFF007FFF);
+  static const negative = Color(0xFFE42D30);
+  static const destructive = Color(0xFFE42D30);
   static const orderTicketSurface = Color(0xFFF1F1F1);
   static const orderTicketControlSurface = Color(0xFFFFFFFF);
   static const orderTicketQuote = Color(0xFF007FFF);
@@ -37,7 +37,7 @@ abstract final class AppColors {
   static const connectedIndicatorBottom = Color(0xFF008FD0);
   static const connectedIndicatorGlyph = Color(0xFFC8F0FF);
   static const textPrimary = Color(0xFF111111);
-  static const textSecondary = Color(0xFF66666B);
+  static const textSecondary = Color(0xFF5C5C60);
   static const textTertiary = Color(0xFF9A9A9F);
   static const divider = Color(0xFFD9D9DE);
   static const chartGrid = Color(0xFFE8E8E8);

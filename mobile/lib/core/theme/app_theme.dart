@@ -27,7 +27,7 @@ abstract final class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
-      fontFamily: 'sans-serif-condensed',
+      fontFamily: AppTypography.plainFamily,
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.background,
       colorScheme: scheme,
@@ -44,7 +44,7 @@ abstract final class AppTheme {
         titleSpacing: 0,
         titleTextStyle: TextStyle(
           color: AppColors.textPrimary,
-          fontFamily: 'sans-serif-condensed',
+          fontFamily: AppTypography.plainFamily,
           fontSize: 17,
           fontWeight: FontWeight.w500,
         ),
@@ -95,15 +95,14 @@ abstract final class AppTheme {
           );
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          return TextStyle(
-            color: states.contains(WidgetState.selected)
-                ? AppColors.primary
-                : AppColors.navigationUnselected,
-            fontSize: 10.5,
-            fontWeight: states.contains(WidgetState.selected)
-                ? FontWeight.w600
-                : FontWeight.w400,
-          );
+          return (states.contains(WidgetState.selected)
+                  ? AppTypography.navigationLabelSelected
+                  : AppTypography.navigationLabel)
+              .copyWith(
+                color: states.contains(WidgetState.selected)
+                    ? AppColors.primary
+                    : AppColors.navigationUnselected,
+              );
         }),
       ),
     );
