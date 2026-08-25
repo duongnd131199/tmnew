@@ -33,7 +33,7 @@
 - `mobile/assets/fonts/RobotoCondensed-Regular.ttf` — deterministic dense trading regular face.
 - `mobile/assets/fonts/RobotoCondensed-Medium.ttf` — deterministic dense trading medium face.
 - `mobile/assets/fonts/RobotoCondensed-Bold.ttf` — deterministic dense trading bold face.
-- `mobile/assets/fonts/OFL.txt` — font redistribution license copied from the official Google Fonts package.
+- `mobile/assets/fonts/LICENSE.txt` — Apache 2.0 redistribution license shipped with the official Roboto v2.138 release.
 - `mobile/lib/core/theme/tab_reference_metrics.dart` — canonical viewport, row, inset, and baseline metrics shared by covered tabs.
 - `mobile/test/test_support/reference_font_loader.dart` — loads production font assets in widget/golden tests.
 - `mobile/test/test_support/tab_reference_manifest.dart` — exact mapping from seven reference files to app states and dynamic masks.
@@ -70,7 +70,7 @@
 - Create: `mobile/test/test_support/tab_reference_manifest.dart`
 - Create: `mobile/test/tab_reference_manifest_test.dart`
 - Create: `mobile/assets/fonts/*`
-- Create: `mobile/assets/fonts/OFL.txt`
+- Create: `mobile/assets/fonts/LICENSE.txt`
 - Modify: `mobile/pubspec.yaml`
 
 **Interfaces:**
@@ -188,7 +188,7 @@ const tabReferenceCases = <TabReferenceCase>[
 
 - [ ] **Step 4: Add licensed font assets and register all weights**
 
-Use the official Google Fonts Roboto and Roboto Condensed static TTF files and their OFL license. Register them without changing existing asset entries:
+Use the official Google Fonts Roboto v2.138 `roboto-unhinted.zip` static TTF files and its Apache 2.0 license. Register them without changing existing asset entries:
 
 ```yaml
 flutter:
@@ -219,7 +219,7 @@ Before staging, verify each file is a TrueType font and the license is present:
 ```bash
 file assets/fonts/*.ttf
 shasum -a 256 assets/fonts/*.ttf
-test -s assets/fonts/OFL.txt
+test -s assets/fonts/LICENSE.txt
 ```
 
 - [ ] **Step 5: Run GREEN verification and commit only Task 1 paths**

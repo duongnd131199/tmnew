@@ -29,3 +29,20 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/metatrader5_splash.png
+  fonts:
+    - family: Mt5Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+    - family: Mt5RobotoCondensed
+      fonts:
+        - asset: assets/fonts/RobotoCondensed-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/RobotoCondensed-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/RobotoCondensed-Bold.ttf
+          weight: 700
