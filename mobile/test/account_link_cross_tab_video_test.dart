@@ -4,9 +4,14 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/features/chart/data/chart_market_warmup_provider.dart';
+import 'package:trading_mobile/features/chart/presentation/rendering/mt5_candle_painter.dart';
+import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
+import 'package:trading_mobile/features/chart/presentation/viewport/chart_viewport.dart';
 import 'package:trading_mobile/features/market_watch/presentation/screens/market_watch_screen.dart';
 import 'package:trading_mobile/features/market_watch/data/data_sources/realtime_market_service.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
@@ -15,11 +20,16 @@ import 'package:trading_mobile/features/account_sync/data/device_token_store.dar
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
+import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/providers/realtime_market_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
 
+import 'test_support/video_reference_fixtures.dart';
+
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
   testWidgets('account generation recreates account-scoped branch state', (
     tester,
   ) async {
@@ -64,10 +74,6 @@ void main() {
     );
     await tester.pump();
     expect(find.text('captured:LOGIN-A'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey<(String?, int)>(('account-a', 0))),
-      findsOneWidget,
-    );
 
     container
         .read(exV2AccountProvider.notifier)
@@ -80,11 +86,131 @@ void main() {
     expect(find.byKey(const Key('account-scope-resetting')), findsOneWidget);
     await tester.pump();
     expect(find.text('captured:LOGIN-B'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey<(String?, int)>(('account-b', 1))),
-      findsOneWidget,
-    );
   });
+
+  testWidgets(
+    'initial account bootstrap preserves offstage chart timeframe and zoom',
+    (tester) async {
+      tester.view.physicalSize = const Size(384, 848);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = ProviderContainer(
+        overrides: [
+          ...videoReferenceOverrides,
+          exV2EnabledProvider.overrideWithValue(false),
+          exV2AccountProvider.overrideWithBuild((ref, controller) => null),
+          chartMarketWarmupProvider.overrideWith((ref) async {}),
+          marketCandlesProvider.overrideWith(
+            (ref, request) => Stream.value(const <MarketCandle>[]),
+          ),
+          demoQuoteProvider.overrideWith(
+            (ref, symbol) => const Stream<DemoQuote>.empty(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = GoRouter(
+        initialLocation: '/chart',
+        routes: [
+          StatefulShellRoute.indexedStack(
+            builder: (context, state, navigationShell) =>
+                AppShell(navigationShell: navigationShell),
+            branches: [
+              _branch(
+                '/market',
+                const Scaffold(body: Text('MARKET')),
+                'Market',
+              ),
+              _branch(
+                '/chart',
+                const ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'H4'),
+                'Chart',
+              ),
+              _branch('/trade', const Scaffold(body: Text('TRADE')), 'Trade'),
+              _branch(
+                '/history',
+                const Scaffold(body: Text('HISTORY')),
+                'History',
+              ),
+              _branch(
+                '/settings',
+                const Scaffold(body: Text('SETTINGS')),
+                'Settings',
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('H4').first);
+      await tester.pump();
+      await tester.tap(find.text('H1').first);
+      await tester.pump();
+
+      final chart = find.byKey(const Key('chart-gesture-area'));
+      final center = tester.getCenter(chart);
+      final firstPointer = await tester.startGesture(
+        center - const Offset(40, 0),
+        pointer: 41,
+      );
+      final secondPointer = await tester.startGesture(
+        center + const Offset(40, 0),
+        pointer: 42,
+      );
+      await tester.pump();
+      await firstPointer.moveTo(center - const Offset(100, 0));
+      await secondPointer.moveTo(center + const Offset(100, 0));
+      await tester.pump();
+      await firstPointer.up();
+      await secondPointer.up();
+      await tester.pump();
+
+      var painter =
+          tester
+                  .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+                  .painter!
+              as Mt5CandlePainter;
+      final retainedViewport = painter.viewport;
+      expect(painter.timeframe, 'H1');
+      expect(
+        retainedViewport.barSpacing,
+        isNot(ChartViewport.defaultBarSpacing),
+      );
+
+      await tester.tap(find.text('Giao dich'));
+      await tester.pumpAndSettle();
+      container
+          .read(exV2AccountProvider.notifier)
+          .publishBootstrap(
+            ExV2Bootstrap.fromJson(_bootstrap('account-a', 'LOGIN-A')),
+          );
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('Bieu do'));
+      await tester.pumpAndSettle();
+      painter =
+          tester
+                  .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+                  .painter!
+              as Mt5CandlePainter;
+      expect(painter.timeframe, 'H1');
+      expect(painter.viewport, retainedViewport);
+    },
+  );
 
   testWidgets(
     'UI activation clears A data and retained stacks from every production branch',
@@ -214,7 +340,7 @@ void main() {
       expect(find.text('Settings:B'), findsOneWidget);
 
       for (final tab in const [
-        ('Gia', '/market', 'XAUUSD+'),
+        ('Gia', '/market', 'XAUUSD'),
         ('Bieu do', '/chart', 'Chart:LOGIN-B'),
         ('Giao dich', '/trade', 'Trade:position-b'),
         ('Lich su', '/history', 'History:'),

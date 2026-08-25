@@ -5,19 +5,58 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:signalr_hub/signalr_client.dart';
 import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/data/account_link_repository.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
+import 'package:trading_mobile/features/account_sessions/application/account_switch_guard.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
+import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
+import 'package:trading_mobile/features/account_sync/data/ex_v2_realtime_service.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 void main() {
   test(
-    'global activation authority commits responses by device version',
+    'shared switch guard rejects activation before repository access',
+    () async {
+      final repository = _UnexpectedActivationRepository();
+      final guard = AccountSwitchGuard();
+      final lease = guard.tryAcquire()!;
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(false),
+          accountSwitchGuardProvider.overrideWithValue(guard),
+          accountLinkRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(() {
+        guard.release(lease);
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+
+      await expectLater(
+        container
+            .read(accountActivationCoordinatorProvider.notifier)
+            .activate(
+              'account-b',
+              metadata: const ExV2CommandMetadata(
+                idempotencyKey: 'guarded-activation',
+                correlationId: 'guarded-activation-correlation',
+              ),
+            ),
+        throwsA(isA<AccountSwitchInProgress>()),
+      );
+      expect(repository.activateCalls, 0);
+    },
+  );
+
+  test(
+    'concurrent server activation is rejected while the first completes',
     () async {
       final repository = _OutOfOrderActivationRepository();
       final container = ProviderContainer(
@@ -32,37 +71,35 @@ void main() {
         accountActivationCoordinatorProvider.notifier,
       );
 
-      final olderRequest = coordinator.activate(
+      final firstRequest = coordinator.activate(
         'account-a',
         metadata: const ExV2CommandMetadata(
           idempotencyKey: 'activate-a',
           correlationId: 'correlation-a',
         ),
       );
-      final newerRequest = coordinator.activate(
-        'account-b',
-        metadata: const ExV2CommandMetadata(
-          idempotencyKey: 'activate-b',
-          correlationId: 'correlation-b',
+      await expectLater(
+        coordinator.activate(
+          'account-b',
+          metadata: const ExV2CommandMetadata(
+            idempotencyKey: 'activate-b',
+            correlationId: 'correlation-b',
+          ),
         ),
+        throwsA(isA<AccountSwitchInProgress>()),
       );
 
-      repository.complete('account-b', version: 3);
-      final newer = await newerRequest;
       repository.complete('account-a', version: 2);
-      final older = await olderRequest;
+      final first = await firstRequest;
 
-      expect(older.authority, 1);
-      expect(newer.authority, 2);
-      expect(newer.publication, ExV2BootstrapPublication.committed);
-      expect(older.publication, ExV2BootstrapPublication.rejectedStale);
-      expect(newer.accepted, isTrue);
-      expect(older.accepted, isFalse);
+      expect(first.authority, 1);
+      expect(first.publication, ExV2BootstrapPublication.committed);
+      expect(first.accepted, isTrue);
       final active = container.read(exV2AccountProvider).requireValue!;
-      expect(active.bootstrap.version, 3);
-      expect(active.bootstrap.account.id, 'account-b');
-      expect(active.presentation?.companyName, 'Second Broker Ltd');
-      expect(active.presentation?.tradingServer, 'Second-Live-02');
+      expect(active.bootstrap.version, 2);
+      expect(active.bootstrap.account.id, 'account-a');
+      expect(active.presentation?.companyName, 'First Broker Ltd');
+      expect(active.presentation?.tradingServer, 'First-Demo-01');
     },
   );
 
@@ -148,6 +185,126 @@ void main() {
       expect(active.positions.single.id, 'second-position');
       expect(active.presentation?.companyName, 'Second Broker Ltd');
       expect(active.presentation?.tradingServer, 'Second-Live-02');
+    },
+  );
+
+  test('accepted activation restarts account-scoped realtime once', () async {
+    final repository = _OutOfOrderActivationRepository();
+    final hubs = <_RecordingHubConnection>[];
+    final container = ProviderContainer(
+      overrides: [
+        exV2EnabledProvider.overrideWithValue(true),
+        exV2RealtimeEnabledProvider.overrideWithValue(true),
+        exV2AccountProvider.overrideWithBuild(
+          (ref, controller) async => ExV2AccountViewState.fromBootstrap(
+            _bootstrap('account-a', version: 1),
+          ),
+        ),
+        accountLinkRepositoryProvider.overrideWithValue(repository),
+        exV2RealtimeServiceProvider.overrideWith((ref) {
+          final hub = _RecordingHubConnection();
+          hubs.add(hub);
+          return ExV2RealtimeService(
+            hubUrl: 'https://example.com/ex/v2/hubs/trading',
+            tokenReader: () async => 'global-device-token',
+            connectionFactory: () => hub,
+          );
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+    await container
+        .read(exV2AccountProvider.notifier)
+        .restartRealtimeForCurrentToken();
+    expect(hubs, hasLength(1));
+
+    final activation = container
+        .read(accountActivationCoordinatorProvider.notifier)
+        .activate(
+          'account-b',
+          metadata: const ExV2CommandMetadata(
+            idempotencyKey: 'activate-realtime-b',
+            correlationId: 'activate-realtime-b-correlation',
+          ),
+        );
+    repository.complete('account-b', version: 2);
+
+    final outcome = await activation;
+    await _waitFor(
+      () => hubs.length == 2 && hubs.last.invocations.contains('Subscribe'),
+      'the replacement realtime subscription',
+    );
+
+    expect(outcome.accepted, isTrue);
+    expect(hubs, hasLength(2));
+    expect(hubs.first.stopCalls, 1);
+    expect(hubs.last.invocations, ['Subscribe']);
+  });
+
+  test(
+    'accepted activation returns before realtime reconnect completes',
+    () async {
+      final repository = _OutOfOrderActivationRepository();
+      final reconnectGate = Completer<void>();
+      final hubs = <_RecordingHubConnection>[];
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          exV2RealtimeEnabledProvider.overrideWithValue(true),
+          exV2AccountProvider.overrideWithBuild(
+            (ref, controller) async => ExV2AccountViewState.fromBootstrap(
+              _bootstrap('account-a', version: 1),
+            ),
+          ),
+          accountLinkRepositoryProvider.overrideWithValue(repository),
+          exV2RealtimeServiceProvider.overrideWith((ref) {
+            final hub = _RecordingHubConnection(
+              startGate: hubs.isEmpty ? null : reconnectGate,
+            );
+            hubs.add(hub);
+            return ExV2RealtimeService(
+              hubUrl: 'https://example.com/ex/v2/hubs/trading',
+              tokenReader: () async => 'global-device-token',
+              connectionFactory: () => hub,
+            );
+          }),
+        ],
+      );
+      addTearDown(() {
+        if (!reconnectGate.isCompleted) reconnectGate.complete();
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+      await container
+          .read(exV2AccountProvider.notifier)
+          .restartRealtimeForCurrentToken();
+
+      var activationCompleted = false;
+      final activation = container
+          .read(accountActivationCoordinatorProvider.notifier)
+          .activate(
+            'account-b',
+            metadata: const ExV2CommandMetadata(
+              idempotencyKey: 'activate-with-slow-realtime',
+              correlationId: 'activate-with-slow-realtime-correlation',
+            ),
+          )
+          .whenComplete(() => activationCompleted = true);
+      repository.complete('account-b', version: 2);
+      await _waitFor(
+        () => hubs.length == 2,
+        'the blocked replacement realtime connection',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        container.read(exV2AccountProvider).requireValue!.bootstrap.account.id,
+        'account-b',
+      );
+      expect(reconnectGate.isCompleted, isFalse);
+      expect(activationCompleted, isTrue);
+      expect((await activation).accepted, isTrue);
     },
   );
 
@@ -271,6 +428,48 @@ void main() {
 
     expect((await activation).accepted, isTrue);
   });
+}
+
+Future<void> _waitFor(bool Function() condition, String description) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      throw TestFailure('Timed out waiting for $description');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+}
+
+final class _UnexpectedActivationRepository implements AccountLinkRepository {
+  var activateCalls = 0;
+
+  @override
+  Future<ActivateLinkedAccountResult> activate(
+    String accountId, {
+    required ExV2CommandMetadata metadata,
+  }) {
+    activateCalls += 1;
+    throw StateError('Activation repository should not be called');
+  }
+
+  @override
+  Future<List<LinkedTradingAccount>> accounts() => throw UnimplementedError();
+
+  @override
+  Future<List<MobileBroker>> brokers({String query = ''}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<LinkAccountResult> link(
+    LinkAccountRequest request, {
+    required ExV2CommandMetadata metadata,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<List<MobileTradingServer>> servers(
+    String brokerId, {
+    String query = '',
+  }) => throw UnimplementedError();
 }
 
 final class _OutOfOrderActivationRepository implements AccountLinkRepository {
@@ -482,4 +681,40 @@ final class _MemoryTokenStore implements DeviceTokenStore {
 
   @override
   Future<void> write(String token) async => value = token;
+}
+
+final class _RecordingHubConnection implements HubConnection {
+  _RecordingHubConnection({this.startGate});
+
+  final Completer<void>? startGate;
+  HubConnectionState? _state = HubConnectionState.disconnected;
+  final invocations = <String>[];
+  int stopCalls = 0;
+
+  @override
+  HubConnectionState? get state => _state;
+
+  @override
+  void on(String methodName, void Function(List<Object?>?) handler) {}
+
+  @override
+  Future<Object?> invoke(String methodName, {List<Object?>? args}) async {
+    invocations.add(methodName);
+    return null;
+  }
+
+  @override
+  Future<void> start() async {
+    if (startGate case final gate?) await gate.future;
+    _state = HubConnectionState.connected;
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCalls += 1;
+    _state = HubConnectionState.disconnected;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }

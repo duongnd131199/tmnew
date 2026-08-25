@@ -22,6 +22,7 @@ void main() {
 
     expect(find.text('Số dư:'), findsOneWidget);
     expect(find.byType(Image), findsNothing);
-    expect(find.textContaining('XAUUSD+', findRichText: true), findsWidgets);
+    expect(find.textContaining('XAUUSD', findRichText: true), findsWidgets);
+    expect(find.textContaining('XAUUSD+', findRichText: true), findsNothing);
   });
 }

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trading_mobile/features/account_link/data/account_link_dependencies.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
+import 'package:trading_mobile/features/account_sessions/application/account_switch_guard.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
@@ -50,8 +53,6 @@ final class AccountActivationOutcome {
 }
 
 final class AccountActivationCoordinator extends Notifier<int> {
-  int _nextAuthority = 0;
-
   @override
   int build() => 0;
 
@@ -59,34 +60,43 @@ final class AccountActivationCoordinator extends Notifier<int> {
     String accountId, {
     required ExV2CommandMetadata metadata,
   }) async {
-    final authority = ++_nextAuthority;
-    state = authority;
-    final result = await ref
-        .read(accountLinkRepositoryProvider)
-        .activate(accountId, metadata: metadata);
-    final account = result.account;
-    if (account.id != accountId ||
-        result.bootstrap.account.id != accountId ||
-        result.bootstrap.summary.accountId != accountId) {
-      throw const AccountActivationIdentityMismatch();
+    final guard = ref.read(accountSwitchGuardProvider);
+    final lease = guard.tryAcquire();
+    if (lease == null) throw const AccountSwitchInProgress();
+    try {
+      final authority = lease.authority;
+      state = authority;
+      final result = await ref
+          .read(accountLinkRepositoryProvider)
+          .activate(accountId, metadata: metadata);
+      final account = result.account;
+      if (account.id != accountId ||
+          result.bootstrap.account.id != accountId ||
+          result.bootstrap.summary.accountId != accountId) {
+        throw const AccountActivationIdentityMismatch();
+      }
+      final accountController = ref.read(exV2AccountProvider.notifier);
+      final publication = accountController.publishBootstrap(
+        result.bootstrap,
+        operationAuthority: authority,
+        authoritativeAccountSwitch: true,
+        presentation: ExV2AccountPresentation(
+          brokerId: account.brokerId,
+          companyName: account.brokerName,
+          serverId: account.serverId,
+          tradingServer: account.serverName,
+        ),
+      );
+      if (publication != ExV2BootstrapPublication.rejectedStale) {
+        unawaited(accountController.restartRealtimeForCurrentToken());
+      }
+      return AccountActivationOutcome(
+        result: result,
+        authority: authority,
+        publication: publication,
+      );
+    } finally {
+      guard.release(lease);
     }
-    final publication = ref
-        .read(exV2AccountProvider.notifier)
-        .publishBootstrap(
-          result.bootstrap,
-          operationAuthority: authority,
-          authoritativeAccountSwitch: true,
-          presentation: ExV2AccountPresentation(
-            brokerId: account.brokerId,
-            companyName: account.brokerName,
-            serverId: account.serverId,
-            tradingServer: account.serverName,
-          ),
-        );
-    return AccountActivationOutcome(
-      result: result,
-      authority: authority,
-      publication: publication,
-    );
   }
 }

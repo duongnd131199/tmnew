@@ -1,0 +1,257 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.dart';
+import 'package:trading_mobile/features/trade/presentation/widgets/position_bulk_actions_dialog.dart';
+import 'package:trading_mobile/shared/models/demo_models.dart';
+import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+
+const _allPositionIds = {'x-buy-win', 'x-buy-loss', 'x-sell-win', 'e-buy-win'};
+const _allPositionIdOrder = [
+  'x-buy-win',
+  'x-buy-loss',
+  'x-sell-win',
+  'e-buy-win',
+];
+
+const _expectedClosedIds = {
+  PositionBulkActionScope.all: {
+    'x-buy-win',
+    'x-buy-loss',
+    'x-sell-win',
+    'e-buy-win',
+  },
+  PositionBulkActionScope.profitable: {'x-buy-win', 'x-sell-win', 'e-buy-win'},
+  PositionBulkActionScope.sameSide: {'x-buy-win', 'x-buy-loss', 'e-buy-win'},
+  PositionBulkActionScope.sameSymbol: {'x-buy-win', 'x-buy-loss', 'x-sell-win'},
+  PositionBulkActionScope.sameSymbolAndSide: {'x-buy-win', 'x-buy-loss'},
+};
+
+DemoTradingState _bulkFlowSeed(String accountId) => const DemoTradingState(
+  balance: 100000,
+  positions: [
+    DemoPosition(
+      id: 'x-buy-win',
+      symbol: 'XAUUSD',
+      side: 'BUY',
+      volume: 1,
+      openPrice: 4622.83,
+      currentPrice: 4623.10,
+      profit: 27,
+    ),
+    DemoPosition(
+      id: 'x-buy-loss',
+      symbol: 'XAUUSD',
+      side: 'BUY',
+      volume: 2,
+      openPrice: 4624,
+      currentPrice: 4623.10,
+      profit: -90,
+    ),
+    DemoPosition(
+      id: 'x-sell-win',
+      symbol: 'XAUUSD',
+      side: 'SELL',
+      volume: .5,
+      openPrice: 4624.10,
+      currentPrice: 4623.10,
+      profit: 50,
+    ),
+    DemoPosition(
+      id: 'e-buy-win',
+      symbol: 'EURUSD',
+      side: 'BUY',
+      volume: .1,
+      openPrice: 1.10,
+      currentPrice: 1.11,
+      profit: 10,
+    ),
+  ],
+  deals: [],
+);
+
+ProviderContainer _createContainer() => ProviderContainer(
+  overrides: [
+    demoTradingSeedProvider.overrideWithValue(_bulkFlowSeed),
+    demoQuoteProvider.overrideWith(
+      (ref, symbol) => const Stream<DemoQuote>.empty(),
+    ),
+  ],
+);
+
+Future<void> _pumpTrade(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
+  tester.view.physicalSize = const Size(384, 848);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: TradeScreen()),
+    ),
+  );
+  await tester.pump();
+}
+
+Future<void> _openContextualBulkDialog(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('trade-position-x-buy-win')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Hoạt động hàng loạt...'));
+  await tester.pumpAndSettle();
+  expect(find.byKey(const Key('position-bulk-actions-dialog')), findsOneWidget);
+}
+
+void main() {
+  testWidgets('trade position price range uses the reference black text', (
+    tester,
+  ) async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+
+    final row = find.byKey(const ValueKey('trade-position-x-buy-win'));
+    final priceRange = find.descendant(
+      of: row,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            (widget.data?.contains('4622.83') ?? false) &&
+            (widget.data?.contains('4623.10') ?? false),
+      ),
+    );
+
+    expect(priceRange, findsOneWidget);
+    expect(tester.widget<Text>(priceRange).style?.color, AppColors.textPrimary);
+  });
+
+  testWidgets('trade virtualizes a 30-position batch', (tester) async {
+    final positions = List<DemoPosition>.generate(
+      30,
+      (index) => DemoPosition(
+        id: 'performance-position-$index',
+        symbol: 'XAUUSD',
+        side: index.isEven ? 'BUY' : 'SELL',
+        volume: 0.01,
+        openPrice: 4600 + index.toDouble(),
+        currentPrice: 4601 + index.toDouble(),
+        profit: index.isEven ? 1 : -1,
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        demoTradingSeedProvider.overrideWithValue(
+          (_) => DemoTradingState(
+            balance: 100000,
+            positions: positions,
+            deals: const [],
+          ),
+        ),
+        demoQuoteProvider.overrideWith(
+          (ref, symbol) => const Stream<DemoQuote>.empty(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpTrade(tester, container);
+
+    final sliverLists = tester.widgetList<SliverList>(find.byType(SliverList));
+    expect(sliverLists, isNotEmpty);
+    expect(
+      sliverLists.every(
+        (sliver) => sliver.delegate is SliverChildBuilderDelegate,
+      ),
+      isTrue,
+    );
+    expect(
+      find.byKey(const ValueKey('trade-position-performance-position-29')),
+      findsNothing,
+    );
+  });
+
+  for (final scope in PositionBulkActionScope.values) {
+    testWidgets(
+      'contextual bulk ${scope.name} closes only its position scope',
+      (tester) async {
+        final container = _createContainer();
+        addTearDown(container.dispose);
+        await _pumpTrade(tester, container);
+        await _openContextualBulkDialog(tester);
+
+        await tester.tap(
+          find.byKey(ValueKey('position-bulk-action-${scope.name}')),
+        );
+        await tester.pumpAndSettle();
+
+        final expectedClosed = _expectedClosedIds[scope]!;
+        final expectedClosedOrder = _allPositionIdOrder
+            .where(expectedClosed.contains)
+            .toList(growable: false);
+        final expectedRemaining = _allPositionIds.difference(expectedClosed);
+        expect(
+          container.read(demoPositionsProvider).map((item) => item.id).toSet(),
+          expectedRemaining,
+        );
+        final closedHistoryIds = container
+            .read(demoTradingProvider)
+            .historyPositions
+            .map((item) => item.id)
+            .where((id) => id.startsWith('closed-'))
+            .map((id) => expectedClosed.singleWhere(id.contains))
+            .toList(growable: false);
+        expect(closedHistoryIds, orderedEquals(expectedClosedOrder));
+        expect(closedHistoryIds, hasLength(expectedClosed.length));
+        expect(
+          find.byKey(const Key('position-bulk-actions-dialog')),
+          findsNothing,
+        );
+      },
+    );
+  }
+
+  testWidgets('contextual bulk cancel keeps every position', (tester) async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+    await _openContextualBulkDialog(tester);
+
+    await tester.tap(find.byKey(const Key('position-bulk-cancel')));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(demoPositionsProvider).map((item) => item.id).toSet(),
+      _allPositionIds,
+    );
+  });
+
+  testWidgets('contextual bulk evaluates current state when action is tapped', (
+    tester,
+  ) async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+    await _openContextualBulkDialog(tester);
+
+    expect(
+      container.read(demoTradingProvider.notifier).closePosition('x-buy-loss'),
+      isTrue,
+    );
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('position-bulk-action-sameSymbolAndSide')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(demoPositionsProvider).map((item) => item.id),
+      orderedEquals(['x-sell-win', 'e-buy-win']),
+    );
+    expect(container.read(demoTradingProvider).historyPositions, hasLength(2));
+  });
+}

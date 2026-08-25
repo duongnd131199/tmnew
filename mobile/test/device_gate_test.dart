@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_login/data/account_password_login_dependencies.dart';
 import 'package:trading_mobile/features/account_login/data/account_password_login_repository.dart';
@@ -15,6 +17,8 @@ import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/account_sync/presentation/device_gate.dart';
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
   testWidgets('token read timeout exits loading without exposing the app', (
     tester,
   ) async {
@@ -246,6 +250,14 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('account-bootstrap-loading')), findsOneWidget);
+    expect(
+      tester
+          .widget<ColoredBox>(
+            find.byKey(const Key('account-bootstrap-loading')),
+          )
+          .color,
+      AppColors.background,
+    );
     expect(find.text('SERVER APP'), findsNothing);
   });
 

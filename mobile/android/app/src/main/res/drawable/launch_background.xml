@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:centerX="0.5"
+                android:centerY="0.43"
+                android:gradientRadius="520dp"
+                android:startColor="#F0F4ED"
+                android:centerColor="#88D7E5"
+                android:endColor="#087DB8" />
+        </shape>
+    </item>
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/metatrader5_splash" />
+    </item>
+</layer-list>

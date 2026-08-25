@@ -1,4 +1,17 @@
-enum DemoBrokerBrand { vantage, exness, yodo, unknown }
+enum DemoBrokerBrand { vantage, exness, yodo, metaquotes, unknown }
+
+DemoBrokerBrand resolveDemoBrokerBrand({
+  String brokerId = '',
+  String companyName = '',
+  String serverName = '',
+}) {
+  final identity = '$brokerId $companyName $serverName'.toLowerCase();
+  if (identity.contains('exness')) return DemoBrokerBrand.exness;
+  if (identity.contains('yodo')) return DemoBrokerBrand.yodo;
+  if (identity.contains('vantage')) return DemoBrokerBrand.vantage;
+  if (identity.contains('metaquotes')) return DemoBrokerBrand.metaquotes;
+  return DemoBrokerBrand.unknown;
+}
 
 final class AccountPresentationMetadata {
   const AccountPresentationMetadata({

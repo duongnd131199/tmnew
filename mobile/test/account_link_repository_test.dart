@@ -142,6 +142,68 @@ void main() {
   });
 
   test(
+    'production link preserves credential characters and public URL',
+    () async {
+      final productionAdapter = _AccountLinkAdapter();
+      final productionDio = Dio(
+        BaseOptions(baseUrl: 'https://trochoi.top/ex/v2/api'),
+      )..httpClientAdapter = productionAdapter;
+      final productionRepository = AccountLinkRepository(
+        ExV2ApiClient(
+          dio: productionDio,
+          tokenReader: () async => 'device-token-sentinel',
+        ),
+      );
+      productionAdapter.responses['POST /ex/v2/api/mobile/accounts/link'] = {
+        'account': {
+          ..._linkedAccountJson,
+          'brokerId': 'yodo-demo',
+          'brokerName': 'YODO Demo Markets',
+          'serverId': 'yodo-demo-01',
+          'serverName': 'YODO-Demo-01',
+          'login': '109740422',
+        },
+        'reconnectGrant': 'opaque-grant-sentinel',
+        'alreadyLinked': false,
+      };
+
+      await productionRepository.link(
+        const LinkAccountRequest(
+          brokerId: 'yodo-demo',
+          serverId: 'yodo-demo-01',
+          login: '109740422',
+          password: ' Test-Pass_123! ',
+          savePassword: true,
+        ),
+        metadata: const ExV2CommandMetadata(
+          idempotencyKey: 'idem-link-sentinel',
+          correlationId: 'corr-link-sentinel',
+        ),
+      );
+
+      final request = productionAdapter.requests.single;
+      expect(
+        request.uri.toString(),
+        'https://trochoi.top/ex/v2/api/mobile/accounts/link',
+      );
+      expect(request.data, {
+        'brokerId': 'yodo-demo',
+        'serverId': 'yodo-demo-01',
+        'login': '109740422',
+        'password': ' Test-Pass_123! ',
+        'savePassword': true,
+      });
+      expect(request.data['login'], isNot('2022'));
+      expect(request.data['brokerId'], isNot('YODO Demo Markets'));
+      expect(request.data['serverId'], isNot('YODO-Demo-01'));
+      expect(request.headers['X-Device-Token'], 'device-token-sentinel');
+      expect(request.headers['X-Correlation-Id'], 'corr-link-sentinel');
+      expect(request.headers['Idempotency-Key'], 'idem-link-sentinel');
+      expect(request.contentType, Headers.jsonContentType);
+    },
+  );
+
+  test(
     'activate uses exact path, empty JSON body, and parses bootstrap',
     () async {
       adapter

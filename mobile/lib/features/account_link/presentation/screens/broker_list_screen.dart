@@ -112,7 +112,7 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
                     final broker = brokers[index];
                     return _BrokerRow(
                       broker: broker,
-                      onTap: () => _selectBroker(broker),
+                      onTap: () => _handleBrokerTap(broker),
                       onInfo: () => _showBrokerInfo(broker),
                     );
                   },
@@ -166,9 +166,10 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
 
   List<MobileBroker> _locallyFiltered(List<MobileBroker> brokers) {
     final normalized = _query.trim().toLowerCase();
-    if (_authoritativeQuery == normalized) return brokers;
-    if (normalized.isEmpty) return brokers;
-    return brokers
+    final unique = deduplicateBrokerCatalog(brokers);
+    final presented = referenceBrokerCatalog(unique);
+    if (normalized.isEmpty) return presented;
+    final localMatches = presented
         .where((broker) {
           final presentation = referenceBrokerPresentation(broker);
           final searchable = [
@@ -181,6 +182,14 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
           return searchable.contains(normalized);
         })
         .toList(growable: false);
+    if (localMatches.isNotEmpty || _authoritativeQuery != normalized) {
+      return localMatches;
+    }
+
+    // Keep authoritative server-side matches such as MT5Real20 even when the
+    // broker's display fields do not contain the searched server name. Do not
+    // append the presentation-only fallback to that server-owned result.
+    return unique;
   }
 
   void _search(String value) {
@@ -223,6 +232,11 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
     context.push('/accounts/add/${Uri.encodeComponent(broker.id)}');
   }
 
+  void _handleBrokerTap(MobileBroker broker) {
+    if (referenceBrokerSemanticId(broker) == 'metaquotes') return;
+    _selectBroker(broker);
+  }
+
   void _showBrokerInfo(MobileBroker broker) {
     final callback = widget.onBrokerInfo;
     if (callback != null) {
@@ -263,73 +277,99 @@ class _BrokerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final presentation = referenceBrokerPresentation(broker);
     final referencePresentation = presentation.displayAsExness;
+    final semanticId = referenceBrokerSemanticId(broker);
     return SizedBox(
       height: 72,
       child: Row(
         children: [
           const SizedBox(width: AppSpacing.md),
-          AccountLinkBrokerMark(
-            broker: broker,
-            displayAsExness: referencePresentation,
+          _semanticKeyed(
+            prefix: 'broker-mark',
+            semanticId: semanticId,
+            actualId: broker.id,
+            child: AccountLinkBrokerMark(
+              broker: broker,
+              displayAsExness: referencePresentation,
+            ),
           ),
           SizedBox(
             width: referencePresentation ? AppSpacing.md : AppSpacing.sm,
           ),
           Expanded(
-            child: Material(
-              color: AppColors.transparent,
-              child: InkWell(
-                key: ValueKey('broker-row-${broker.id}'),
-                onTap: onTap,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        presentation.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            (referencePresentation
-                                    ? AppTypography.referenceServerName
-                                    : AppTypography.titleMedium)
-                                .copyWith(
-                                  color: AppColors.textPrimary,
-                                  height: 1.05,
-                                ),
-                      ),
-                      if (presentation.companyName case final company?) ...[
-                        const SizedBox(height: AppSpacing.xs),
+            child: _semanticKeyed(
+              prefix: 'broker-row',
+              semanticId: semanticId,
+              actualId: broker.id,
+              child: Material(
+                color: AppColors.transparent,
+                child: InkWell(
+                  key: ValueKey('broker-row-${broker.id}'),
+                  onTap: onTap,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          company,
+                          presentation.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTypography.bodyLarge.copyWith(
-                            color: AppColors.textSecondary,
-                            fontFamily: referencePresentation
-                                ? 'sans-serif'
-                                : null,
-                            height: 1,
-                          ),
+                          style:
+                              (referencePresentation
+                                      ? AppTypography.referenceServerName
+                                      : AppTypography.titleMedium)
+                                  .copyWith(
+                                    color: AppColors.textPrimary,
+                                    height: 1.05,
+                                  ),
                         ),
+                        if (presentation.companyName case final company?) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            company,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.bodyLarge.copyWith(
+                              color: AppColors.textSecondary,
+                              fontFamily: referencePresentation
+                                  ? 'sans-serif'
+                                  : null,
+                              height: 1,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-          AccountLinkInfoButton(
-            key: ValueKey('broker-info-${broker.id}'),
-            onTap: onInfo,
+          _semanticKeyed(
+            prefix: 'broker-info',
+            semanticId: semanticId,
+            actualId: broker.id,
+            child: AccountLinkInfoButton(
+              key: ValueKey('broker-info-${broker.id}'),
+              onTap: onInfo,
+            ),
           ),
           const SizedBox(width: AppSpacing.xs),
         ],
       ),
     );
   }
+}
+
+Widget _semanticKeyed({
+  required String prefix,
+  required String semanticId,
+  required String actualId,
+  required Widget child,
+}) {
+  if (semanticId == actualId) return child;
+  return KeyedSubtree(key: ValueKey('$prefix-$semanticId'), child: child);
 }
 
 class _CatalogFailure extends StatelessWidget {

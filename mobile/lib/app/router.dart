@@ -50,7 +50,11 @@ final appRouter = GoRouter(
       parentNavigatorKey: _rootNavigatorKey,
       pageBuilder: (context, state) => _iosSlidePage(
         state,
-        ExistingAccountLoginScreen(brokerId: state.pathParameters['brokerId']!),
+        ExistingAccountLoginScreen(
+          brokerId: state.pathParameters['brokerId']!,
+          initialLogin: state.uri.queryParameters['login'],
+          initialServerId: state.uri.queryParameters['serverId'],
+        ),
       ),
     ),
     GoRoute(
@@ -164,7 +168,7 @@ final appRouter = GoRouter(
       parentNavigatorKey: _rootNavigatorKey,
       pageBuilder: (context, state) => CustomTransitionPage<void>(
         key: state.pageKey,
-        opaque: false,
+        opaque: state.uri.queryParameters['source'] == 'trade-add',
         transitionDuration: const Duration(milliseconds: 240),
         reverseTransitionDuration: const Duration(milliseconds: 210),
         transitionsBuilder: (context, animation, secondaryAnimation, child) =>
@@ -186,6 +190,8 @@ final appRouter = GoRouter(
           symbol: state.uri.queryParameters['symbol'] ?? 'XAUUSD+',
           initialSide: state.uri.queryParameters['side'] ?? 'buy',
           closePositionId: state.uri.queryParameters['positionId'],
+          tradeAddReferenceLayout:
+              state.uri.queryParameters['source'] == 'trade-add',
         ),
       ),
     ),

@@ -1,0 +1,95 @@
+{
+  "source": "giaoDienMau/giaodientrang.MP4",
+  "width": 384,
+  "height": 848,
+  "fps": 30,
+  "durationSeconds": 79.6,
+  "scenes": [
+    {
+      "id": "prices",
+      "seconds": 0.0,
+      "route": "/market",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/prices.png"
+    },
+    {
+      "id": "symbol-sheet",
+      "seconds": 8.37,
+      "route": "/market",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/symbol-sheet.png"
+    },
+    {
+      "id": "chart",
+      "seconds": 12.57,
+      "route": "/chart?symbol=XAUUSD+&timeframe=M1",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/chart.png"
+    },
+    {
+      "id": "trade",
+      "seconds": 20.93,
+      "route": "/trade",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/trade.png"
+    },
+    {
+      "id": "position-sheet",
+      "seconds": 25.13,
+      "route": "/trade",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/position-sheet.png"
+    },
+    {
+      "id": "bulk-position-sheet",
+      "seconds": 29.3,
+      "route": "/trade",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/bulk-position-sheet.png"
+    },
+    {
+      "id": "history",
+      "seconds": 37.7,
+      "route": "/history",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/history.png"
+    },
+    {
+      "id": "settings",
+      "seconds": 41.87,
+      "route": "/settings",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/settings.png"
+    },
+    {
+      "id": "accounts",
+      "seconds": 46.07,
+      "route": "/profile",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/accounts.png"
+    },
+    {
+      "id": "existing-account",
+      "seconds": 54.43,
+      "route": "/accounts/add/exness",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/existing-account.png"
+    },
+    {
+      "id": "server-picker",
+      "seconds": 58.63,
+      "route": "/accounts/add/exness/servers",
+      "verified": true,
+      "capturePath": ".codex_tmp/white_theme_final/server-picker.png"
+    }
+  ],
+  "dynamicExclusions": [
+    "status clock",
+    "prices",
+    "timestamps",
+    "account values",
+    "profit and loss",
+    "candle contour",
+    "countdown"
+  ]
+}

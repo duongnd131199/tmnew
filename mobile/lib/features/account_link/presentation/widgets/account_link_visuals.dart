@@ -84,7 +84,7 @@ class AccountLinkBrokerMark extends StatelessWidget {
       return SizedBox.square(
         key: ValueKey('broker-mark-${broker.id}'),
         dimension: AccountVisualMetrics.brokerMark,
-        child: const CustomPaint(painter: _ConnectedMarketMarkPainter()),
+        child: const MetaquotesBrokerMark(),
       );
     }
     return SizedBox.square(
@@ -127,41 +127,4 @@ class AccountLinkInfoButton extends StatelessWidget {
     ),
     icon: const Icon(Icons.info_outline_rounded, color: AppColors.primary),
   );
-}
-
-class _ConnectedMarketMarkPainter extends CustomPainter {
-  const _ConnectedMarketMarkPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final nodes = <Offset>[
-      Offset(size.width * .25, size.height * .68),
-      Offset(size.width * .42, size.height * .24),
-      Offset(size.width * .76, size.height * .38),
-      Offset(size.width * .72, size.height * .76),
-    ];
-    final line = Paint()
-      ..color = AppColors.primary
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-    for (final node in nodes) {
-      canvas.drawLine(center, node, line);
-    }
-    canvas.drawCircle(
-      center,
-      size.width * .17,
-      Paint()..color = AppColors.primary,
-    );
-    for (final node in nodes) {
-      canvas.drawCircle(
-        node,
-        size.width * .11,
-        Paint()..color = AppColors.positive,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

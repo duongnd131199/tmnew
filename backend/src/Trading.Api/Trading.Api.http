@@ -1,0 +1,6 @@
+@Trading.Api_HostAddress = http://localhost:5150
+
+GET {{Trading.Api_HostAddress}}/health
+Accept: application/json
+
+###

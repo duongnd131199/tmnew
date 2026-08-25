@@ -11,6 +11,7 @@ import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/features/chart/data/chart_market_warmup_provider.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
+import 'package:trading_mobile/features/chart/presentation/theme/chart_reference_theme.dart';
 import 'package:trading_mobile/features/market_watch/presentation/screens/market_watch_screen.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/account_detail_screen.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/profile_screen.dart';
@@ -436,7 +437,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Gia'), findsOneWidget);
-    await tester.tap(find.text('XAUUSD+'));
+    await tester.tap(find.text('XAUUSD'));
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('market-symbol-menu-XAUUSD+')),
@@ -446,7 +447,7 @@ void main() {
     await tester.tap(find.text('Chi tiet'));
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/section');
-    expect(find.text('XAUUSD+'), findsOneWidget);
+    expect(find.text('XAUUSD'), findsOneWidget);
     expect(find.text('Gold US Dollar'), findsOneWidget);
     expect(find.byIcon(Icons.close), findsOneWidget);
 
@@ -454,7 +455,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/market');
     expect(find.text('Gia'), findsOneWidget);
-    expect(find.text('XAUUSD+'), findsOneWidget);
+    expect(find.text('XAUUSD'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('market-symbol-menu-XAUUSD+')),
       findsNothing,
@@ -599,7 +600,7 @@ void main() {
     final downChevron = tester.widget<Icon>(
       find.byIcon(CupertinoIcons.chevron_down),
     );
-    expect(downChevron.color, Colors.white);
+    expect(downChevron.color, ChartReferenceTheme.light.foreground);
     expect(downChevron.size, 12);
 
     await tester.tap(find.text('SELL'));

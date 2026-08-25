@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trading_mobile/app/router.dart';
+import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
 import 'package:trading_mobile/features/account_login/presentation/account_password_login_screen.dart';
@@ -125,7 +126,7 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
     }
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
+      theme: AppTheme.light,
       home: AccountPasswordLoginScreen(
         onAuthenticated: () {
           if (!mounted) return;
@@ -227,7 +228,7 @@ class _AccountBootstrapLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const ColoredBox(
     key: Key('account-bootstrap-loading'),
-    color: Colors.black,
+    color: AppColors.background,
     child: Center(child: CircularProgressIndicator()),
   );
 }
@@ -247,7 +248,7 @@ class _AccountBootstrapUnavailable extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: AppTheme.dark,
+    theme: AppTheme.light,
     home: Scaffold(
       body: Center(
         child: Padding(
@@ -275,7 +276,7 @@ class _AccountBootstrapAccountless extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     key: const Key('account-bootstrap-accountless'),
     debugShowCheckedModeBanner: false,
-    theme: AppTheme.dark,
+    theme: AppTheme.light,
     home: Scaffold(
       body: Center(
         child: Padding(

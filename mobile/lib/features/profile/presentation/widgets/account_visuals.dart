@@ -45,6 +45,7 @@ class AccountBrokerMark extends StatelessWidget {
           DemoBrokerBrand.vantage => CustomPaint(
             painter: const _VantageLogoPainter(),
           ),
+          DemoBrokerBrand.metaquotes => MetaquotesBrokerMark(size: size),
           DemoBrokerBrand.unknown => ColoredBox(
             color: AppColors.surfaceElevated,
             child: Center(
@@ -56,6 +57,58 @@ class AccountBrokerMark extends StatelessWidget {
             ),
           ),
         },
+      ),
+    );
+  }
+}
+
+class MetaquotesBrokerMark extends StatelessWidget {
+  const MetaquotesBrokerMark({
+    this.size = AccountVisualMetrics.brokerMark,
+    super.key = const Key('metaquotes-broker-mark-raster'),
+  });
+
+  static const _assetPath = 'assets/images/metatrader5_splash.png';
+  static const _sourceSize = Size(720, 520);
+  static const _sourceCrop = Rect.fromLTWH(170, 0, 380, 370);
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final unitScale = size / AccountVisualMetrics.brokerMark;
+    final renderedSize = (82 / 3) * unitScale;
+    final imageScale = renderedSize / _sourceCrop.width;
+    final scaledSourceSize = Size(
+      _sourceSize.width * imageScale,
+      _sourceSize.height * imageScale,
+    );
+    final verticalOffset = (renderedSize - _sourceCrop.height * imageScale) / 2;
+
+    return Transform.translate(
+      offset: Offset((-2 / 3) * unitScale, (2 / 3) * unitScale),
+      child: Center(
+        child: SizedBox.square(
+          dimension: renderedSize,
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topLeft,
+              minWidth: scaledSourceSize.width,
+              maxWidth: scaledSourceSize.width,
+              minHeight: scaledSourceSize.height,
+              maxHeight: scaledSourceSize.height,
+              child: Transform.translate(
+                offset: Offset(-_sourceCrop.left * imageScale, verticalOffset),
+                child: Image.asset(
+                  _assetPath,
+                  width: scaledSourceSize.width,
+                  height: scaledSourceSize.height,
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -139,15 +192,15 @@ class _BackIconPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final path = Path()
-      ..moveTo(15.1, 2.5)
-      ..lineTo(6.4, 12)
-      ..lineTo(15.1, 21.5);
+      ..moveTo(14.7, 4.5)
+      ..lineTo(6.3, 12)
+      ..lineTo(14.7, 20.3);
     canvas.drawPath(
       path,
       Paint()
         ..color = AppColors.textPrimary
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.8
+        ..strokeWidth = 2.5
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round,
     );
@@ -165,10 +218,10 @@ class _AddIconPainter extends CustomPainter {
     final paint = Paint()
       ..color = AppColors.textPrimary
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
+      ..strokeWidth = 2.28
       ..strokeCap = StrokeCap.round;
-    canvas.drawLine(const Offset(3.7, 12), const Offset(20.3, 12), paint);
-    canvas.drawLine(const Offset(12, 3.7), const Offset(12, 20.3), paint);
+    canvas.drawLine(const Offset(4.4, 12), const Offset(19.6, 12), paint);
+    canvas.drawLine(const Offset(12, 4.4), const Offset(12, 19.6), paint);
   }
 
   @override

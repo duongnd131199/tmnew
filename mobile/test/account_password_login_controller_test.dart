@@ -8,7 +8,9 @@ import 'package:trading_mobile/features/account_login/data/account_password_logi
 import 'package:trading_mobile/features/account_login/data/account_password_login_repository.dart';
 import 'package:trading_mobile/features/account_login/data/installation_id_store.dart';
 import 'package:trading_mobile/features/account_login/domain/account_password_login_models.dart';
+import 'package:trading_mobile/features/account_sessions/application/account_session_committer.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
+import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
@@ -32,6 +34,7 @@ void main() {
       expect(repository.requests.single.password, ' Test-Pass_123! ');
       expect(repository.requests.single.brokerId, 'yodo-demo');
       expect(repository.requests.single.serverId, 'yodo-demo-01');
+      expect(harness.committer.results.single.account.id, 'account-1');
       final published = harness.container
           .read(exV2AccountProvider)
           .requireValue!;
@@ -145,32 +148,67 @@ _Harness _harness(
   _FakeLoginRepository repository,
   _MemoryTokenStore tokenStore,
 ) {
-  final container = ProviderContainer(
+  late ProviderContainer container;
+  final committer = _FakeSessionCommitter(
+    tokenStore,
+    publish: (result) => container
+        .read(exV2AccountProvider.notifier)
+        .publishBootstrap(
+          result.bootstrap,
+          authoritativeAccountSwitch: true,
+          presentation: ExV2AccountPresentation(
+            brokerId: result.account.brokerId,
+            companyName: result.account.brokerName,
+            serverId: result.account.serverId,
+            tradingServer: result.account.serverName,
+          ),
+        ),
+  );
+  container = ProviderContainer(
     overrides: [
       accountPasswordLoginRepositoryProvider.overrideWithValue(repository),
       installationIdStoreProvider.overrideWithValue(
         _MemoryInstallationIdStore(),
       ),
       deviceTokenStoreProvider.overrideWithValue(tokenStore),
+      accountSessionCommitterProvider.overrideWithValue(committer),
       exV2LoginConfigProvider.overrideWithValue(
         const ExV2LoginConfig(brokerId: 'yodo-demo', serverId: 'yodo-demo-01'),
       ),
     ],
   );
   container.read(accountPasswordLoginControllerProvider);
-  return _Harness(container);
+  return _Harness(container, committer);
 }
 
 final class _Harness {
-  const _Harness(this.container);
+  const _Harness(this.container, this.committer);
 
   final ProviderContainer container;
+  final _FakeSessionCommitter committer;
 
   AccountPasswordLoginController get controller =>
       container.read(accountPasswordLoginControllerProvider.notifier);
   AccountPasswordLoginState get state =>
       container.read(accountPasswordLoginControllerProvider);
   void dispose() => container.dispose();
+}
+
+final class _FakeSessionCommitter implements AccountSessionCommitter {
+  _FakeSessionCommitter(this.tokenStore, {required this.publish});
+
+  final DeviceTokenStore tokenStore;
+  final ExV2BootstrapPublication Function(AccountPasswordLoginResult) publish;
+  final List<AccountPasswordLoginResult> results = [];
+
+  @override
+  Future<ExV2BootstrapPublication> commit(
+    AccountPasswordLoginResult result,
+  ) async {
+    results.add(result);
+    await tokenStore.write(result.deviceToken);
+    return publish(result);
+  }
 }
 
 final class _FakeLoginRepository implements AccountPasswordLoginRepository {

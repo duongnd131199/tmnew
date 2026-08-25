@@ -5,12 +5,15 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
+import 'package:trading_mobile/features/account_link/data/linked_account_presentation_store.dart';
+import 'package:trading_mobile/features/account_link/domain/linked_account_presentation.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/settings_screen.dart';
 import 'package:trading_mobile/features/market_watch/data/data_sources/realtime_market_service.dart';
@@ -19,6 +22,207 @@ import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/providers/realtime_market_provider.dart';
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
+  testWidgets('empty mobile accounts API never renders local-only accounts', (
+    tester,
+  ) async {
+    final fixture = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/profile',
+      accountListEmpty: true,
+    );
+    addTearDown(fixture.dispose);
+
+    expect(find.byKey(const ValueKey('account-account-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('account-account-b')), findsNothing);
+  });
+
+  testWidgets(
+    'cold-started reference account restores its Exness logo without catalog metadata',
+    (tester) async {
+      final fixture = await _pumpProductionRoute(
+        tester,
+        initialLocation: '/profile',
+        accountListEmpty: true,
+      );
+      addTearDown(fixture.dispose);
+
+      expect(find.text('LOGIN-A - Exness-MT5Real20'), findsOneWidget);
+      expect(find.text('exness'), findsOneWidget);
+      expect(find.byIcon(Icons.account_balance_outlined), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'cold-started reference settings restores the video broker metadata',
+    (tester) async {
+      final fixture = await _pumpProductionRoute(
+        tester,
+        initialLocation: '/settings',
+        accountListEmpty: true,
+      );
+      addTearDown(fixture.dispose);
+
+      expect(find.text('Exness Technologies Ltd'), findsOneWidget);
+      expect(
+        find.text('LOGIN-A - Exness-MT5Real20\nAccess Point #9'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('successful empty account API discards stale inactive rows', (
+    tester,
+  ) async {
+    final online = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/profile',
+    );
+    expect(find.byKey(const ValueKey('account-account-b')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    online.dispose();
+
+    final empty = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/profile',
+      accountListEmpty: true,
+    );
+    addTearDown(empty.dispose);
+
+    expect(find.byKey(const ValueKey('account-account-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('account-account-b')), findsNothing);
+  });
+
+  testWidgets('server account catalog renders without local session state', (
+    tester,
+  ) async {
+    final fixture = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/profile',
+    );
+    addTearDown(fixture.dispose);
+
+    expect(fixture.adapter.accountListCalls, 1);
+    expect(find.byKey(const ValueKey('account-account-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('account-account-b')), findsOneWidget);
+  });
+
+  testWidgets('saved account uses authoritative server activation', (
+    tester,
+  ) async {
+    final fixture = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/settings',
+    );
+    addTearDown(fixture.dispose);
+    fixture.router.push('/profile');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('account-account-b')));
+    await tester.pumpAndSettle();
+
+    expect(fixture.adapter.activationCalls, 1);
+    expect(fixture.adapter.activatedAccountIds, ['account-b']);
+    expect(
+      find.byKey(const Key('existing-account-login-screen')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('server account activates without asking for a password', (
+    tester,
+  ) async {
+    final fixture = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/settings',
+    );
+    addTearDown(fixture.dispose);
+    fixture.router.push('/profile');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('account-account-b')));
+    await tester.pumpAndSettle();
+
+    expect(fixture.adapter.activationCalls, 1);
+    expect(fixture.adapter.activatedAccountIds, ['account-b']);
+    expect(fixture.router.state.uri.path, '/settings');
+    expect(
+      find.byKey(const Key('existing-account-login-screen')),
+      findsNothing,
+    );
+    expect(
+      fixture.container
+          .read(exV2AccountProvider)
+          .requireValue!
+          .bootstrap
+          .account
+          .id,
+      'account-b',
+    );
+  });
+
+  testWidgets('unauthorized activation never opens the account relink form', (
+    tester,
+  ) async {
+    final fixture = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/profile',
+      activationUnauthorized: true,
+    );
+    addTearDown(fixture.dispose);
+
+    await tester.tap(find.byKey(const ValueKey('account-account-b')));
+    await tester.pumpAndSettle();
+
+    expect(fixture.adapter.activationCalls, 1);
+    expect(fixture.router.state.uri.path, '/profile');
+    expect(
+      find.byKey(const Key('existing-account-login-screen')),
+      findsNothing,
+    );
+    expect(
+      fixture.container
+          .read(exV2AccountProvider)
+          .requireValue!
+          .bootstrap
+          .account
+          .id,
+      'account-a',
+    );
+  });
+
+  testWidgets('account not found stays on profile and refreshes server list', (
+    tester,
+  ) async {
+    final fixture = await _pumpProductionRoute(
+      tester,
+      initialLocation: '/profile',
+      activationAccountNotFound: true,
+    );
+    addTearDown(fixture.dispose);
+
+    await tester.tap(find.byKey(const ValueKey('account-account-b')));
+    await tester.pumpAndSettle();
+
+    expect(fixture.adapter.activationCalls, 1);
+    expect(fixture.adapter.accountListCalls, 2);
+    expect(fixture.router.state.uri.path, '/profile');
+    expect(
+      find.byKey(const Key('existing-account-login-screen')),
+      findsNothing,
+    );
+    expect(
+      fixture.container
+          .read(exV2AccountProvider)
+          .requireValue!
+          .bootstrap
+          .account
+          .id,
+      'account-a',
+    );
+  });
+
   testWidgets('production Settings add opens broker discovery', (tester) async {
     final fixture = await _pumpProductionRoute(
       tester,
@@ -226,6 +430,35 @@ void main() {
     },
   );
 
+  testWidgets(
+    'active account keeps its stored MetaQuotes identity when account list fails',
+    (tester) async {
+      const presentationStore = SecureLinkedAccountPresentationStore(
+        FlutterSecureStorage(),
+      );
+      await presentationStore.write(
+        'account-a',
+        const LinkedAccountPresentation(
+          companyName: 'MetaQuotes Ltd.',
+          serverName: 'MetaQuotes-Demo',
+        ),
+      );
+      final fixture = await _pumpProductionRoute(
+        tester,
+        initialLocation: '/profile',
+        accountListFails: true,
+      );
+      addTearDown(fixture.dispose);
+
+      expect(find.text('LOGIN-A - MetaQuotes-Demo'), findsOneWidget);
+      expect(
+        find.byKey(const Key('metaquotes-broker-mark-raster')),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.account_balance_outlined), findsNothing);
+    },
+  );
+
   testWidgets('activate failure leaves account A active everywhere', (
     tester,
   ) async {
@@ -374,11 +607,14 @@ Future<_RouteFixture> _pumpProductionRoute(
   required String initialLocation,
   bool activationFails = false,
   bool activationConflict = false,
+  bool activationUnauthorized = false,
+  bool activationAccountNotFound = false,
   bool accountListFails = false,
   _UnavailableAccountState? unavailableAccountState,
   Completer<ExV2AccountViewState?>? bootstrapGate,
   Stream<MarketConnectionStatus>? connectionStatuses,
   bool technicalYodoMetadata = false,
+  bool accountListEmpty = false,
 }) async {
   tester.view.physicalSize = const Size(384, 848);
   tester.view.devicePixelRatio = 1;
@@ -390,8 +626,11 @@ Future<_RouteFixture> _pumpProductionRoute(
   final adapter = _AccountApiAdapter(
     activationFails: activationFails,
     activationConflict: activationConflict,
+    activationUnauthorized: activationUnauthorized,
+    activationAccountNotFound: activationAccountNotFound,
     accountListFails: accountListFails,
     technicalYodoMetadata: technicalYodoMetadata,
+    accountListEmpty: accountListEmpty,
   );
   final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
     ..httpClientAdapter = adapter;
@@ -443,6 +682,16 @@ Future<_RouteFixture> _pumpProductionRoute(
         path: '/accounts/add',
         builder: (context, state) =>
             const Scaffold(body: Text('BROKER DISCOVERY')),
+      ),
+      GoRoute(
+        path: '/accounts/add/:brokerId',
+        builder: (context, state) => Scaffold(
+          key: const Key('existing-account-login-screen'),
+          body: Text(
+            '${state.uri.queryParameters['login'] ?? ''}|'
+            '${state.uri.queryParameters['serverId'] ?? ''}',
+          ),
+        ),
       ),
       GoRoute(
         path: '/account-detail',
@@ -506,14 +755,20 @@ final class _AccountApiAdapter implements HttpClientAdapter {
   _AccountApiAdapter({
     required this.activationFails,
     required this.activationConflict,
+    required this.activationUnauthorized,
+    required this.activationAccountNotFound,
     required this.accountListFails,
     required this.technicalYodoMetadata,
+    required this.accountListEmpty,
   });
 
   final bool activationFails;
   final bool activationConflict;
+  final bool activationUnauthorized;
+  final bool activationAccountNotFound;
   final bool accountListFails;
   final bool technicalYodoMetadata;
+  final bool accountListEmpty;
   int accountListCalls = 0;
   int activationCalls = 0;
   final List<String> activatedAccountIds = [];
@@ -535,6 +790,7 @@ final class _AccountApiAdapter implements HttpClientAdapter {
           'message': 'Unavailable',
         }, statusCode: 503);
       }
+      if (accountListEmpty) return _json(<Object?>[]);
       return _json(
         technicalYodoMetadata
             ? [_linkedYodoB, _linkedYodoA]
@@ -545,6 +801,20 @@ final class _AccountApiAdapter implements HttpClientAdapter {
         path.endsWith('/mobile/accounts/account-b/activate')) {
       activationCalls += 1;
       activatedAccountIds.add('account-b');
+      if (activationUnauthorized) {
+        return _json({
+          'code': 'invalid_session',
+          'message': 'Session authentication is required.',
+          'correlationId': 'corr-legacy-auth',
+        }, statusCode: 401);
+      }
+      if (activationAccountNotFound) {
+        return _json({
+          'code': 'account_not_found',
+          'message': 'Linked account was not found.',
+          'correlationId': 'corr-account-relink',
+        }, statusCode: 404);
+      }
       if (activationConflict) {
         return _json({
           'code': 'concurrency_conflict',

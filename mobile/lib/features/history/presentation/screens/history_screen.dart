@@ -1,0 +1,2066 @@
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
+import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
+import 'package:trading_mobile/shared/models/demo_models.dart';
+import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/widgets/app_shell.dart';
+
+const double _historyHeaderExtent = 82;
+const double _historyListTopGap = 4;
+const double _historyRowExtent = 52;
+const double _historySummaryRowExtent = 21.3333333333;
+const double _historyPrimaryFontSize = 16;
+const double _historySecondaryFontSize = 14;
+const double _historySummaryFontSize = 15;
+const double _historyPrimaryTop = 4;
+const double _historySecondaryTop = 26;
+final RegExp _historyTimestampPattern = RegExp(
+  r'^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})',
+);
+
+int _historyPriceDigitsForSymbol(String symbol) =>
+    symbol.toUpperCase().startsWith('XAUUSD') ? 3 : 2;
+
+String _historyPriceRange(DemoHistoryPosition entry, int digits) {
+  final openPrice = entry.openPrice?.toStringAsFixed(digits) ?? '—';
+  final closePrice = entry.closePrice?.toStringAsFixed(digits) ?? '—';
+  return '$openPrice → $closePrice';
+}
+
+class HistoryScreen extends ConsumerStatefulWidget {
+  const HistoryScreen({super.key});
+
+  @override
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  int tab = 0;
+  bool descending = true;
+  _HistoryPeriod period = _HistoryPeriod.sixMonths;
+  DateTimeRange? customRange;
+  String? symbolFilter;
+  final ScrollController _positionsController = ScrollController();
+  final _positionFilterCache = _HistoryFilterCache<DemoHistoryPosition>();
+  final _orderFilterCache = _HistoryFilterCache<DemoOrder>();
+  final _dealFilterCache = _HistoryFilterCache<DemoDeal>();
+  final Map<String, DateTime?> _parsedHistoryTimes = {};
+  String? _anchoredAccountId;
+  int? _anchoredHistoryLength;
+
+  @override
+  void dispose() {
+    _positionsController.dispose();
+    super.dispose();
+  }
+
+  void _syncPositionsBottomAnchor(String accountId, int historyLength) {
+    final accountChanged = _anchoredAccountId != accountId;
+    final historyChanged = _anchoredHistoryLength != historyLength;
+    if (!accountChanged && !historyChanged) return;
+
+    final wasNearBottom =
+        !_positionsController.hasClients ||
+        _positionsController.position.maxScrollExtent -
+                _positionsController.position.pixels <=
+            2;
+    _anchoredAccountId = accountId;
+    _anchoredHistoryLength = historyLength;
+    if (accountChanged || wasNearBottom) {
+      _scheduleBottomAnchor(accountId, historyLength: historyLength);
+    }
+  }
+
+  void _scheduleBottomAnchor(String accountId, {required int historyLength}) {
+    _stabilizeBottomAnchor(
+      accountId,
+      historyLength: historyLength,
+      expectedPixels: null,
+      remainingChecks: 2,
+    );
+  }
+
+  void _stabilizeBottomAnchor(
+    String accountId, {
+    required int historyLength,
+    required double? expectedPixels,
+    required int remainingChecks,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          _anchoredAccountId != accountId ||
+          _anchoredHistoryLength != historyLength) {
+        return;
+      }
+      if (_positionsController.hasClients) {
+        final position = _positionsController.position;
+        final userHasNotMoved =
+            expectedPixels == null ||
+            (position.pixels - expectedPixels).abs() <= 0.01;
+        if (!userHasNotMoved) return;
+
+        final maxScrollExtent = position.maxScrollExtent;
+        if ((position.pixels - maxScrollExtent).abs() > 0.01) {
+          _positionsController.jumpTo(maxScrollExtent);
+        }
+        if (remainingChecks > 0) {
+          _stabilizeBottomAnchor(
+            accountId,
+            historyLength: historyLength,
+            expectedPixels: maxScrollExtent,
+            remainingChecks: remainingChecks - 1,
+          );
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final safeTop = MediaQuery.paddingOf(context).top;
+    final content = switch (tab) {
+      0 => _buildPositionsHistory(),
+      1 => _buildOrdersHistory(),
+      _ => _buildDealsHistory(),
+    };
+    return Scaffold(
+      body: Stack(
+        children: [
+          Positioned.fill(child: content),
+          Positioned(
+            left: 0,
+            top: 0,
+            right: 0,
+            height: safeTop + _historyHeaderExtent,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                key: const Key('history-header-overlay'),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.background.withValues(alpha: .88),
+                      AppColors.background.withValues(alpha: .56),
+                      AppColors.background.withValues(alpha: 0),
+                    ],
+                    stops: const [0, .72, 1],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: safeTop,
+            right: 0,
+            height: _historyHeaderExtent,
+            child: _HistoryHeader(
+              tab: tab,
+              onTabChanged: (value) => setState(() => tab = value),
+              onSort: () => setState(() => descending = !descending),
+              onPeriod: _showPeriod,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPositionsHistory() {
+    final accountProfile = ref.watch(activeDemoAccountProvider);
+    final tradingBalance = ref.watch(
+      demoTradingProvider.select((trading) => trading.balance),
+    );
+    final entries = _filteredHistory(
+      cache: _positionFilterCache,
+      source: ref.watch(demoHistoryPositionsProvider),
+      symbolOf: (entry) => entry.title,
+      timeOf: (entry) => entry.time,
+    );
+    _syncPositionsBottomAnchor(accountProfile.id, entries.length);
+    return _PositionsHistory(
+      controller: _positionsController,
+      entries: entries,
+      descending: descending,
+      profile: accountProfile,
+      tradingBalance: tradingBalance,
+      onEntryTap: _showPositionDetails,
+    );
+  }
+
+  Widget _buildOrdersHistory() {
+    final orders = _filteredHistory(
+      cache: _orderFilterCache,
+      source: ref.watch(demoOrdersProvider),
+      symbolOf: (order) => order.symbol,
+      timeOf: (order) => order.time,
+    );
+    return _OrdersHistory(
+      orders: orders,
+      descending: descending,
+      onOrderTap: _showOrderDetails,
+    );
+  }
+
+  Widget _buildDealsHistory() {
+    final deals = _filteredHistory(
+      cache: _dealFilterCache,
+      source: ref.watch(demoDealsProvider),
+      symbolOf: (deal) => deal.symbol,
+      timeOf: (deal) => deal.time,
+    );
+    return _DealsHistory(
+      deals: deals,
+      descending: descending,
+      profile: ref.watch(activeDemoAccountProvider),
+      onDealTap: _showDealDetails,
+    );
+  }
+
+  List<T> _filteredHistory<T>({
+    required _HistoryFilterCache<T> cache,
+    required List<T> source,
+    required String Function(T entry) symbolOf,
+    required String Function(T entry) timeOf,
+  }) {
+    final now = DateTime.now();
+    return cache.resolve(
+      source: source,
+      period: period,
+      customRange: customRange,
+      symbolFilter: symbolFilter,
+      include: (entry) {
+        return (symbolFilter == null || symbolOf(entry) == symbolFilter) &&
+            _withinPeriod(timeOf(entry), now);
+      },
+    );
+  }
+
+  Future<void> _showPeriod() async {
+    final selected = await Navigator.of(context, rootNavigator: true)
+        .push<_HistoryFilterResult>(
+          MaterialPageRoute(
+            builder: (context) => _HistoryFilterScreen(
+              period: period,
+              symbol: symbolFilter,
+              symbols: ref
+                  .read(demoQuotesProvider)
+                  .map((quote) => quote.symbol)
+                  .toList(),
+            ),
+          ),
+        );
+    if (!mounted || selected == null) return;
+    if (selected.period == _HistoryPeriod.custom) {
+      final now = DateTime.now();
+      final selectedRange = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(now.year - 10),
+        lastDate: now,
+        initialDateRange:
+            customRange ??
+            DateTimeRange(
+              start: now.subtract(const Duration(days: 30)),
+              end: now,
+            ),
+      );
+      if (!mounted || selectedRange == null) return;
+      setState(() {
+        period = selected.period;
+        symbolFilter = selected.symbol;
+        customRange = selectedRange;
+      });
+      return;
+    }
+    setState(() {
+      period = selected.period;
+      symbolFilter = selected.symbol;
+    });
+  }
+
+  bool _withinPeriod(String label, DateTime now) {
+    final time = _parsedHistoryTimes.putIfAbsent(label, () {
+      final match = _historyTimestampPattern.firstMatch(label);
+      if (match == null) return null;
+      return DateTime(
+        int.parse(match.group(1)!),
+        int.parse(match.group(2)!),
+        int.parse(match.group(3)!),
+        int.parse(match.group(4)!),
+        int.parse(match.group(5)!),
+        int.parse(match.group(6)!),
+      );
+    });
+    if (time == null) return true;
+    final start = switch (period) {
+      _HistoryPeriod.today => DateTime(now.year, now.month, now.day),
+      _HistoryPeriod.lastWeek => now.subtract(const Duration(days: 7)),
+      _HistoryPeriod.lastMonth => DateTime(now.year, now.month - 1, now.day),
+      _HistoryPeriod.lastThreeMonths => DateTime(
+        now.year,
+        now.month - 3,
+        now.day,
+      ),
+      _HistoryPeriod.sixMonths => DateTime(now.year, now.month - 6, now.day),
+      _HistoryPeriod.lastYear => DateTime(now.year - 1, now.month, now.day),
+      _HistoryPeriod.custom =>
+        customRange?.start ?? DateTime.fromMillisecondsSinceEpoch(0),
+    };
+    if (period == _HistoryPeriod.custom && customRange != null) {
+      final end = customRange!.end.add(const Duration(days: 1));
+      return !time.isBefore(start) && time.isBefore(end);
+    }
+    return !time.isBefore(start);
+  }
+
+  Future<void> _showDealDetails(DemoDeal deal) async {
+    final action = await showModalBottomSheet<_HistoryDetailAction>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: false,
+      showDragHandle: false,
+      backgroundColor: AppColors.transparent,
+      barrierColor: AppColors.background.withValues(alpha: .28),
+      builder: (sheetContext) => _DealDetailSheet(
+        deal: deal,
+        onChart: () =>
+            Navigator.pop(sheetContext, _HistoryDetailAction.openChart),
+      ),
+    );
+    if (!mounted || action != _HistoryDetailAction.openChart) return;
+    await _openHistoryChart(deal.symbol);
+  }
+
+  Future<void> _showOrderDetails(DemoOrder order) async {
+    final action = await showModalBottomSheet<_HistoryDetailAction>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: false,
+      showDragHandle: false,
+      backgroundColor: AppColors.transparent,
+      barrierColor: AppColors.background.withValues(alpha: .28),
+      builder: (sheetContext) => _OrderDetailSheet(
+        order: order,
+        onChart: () =>
+            Navigator.pop(sheetContext, _HistoryDetailAction.openChart),
+      ),
+    );
+    if (!mounted || action != _HistoryDetailAction.openChart) return;
+    await _openHistoryChart(order.symbol);
+  }
+
+  Future<void> _showPositionDetails(DemoHistoryPosition entry) async {
+    if (entry.isBalance) return;
+    final action = await showModalBottomSheet<_HistoryDetailAction>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: false,
+      showDragHandle: false,
+      backgroundColor: AppColors.transparent,
+      barrierColor: AppColors.background.withValues(alpha: .28),
+      builder: (sheetContext) => _PositionHistoryDetailSheet(
+        entry: entry,
+        onChart: () =>
+            Navigator.pop(sheetContext, _HistoryDetailAction.openChart),
+      ),
+    );
+    if (!mounted || action != _HistoryDetailAction.openChart) return;
+    await _openHistoryChart(entry.title);
+  }
+
+  Future<void> _openHistoryChart(String symbol) {
+    return Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => _HistoryChartPage(symbol: symbol),
+      ),
+    );
+  }
+}
+
+enum _HistoryDetailAction { openChart }
+
+class _HistoryFilterCache<T> {
+  List<T>? _source;
+  _HistoryPeriod? _period;
+  DateTimeRange? _customRange;
+  String? _symbolFilter;
+  List<T>? _result;
+
+  List<T> resolve({
+    required List<T> source,
+    required _HistoryPeriod period,
+    required DateTimeRange? customRange,
+    required String? symbolFilter,
+    required bool Function(T entry) include,
+  }) {
+    final cachedResult = _result;
+    if (cachedResult != null &&
+        identical(_source, source) &&
+        _period == period &&
+        _customRange == customRange &&
+        _symbolFilter == symbolFilter) {
+      return cachedResult;
+    }
+
+    final result = source.where(include).toList(growable: false);
+    _source = source;
+    _period = period;
+    _customRange = customRange;
+    _symbolFilter = symbolFilter;
+    _result = result;
+    return result;
+  }
+}
+
+enum _HistoryPeriod {
+  today('Hôm nay'),
+  lastWeek('Tuần vừa rồi'),
+  lastMonth('Tháng vừa qua'),
+  lastThreeMonths('3 tháng vừa qua'),
+  sixMonths('6 tháng vừa qua'),
+  lastYear('Năm vừa rồi'),
+  custom('Tùy chỉnh');
+
+  const _HistoryPeriod(this.label);
+  final String label;
+}
+
+class _HistoryFilterResult {
+  const _HistoryFilterResult({required this.period, required this.symbol});
+
+  final _HistoryPeriod period;
+  final String? symbol;
+}
+
+class _HistoryFilterScreen extends StatefulWidget {
+  const _HistoryFilterScreen({
+    required this.period,
+    required this.symbol,
+    required this.symbols,
+  });
+
+  final _HistoryPeriod period;
+  final String? symbol;
+  final List<String> symbols;
+
+  @override
+  State<_HistoryFilterScreen> createState() => _HistoryFilterScreenState();
+}
+
+class _HistoryFilterScreenState extends State<_HistoryFilterScreen> {
+  late _HistoryPeriod period = widget.period;
+  late String? symbol = widget.symbol;
+
+  Future<void> _showSymbolPicker() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * .62,
+          child: Column(
+            children: [
+              const ListTile(
+                title: Text(
+                  'Symbol',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  children: [
+                    _SymbolFilterRow(
+                      label: 'Tất cả Symbols',
+                      selected: symbol == null,
+                      onTap: () => Navigator.pop(sheetContext, ''),
+                    ),
+                    for (final item in widget.symbols)
+                      _SymbolFilterRow(
+                        label: displayTradingSymbol(item),
+                        selected: symbol == item,
+                        onTap: () => Navigator.pop(sheetContext, item),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() => symbol = selected.isEmpty ? null : selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            SizedBox(
+              height: 76,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 18,
+                    top: 29,
+                    child: _CircleButton(
+                      onTap: () => Navigator.pop(
+                        context,
+                        _HistoryFilterResult(period: period, symbol: symbol),
+                      ),
+                      child: const Icon(
+                        CupertinoIcons.chevron_left,
+                        color: AppColors.textPrimary,
+                        size: 27,
+                      ),
+                    ),
+                  ),
+                  const Positioned(
+                    left: 70,
+                    right: 70,
+                    top: 41.5,
+                    child: Text(
+                      'Lịch sử',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(18.7, 4, 18.7, 24),
+                children: [
+                  Material(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(24),
+                    child: InkWell(
+                      key: const Key('history-symbol-filter'),
+                      borderRadius: BorderRadius.circular(24),
+                      onTap: _showSymbolPicker,
+                      child: SizedBox(
+                        height: 49,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: Row(
+                            children: [
+                              const Text(
+                                'Symbol:',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                symbol == null
+                                    ? 'Tất cả Symbols'
+                                    : displayTradingSymbol(symbol!),
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 34),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      children: [
+                        for (
+                          var index = 0;
+                          index < _HistoryPeriod.values.length;
+                          index++
+                        )
+                          InkWell(
+                            onTap: () {
+                              final selected = _HistoryPeriod.values[index];
+                              if (selected == _HistoryPeriod.custom) {
+                                Navigator.pop(
+                                  context,
+                                  _HistoryFilterResult(
+                                    period: selected,
+                                    symbol: symbol,
+                                  ),
+                                );
+                              } else {
+                                setState(() => period = selected);
+                              }
+                            },
+                            child: Container(
+                              height: 49.5,
+                              decoration:
+                                  index == _HistoryPeriod.values.length - 1
+                                  ? null
+                                  : const BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: AppColors.divider,
+                                          width: .5,
+                                        ),
+                                      ),
+                                    ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    _HistoryPeriod.values[index].label,
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 15.2,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (_HistoryPeriod.values[index] == period)
+                                    const Icon(
+                                      CupertinoIcons.check_mark,
+                                      color: AppColors.primary,
+                                      size: 22,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 34),
+                  Material(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {},
+                      child: SizedBox(
+                        height: 62,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: Row(
+                            children: [
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Tạo báo cáo giao dịch',
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 15.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    period.label,
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Spacer(),
+                              const Icon(
+                                CupertinoIcons.chevron_right,
+                                color: AppColors.textTertiary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SymbolFilterRow extends StatelessWidget {
+  const _SymbolFilterRow({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    title: Text(label),
+    trailing: selected
+        ? const Icon(CupertinoIcons.check_mark, color: AppColors.primary)
+        : null,
+    onTap: onTap,
+  );
+}
+
+class _HistoryHeader extends StatelessWidget {
+  const _HistoryHeader({
+    required this.tab,
+    required this.onTabChanged,
+    required this.onSort,
+    required this.onPeriod,
+  });
+
+  final int tab;
+  final ValueChanged<int> onTabChanged;
+  final VoidCallback onSort;
+  final VoidCallback onPeriod;
+
+  @override
+  Widget build(BuildContext context) {
+    const labels = ['Lenh co...', 'Cac lenh', 'Cac giao...'];
+    return SizedBox(
+      height: _historyHeaderExtent,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 16,
+            top: 38,
+            child: _CircleButton(
+              key: const Key('history-sort-button'),
+              dimension: 42.6666666667,
+              onTap: onSort,
+              child: const _SortHistoryIcon(),
+            ),
+          ),
+          Positioned(
+            left: 69,
+            right: 67.3333333333,
+            top: 37.3333333333,
+            height: 44,
+            child: Container(
+              key: const Key('history-segmented-control'),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(25),
+                border: Border.all(color: AppColors.divider, width: .6),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(3, 1.3333333333, 3, 2),
+                child: Row(
+                  children: List.generate(labels.length, (index) {
+                    final selected = tab == index;
+                    final segment = Semantics(
+                      key: ValueKey('history-tab-$index'),
+                      button: true,
+                      selected: selected,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => onTabChanged(index),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? AppColors.surfaceSelected
+                                : AppColors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Center(
+                            child: Transform.translate(
+                              offset: Offset(switch (index) {
+                                0 => 2,
+                                1 => 4,
+                                _ => 2,
+                              }, index == 2 ? 0 : .3333333333),
+                              child: Transform.scale(
+                                scaleX: switch (index) {
+                                  0 => 1.055,
+                                  1 => 1.10,
+                                  _ => 1.061,
+                                },
+                                scaleY: index == 2 ? .94 : .985,
+                                alignment: switch (index) {
+                                  0 => Alignment.bottomRight,
+                                  1 => Alignment.bottomCenter,
+                                  _ => Alignment.centerLeft,
+                                },
+                                child: Text(
+                                  labels[index],
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 15.5,
+                                    height: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                    if (index == 0) {
+                      return SizedBox(width: 75.3333333333, child: segment);
+                    }
+                    return Expanded(child: segment);
+                  }),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 13,
+            top: 38,
+            child: _CircleButton(
+              key: const Key('history-period-button'),
+              dimension: 42.6666666667,
+              onTap: onPeriod,
+              child: Transform.translate(
+                offset: const Offset(0, .3333333333),
+                child: Transform.scale(
+                  scaleX: .95,
+                  scaleY: .95,
+                  child: const _HistoryPeriodIcon(
+                    key: Key('history-period-icon'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CircleButton extends StatelessWidget {
+  const _CircleButton({
+    required this.onTap,
+    required this.child,
+    this.dimension = 40,
+    super.key,
+  });
+
+  final VoidCallback onTap;
+  final Widget child;
+  final double dimension;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.surface,
+    shape: const CircleBorder(
+      side: BorderSide(color: AppColors.divider, width: .6),
+    ),
+    child: InkWell(
+      customBorder: const CircleBorder(),
+      onTap: onTap,
+      child: SizedBox.square(
+        dimension: dimension,
+        child: Center(child: child),
+      ),
+    ),
+  );
+}
+
+class _SortHistoryIcon extends StatelessWidget {
+  const _SortHistoryIcon();
+
+  @override
+  Widget build(BuildContext context) => Transform.translate(
+    offset: const Offset(.6666666667, -.3333333333),
+    child: Transform.scale(
+      scaleX: .8,
+      scaleY: .95,
+      child: CustomPaint(
+        key: const Key('history-sort-icon'),
+        size: const Size(22, 20),
+        painter: _SortHistoryIconPainter(),
+      ),
+    ),
+  );
+}
+
+class _SortHistoryIconPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.textPrimary
+      ..style = PaintingStyle.fill;
+    final arrow = Path()
+      ..moveTo(5, 1.7)
+      ..lineTo(9.5, 6.25)
+      ..lineTo(6.25, 6.25)
+      ..lineTo(6.25, 13.5)
+      ..lineTo(9.5, 13.5)
+      ..lineTo(5, 18)
+      ..lineTo(.5, 13.5)
+      ..lineTo(3.75, 13.5)
+      ..lineTo(3.75, 6.25)
+      ..lineTo(.5, 6.25)
+      ..close();
+    canvas.drawPath(arrow, paint);
+    for (final y in const [4.0, 8.5, 13.0]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(13, y, 7.6, 2.25),
+          const Radius.circular(.35),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _HistoryPeriodIcon extends StatelessWidget {
+  const _HistoryPeriodIcon({super.key});
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    alignment: Alignment.center,
+    children: const [
+      // Retain the platform icon node for compatibility with existing
+      // interaction finders while the reference-accurate painter is visible.
+      Icon(CupertinoIcons.clock, color: AppColors.transparent, size: 24),
+      CustomPaint(size: Size.square(24), painter: _HistoryPeriodIconPainter()),
+    ],
+  );
+}
+
+class _HistoryPeriodIconPainter extends CustomPainter {
+  const _HistoryPeriodIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final ring = Paint()
+      ..color = AppColors.textPrimary
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.05
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawCircle(const Offset(12, 12), 8.9, ring);
+
+    final hands = Paint()
+      ..color = AppColors.textPrimary
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.65
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final path = Path()
+      ..moveTo(12, 6.35)
+      ..lineTo(12, 12.35)
+      ..lineTo(15.55, 15.55);
+    canvas.drawPath(path, hands);
+  }
+
+  @override
+  bool shouldRepaint(covariant _HistoryPeriodIconPainter oldDelegate) => false;
+}
+
+class _DealsHistory extends StatelessWidget {
+  const _DealsHistory({
+    required this.deals,
+    required this.descending,
+    required this.profile,
+    required this.onDealTap,
+  });
+
+  final List<DemoDeal> deals;
+  final bool descending;
+  final DemoAccountProfile profile;
+  final ValueChanged<DemoDeal> onDealTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final summaryRowCount = profile.historyWithdrawal == 0 ? 5 : 6;
+    return Scrollbar(
+      key: const Key('history-deals-scrollbar'),
+      interactive: true,
+      thumbVisibility: false,
+      thickness: 2,
+      radius: const Radius.circular(2),
+      child: ListView.builder(
+        key: const PageStorageKey('history-deals-list'),
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          6,
+          _historyListTopPadding(context),
+          4,
+          81.3333333333,
+        ),
+        itemCount: deals.length + 2,
+        itemExtentBuilder: (index, _) {
+          if (index < deals.length) return _historyRowExtent;
+          if (index == deals.length) return 2;
+          return summaryRowCount * _historySummaryRowExtent;
+        },
+        itemBuilder: (context, index) {
+          if (index < deals.length) {
+            final deal = deals[descending ? index : deals.length - index - 1];
+            return Semantics(
+              button: true,
+              child: Material(
+                color: AppColors.transparent,
+                child: InkWell(
+                  key: ValueKey('history-deal-${deal.id}'),
+                  onTap: () => onDealTap(deal),
+                  child: SizedBox(
+                    height: _historyRowExtent,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: 0,
+                          top: _historyPrimaryTop,
+                          child: Transform.scale(
+                            scaleX: .975,
+                            alignment: Alignment.centerLeft,
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text:
+                                        '${displayTradingSymbol(deal.symbol)} ',
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text:
+                                        '${deal.side.toLowerCase()}, '
+                                        '${deal.entry}',
+                                    style: TextStyle(
+                                      color: _sideColor(deal.side),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              style: const TextStyle(
+                                fontSize: _historyPrimaryFontSize,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 0,
+                          top: _historySecondaryTop,
+                          child: Text(
+                            '${deal.volume.toStringAsFixed(2)} at '
+                            '${deal.price.toStringAsFixed(_historyPriceDigitsForSymbol(deal.symbol))}',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: _historySecondaryFontSize,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: _historySecondaryTop,
+                          child: Text(
+                            deal.time,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: _historySecondaryFontSize,
+                              height: 1,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+          if (index == deals.length) {
+            return const SizedBox(height: 2);
+          }
+          return _SummaryRows(
+            rows: [
+              ('Tien nap', _formatMoney(profile.historyDeposit)),
+              if (profile.historyWithdrawal != 0)
+                ('Tien rut', _formatMoney(profile.historyWithdrawal)),
+              ('Loi nhuan', _formatMoney(profile.historyProfit)),
+              ('Phi qua dem', _formatMoney(profile.historySwap)),
+              ('Hoa hong', _formatMoney(profile.historyCommission)),
+              ('Số dư', _formatMoney(profile.historyBalance)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _OrdersHistory extends StatelessWidget {
+  const _OrdersHistory({
+    required this.orders,
+    required this.descending,
+    required this.onOrderTap,
+  });
+
+  final List<DemoOrder> orders;
+  final bool descending;
+  final ValueChanged<DemoOrder> onOrderTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      key: const Key('history-orders-scrollbar'),
+      interactive: true,
+      thumbVisibility: false,
+      thickness: 2,
+      radius: const Radius.circular(2),
+      child: ListView.builder(
+        key: const PageStorageKey('history-orders-list'),
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          6,
+          _historyListTopPadding(context),
+          4,
+          81.3333333333,
+        ),
+        itemCount: orders.length + 2,
+        itemExtentBuilder: (index, _) {
+          if (index < orders.length) return _historyRowExtent;
+          if (index == orders.length) return 3;
+          return 3 * _historySummaryRowExtent;
+        },
+        itemBuilder: (context, index) {
+          if (index < orders.length) {
+            final order =
+                orders[descending ? index : orders.length - index - 1];
+            return Semantics(
+              button: true,
+              child: Material(
+                color: AppColors.transparent,
+                child: InkWell(
+                  key: ValueKey('history-order-${order.id}'),
+                  onTap: () => onOrderTap(order),
+                  child: SizedBox(
+                    height: _historyRowExtent,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: 0,
+                          top: _historyPrimaryTop,
+                          child: Transform.scale(
+                            scaleX: .975,
+                            alignment: Alignment.centerLeft,
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text:
+                                        '${displayTradingSymbol(order.symbol)} ',
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: _orderTypeLabel(order),
+                                    style: TextStyle(
+                                      color: _sideColor(order.side),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              style: const TextStyle(
+                                fontSize: _historyPrimaryFontSize,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: _historyPrimaryTop,
+                          child: Text(
+                            order.status,
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontSize: _historyPrimaryFontSize,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 0,
+                          top: _historySecondaryTop,
+                          child: Text(
+                            _orderVolumeLabel(order),
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: _historySecondaryFontSize,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: _historySecondaryTop,
+                          child: Text(
+                            order.time,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: _historySecondaryFontSize,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+          if (index == orders.length) {
+            return const SizedBox(height: 3);
+          }
+          return _SummaryRows(
+            rows: [
+              ('Tổng cộng', '${orders.length}'),
+              (
+                'Filled',
+                '${orders.where((item) => item.status == 'filled').length}',
+              ),
+              (
+                'Bị hủy',
+                '${orders.where((item) => item.status == 'canceled').length}',
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PositionsHistory extends StatelessWidget {
+  const _PositionsHistory({
+    required this.controller,
+    required this.entries,
+    required this.descending,
+    required this.profile,
+    required this.tradingBalance,
+    required this.onEntryTap,
+  });
+
+  final ScrollController controller;
+  final List<DemoHistoryPosition> entries;
+  final bool descending;
+  final DemoAccountProfile profile;
+  final double tradingBalance;
+  final ValueChanged<DemoHistoryPosition> onEntryTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final realizedAdjustment = tradingBalance - profile.balance;
+    final summaryRowCount = profile.historyWithdrawal == 0 ? 5 : 6;
+    return Scrollbar(
+      key: const Key('history-positions-scrollbar'),
+      controller: controller,
+      interactive: true,
+      thumbVisibility: false,
+      thickness: 2,
+      radius: const Radius.circular(2),
+      child: ListView.builder(
+        key: const PageStorageKey('history-positions-list'),
+        controller: controller,
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          6,
+          _historyListTopPadding(context),
+          4,
+          81.3333333333,
+        ),
+        itemCount: entries.length + 1,
+        itemExtentBuilder: (index, _) => index < entries.length
+            ? _historyRowExtent
+            : summaryRowCount * _historySummaryRowExtent,
+        itemBuilder: (context, index) {
+          if (index < entries.length) {
+            final entry =
+                entries[descending ? index : entries.length - index - 1];
+            return _HistoryPositionRow(
+              entry: entry,
+              onTap: entry.isBalance ? null : () => onEntryTap(entry),
+            );
+          }
+          return _SummaryRows(
+            rows: [
+              ('Tien nap', _formatMoney(profile.historyDeposit)),
+              if (profile.historyWithdrawal != 0)
+                ('Tien rut', _formatMoney(profile.historyWithdrawal)),
+              (
+                'Loi nhuan',
+                _formatMoney(profile.historyProfit + realizedAdjustment),
+              ),
+              ('Phi qua dem', _formatMoney(profile.historySwap)),
+              ('Hoa hong', _formatMoney(profile.historyCommission)),
+              (
+                'Số dư',
+                _formatMoney(profile.historyBalance + realizedAdjustment),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HistoryPositionRow extends StatelessWidget {
+  const _HistoryPositionRow({required this.entry, required this.onTap});
+
+  final DemoHistoryPosition entry;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final sideColor = entry.side == 'SELL'
+        ? AppColors.negative
+        : AppColors.primary;
+    final profitColor = entry.profit < 0
+        ? AppColors.negative
+        : AppColors.primary;
+    final volume = entry.volume;
+    final volumeLabel = volume == null
+        ? ''
+        : volume >= 1
+        ? volume.toStringAsFixed(0)
+        : volume.toStringAsFixed(2);
+    final priceDigits = _historyPriceDigitsForSymbol(entry.title);
+    return Semantics(
+      button: onTap != null,
+      child: Material(
+        color: AppColors.transparent,
+        child: InkWell(
+          key: ValueKey('history-position-${entry.id}'),
+          onTap: onTap,
+          child: SizedBox(
+            height: _historyRowExtent,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  top: _historyPrimaryTop,
+                  child: Transform.scale(
+                    scaleX: .975,
+                    alignment: Alignment.centerLeft,
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: displayTradingSymbol(entry.title),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (!entry.isBalance)
+                            TextSpan(
+                              text:
+                                  ' ${entry.side?.toLowerCase() ?? ''} $volumeLabel',
+                              style: TextStyle(color: sideColor),
+                            ),
+                        ],
+                      ),
+                      style: const TextStyle(
+                        fontSize: _historyPrimaryFontSize,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: _historyPrimaryTop,
+                  child: Transform.translate(
+                    offset: const Offset(1.3333333333, 0),
+                    child: Transform.scale(
+                      scaleX: .97,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        _formatMoney(entry.profit),
+                        style: TextStyle(
+                          color: profitColor,
+                          fontSize: _historyPrimaryFontSize,
+                          height: 1,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  top: _historySecondaryTop,
+                  child: Text(
+                    entry.isBalance
+                        ? entry.subtitle ?? ''
+                        : _historyPriceRange(entry, priceDigits),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: _historySecondaryFontSize,
+                      height: 1,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: _historySecondaryTop,
+                  child: Text(
+                    entry.time,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: _historySecondaryFontSize,
+                      height: 1,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _formatMoney(double value) {
+  final fixed = value.abs().toStringAsFixed(2);
+  final parts = fixed.split('.');
+  final digits = parts.first;
+  final groups = <String>[];
+  for (var end = digits.length; end > 0; end -= 3) {
+    groups.insert(0, digits.substring((end - 3).clamp(0, end), end));
+  }
+  return '${value < 0 ? '-' : ''}${groups.join(' ')}.${parts.last}';
+}
+
+class _SummaryRows extends StatelessWidget {
+  const _SummaryRows({required this.rows});
+
+  final List<(String, String)> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final row in rows)
+          SizedBox(
+            key: ValueKey('history-summary-${row.$1}'),
+            height: _historySummaryRowExtent,
+            child: Row(
+              children: [
+                Transform.scale(
+                  scaleX: 1.035,
+                  scaleY: 1.06,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    row.$1,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontFamily: 'sans-serif',
+                      fontSize: _historySummaryFontSize,
+                      fontWeight: FontWeight.w500,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Transform.scale(
+                  scaleX: 1.035,
+                  scaleY: 1.06,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    row.$2,
+                    key: row.$1 == 'Loi nhuan'
+                        ? const Key('history-report-profit-value')
+                        : null,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontFamily: 'sans-serif',
+                      fontSize: _historySummaryFontSize,
+                      fontWeight: FontWeight.w500,
+                      height: 1,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DealDetailSheet extends StatelessWidget {
+  const _DealDetailSheet({required this.deal, required this.onChart});
+
+  final DemoDeal deal;
+  final VoidCallback onChart;
+
+  @override
+  Widget build(BuildContext context) {
+    final orderId = deal.orderId.isEmpty ? deal.id : deal.orderId;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(5.3, 0, 5.3, 26),
+        child: KeyedSubtree(
+          key: ValueKey('history-deal-detail-${deal.id}'),
+          child: Column(
+            key: const Key('history-detail-sheet'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _HistoryDetailTicketHeader(
+                symbol: deal.symbol,
+                action: '${deal.side.toLowerCase()}, ${deal.entry}',
+                ticket: deal.id,
+              ),
+              Container(
+                height: 110,
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(4),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: 4,
+                      top: 9,
+                      child: Text(
+                        '${deal.volume.toStringAsFixed(2)} at '
+                        '${deal.price.toStringAsFixed(_historyPriceDigitsForSymbol(deal.symbol))}',
+                        style: _HistoryDetailStyles.value,
+                      ),
+                    ),
+                    Positioned(
+                      left: 4,
+                      top: 40,
+                      child: Text(deal.time, style: _HistoryDetailStyles.value),
+                    ),
+                    Positioned(
+                      left: 4,
+                      right: 4,
+                      top: 69,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _HistoryDetailPair(
+                              label: 'Lệnh:',
+                              value: orderId,
+                              valueOffset: 80,
+                            ),
+                          ),
+                          const Expanded(
+                            child: _HistoryDetailPair(
+                              label: 'Phí qua đêm:',
+                              value: '-',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Positioned(
+                      left: 4,
+                      right: 4,
+                      top: 91,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _HistoryDetailPair(
+                              label: 'Trạng thái:',
+                              value: deal.status,
+                              valueOffset: 80,
+                            ),
+                          ),
+                          const Expanded(
+                            child: _HistoryDetailPair(
+                              label: 'Phí:',
+                              value: '-',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              _HistoryChartButton(onTap: onChart),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderDetailSheet extends StatelessWidget {
+  const _OrderDetailSheet({required this.order, required this.onChart});
+
+  final DemoOrder order;
+  final VoidCallback onChart;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(5.3, 0, 5.3, 26),
+        child: KeyedSubtree(
+          key: ValueKey('history-order-detail-${order.id}'),
+          child: Column(
+            key: const Key('history-detail-sheet'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _HistoryDetailTicketHeader(
+                symbol: order.symbol,
+                action: _orderTypeLabel(order),
+                ticket: order.id,
+              ),
+              Container(
+                height: 110,
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(4),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: 4,
+                      right: 4,
+                      top: 9,
+                      child: Row(
+                        children: [
+                          Text(
+                            _orderVolumeLabel(order),
+                            style: _HistoryDetailStyles.value,
+                          ),
+                          const Spacer(),
+                          Text(
+                            order.status,
+                            style: _HistoryDetailStyles.status,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Positioned(
+                      left: 4,
+                      top: 40,
+                      child: Text(
+                        order.time,
+                        style: _HistoryDetailStyles.value,
+                      ),
+                    ),
+                    const Positioned(
+                      left: 4,
+                      width: 146,
+                      top: 69,
+                      child: _HistoryDetailPair(label: 'S/L:', value: '-'),
+                    ),
+                    const Positioned(
+                      left: 4,
+                      width: 146,
+                      top: 91,
+                      child: _HistoryDetailPair(label: 'T/P:', value: '-'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              _HistoryChartButton(onTap: onChart),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PositionHistoryDetailSheet extends StatelessWidget {
+  const _PositionHistoryDetailSheet({
+    required this.entry,
+    required this.onChart,
+  });
+
+  final DemoHistoryPosition entry;
+  final VoidCallback onChart;
+
+  @override
+  Widget build(BuildContext context) {
+    final volume = entry.volume ?? 0;
+    final volumeLabel = volume >= 1
+        ? volume.toStringAsFixed(0)
+        : volume.toStringAsFixed(2);
+    final priceDigits = _historyPriceDigitsForSymbol(entry.title);
+    final side = entry.side?.toLowerCase() ?? '';
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(5.3, 0, 5.3, 26),
+        child: KeyedSubtree(
+          key: ValueKey('history-position-detail-${entry.id}'),
+          child: Column(
+            key: const Key('history-detail-sheet'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _HistoryDetailTicketHeader(
+                symbol: entry.title,
+                action: '$side $volumeLabel',
+                ticket: entry.id,
+              ),
+              Container(
+                height: 110,
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(4),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: 4,
+                      right: 4,
+                      top: 9,
+                      child: Row(
+                        children: [
+                          Text(
+                            _historyPriceRange(entry, priceDigits),
+                            style: _HistoryDetailStyles.value,
+                          ),
+                          const Spacer(),
+                          Text(
+                            _formatMoney(entry.profit),
+                            style: TextStyle(
+                              color: entry.profit < 0
+                                  ? AppColors.negative
+                                  : AppColors.primary,
+                              fontSize: 15.2,
+                              height: 1,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Positioned(
+                      left: 4,
+                      top: 40,
+                      child: Text(
+                        entry.time,
+                        style: _HistoryDetailStyles.value,
+                      ),
+                    ),
+                    Positioned(
+                      left: 4,
+                      right: 4,
+                      top: 69,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _HistoryDetailPair(
+                              label: 'Khối lượng:',
+                              value: volumeLabel,
+                            ),
+                          ),
+                          Expanded(
+                            child: _HistoryDetailPair(
+                              label: 'Trạng thái:',
+                              value: 'đã đóng',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              _HistoryChartButton(onTap: onChart),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryDetailTicketHeader extends StatelessWidget {
+  const _HistoryDetailTicketHeader({
+    required this.symbol,
+    required this.action,
+    required this.ticket,
+  });
+
+  final String symbol;
+  final String action;
+  final String ticket;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: .7),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            left: 4,
+            top: 6,
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${displayTradingSymbol(symbol)} ',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  TextSpan(
+                    text: action,
+                    style: TextStyle(color: _sideColor(action)),
+                  ),
+                ],
+              ),
+              key: const Key('history-detail-title'),
+              style: const TextStyle(fontSize: 14.2, height: 1),
+            ),
+          ),
+          Positioned(
+            right: 4,
+            top: 6,
+            child: Text(
+              '#$ticket',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13.4,
+                height: 1,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 4,
+            top: 27,
+            child: Text(
+              _symbolDescription(symbol),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13.4,
+                height: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryDetailPair extends StatelessWidget {
+  const _HistoryDetailPair({
+    required this.label,
+    required this.value,
+    this.valueOffset,
+  });
+
+  final String label;
+  final String value;
+  final double? valueOffset;
+
+  @override
+  Widget build(BuildContext context) {
+    if (valueOffset case final offset?) {
+      return SizedBox(
+        height: 14,
+        child: Stack(
+          children: [
+            Text(label, style: _HistoryDetailStyles.label),
+            Positioned(
+              left: offset,
+              child: Text(value, style: _HistoryDetailStyles.label),
+            ),
+          ],
+        ),
+      );
+    }
+    return Row(
+      children: [
+        Text(label, style: _HistoryDetailStyles.label),
+        const Spacer(),
+        Text(value, style: _HistoryDetailStyles.label),
+      ],
+    );
+  }
+}
+
+class _HistoryChartButton extends StatelessWidget {
+  const _HistoryChartButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface.withValues(alpha: .94),
+      borderRadius: BorderRadius.circular(4),
+      child: InkWell(
+        key: const Key('history-detail-chart'),
+        borderRadius: BorderRadius.circular(4),
+        onTap: onTap,
+        child: const SizedBox(
+          height: 49,
+          width: double.infinity,
+          child: Center(
+            child: Text(
+              'Biểu đồ',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 17,
+                height: 1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+abstract final class _HistoryDetailStyles {
+  static const value = TextStyle(
+    color: AppColors.textSecondary,
+    fontSize: 15.2,
+    height: 1,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  static const label = TextStyle(
+    color: AppColors.textTertiary,
+    fontSize: 13.5,
+    height: 1,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  static const status = TextStyle(
+    color: AppColors.primary,
+    fontSize: 15.2,
+    height: 1,
+  );
+}
+
+class _HistoryChartPage extends StatelessWidget {
+  const _HistoryChartPage({required this.symbol});
+
+  final String symbol;
+
+  static const _locations = [
+    '/market',
+    '/chart',
+    '/trade',
+    '/history',
+    '/settings',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: ChartScreen(
+        key: const Key('history-chart-screen'),
+        symbol: symbol,
+        initialTimeframe: 'D1',
+      ),
+      bottomNavigationBar: MtBottomNavigationBar(
+        selectedIndex: 1,
+        onTap: (index) {
+          if (index == 1) return;
+          if (index == 3) {
+            Navigator.of(context, rootNavigator: true).maybePop();
+            return;
+          }
+          context.go(_locations[index]);
+        },
+      ),
+    );
+  }
+}
+
+double _historyListTopPadding(BuildContext context) =>
+    MediaQuery.paddingOf(context).top +
+    _historyHeaderExtent +
+    _historyListTopGap;
+
+Color _sideColor(String side) =>
+    side.toUpperCase().contains('SELL') || side.toLowerCase().contains('sell')
+    ? AppColors.negative
+    : AppColors.primary;
+
+String _orderTypeLabel(DemoOrder order) => order.type == 'Market'
+    ? order.side.toLowerCase()
+    : order.type.toLowerCase();
+
+String _orderVolumeLabel(DemoOrder order) =>
+    '${order.volume.toStringAsFixed(2)} / '
+    '${order.status == 'filled' ? order.volume.toStringAsFixed(2) : '0.00'} '
+    'at ${order.type == 'Market' ? 'market' : order.requestedPrice.toStringAsFixed(2)}';
+
+String _symbolDescription(String symbol) => switch (symbol) {
+  'XAUUSD' || 'XAUUSD+' => 'Gold US Dollar',
+  _ => symbol,
+};

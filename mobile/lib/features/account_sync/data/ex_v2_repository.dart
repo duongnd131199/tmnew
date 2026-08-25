@@ -30,7 +30,7 @@ final class ExV2Repository {
   Future<List<JsonMap>> historyTransactions({
     int page = 1,
     int pageSize = 50,
-  }) => _readMaps('/history/transactions', page: page, pageSize: pageSize);
+  }) => _readAllMaps('/history/transactions', page: page, pageSize: pageSize);
 
   Future<List<JsonMap>> historyOrders({int page = 1, int pageSize = 50}) =>
       _readAllMaps('/history/orders', page: page, pageSize: pageSize);
@@ -38,12 +38,14 @@ final class ExV2Repository {
   Future<ExV2HistorySummary> historySummary() async =>
       ExV2HistorySummary.fromJson(await _client.getJson('/history/summary'));
 
-  Future<List<JsonMap>> walletTransactions() =>
-      _readMaps('/wallet/transactions');
+  Future<List<JsonMap>> walletTransactions({int page = 1, int pageSize = 50}) =>
+      _readAllMaps('/wallet/transactions', page: page, pageSize: pageSize);
 
-  Future<List<JsonMap>> deposits() => _readMaps('/deposits');
+  Future<List<JsonMap>> deposits({int page = 1, int pageSize = 50}) =>
+      _readAllMaps('/deposits', page: page, pageSize: pageSize);
 
-  Future<List<JsonMap>> withdrawals() => _readMaps('/withdrawals');
+  Future<List<JsonMap>> withdrawals({int page = 1, int pageSize = 50}) =>
+      _readAllMaps('/withdrawals', page: page, pageSize: pageSize);
 
   Future<List<JsonMap>> transfers() => _readMaps('/transfers');
 

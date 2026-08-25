@@ -1,7 +1,57 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 import 'test_support/video_reference_fixtures.dart';
+
+DemoTradingState _contextualBulkSeed(String accountId) =>
+    const DemoTradingState(
+      balance: 100000,
+      positions: [
+        DemoPosition(
+          id: 'x-buy-win',
+          symbol: 'XAUUSD',
+          side: 'BUY',
+          volume: 1,
+          openPrice: 4622.83,
+          currentPrice: 4623.10,
+          profit: 27,
+        ),
+        DemoPosition(
+          id: 'x-buy-loss',
+          symbol: 'XAUUSD',
+          side: 'BUY',
+          volume: 2,
+          openPrice: 4624,
+          currentPrice: 4623.10,
+          profit: -90,
+        ),
+        DemoPosition(
+          id: 'x-sell-win',
+          symbol: 'XAUUSD',
+          side: 'SELL',
+          volume: .5,
+          openPrice: 4624.10,
+          currentPrice: 4623.10,
+          profit: 50,
+        ),
+        DemoPosition(
+          id: 'e-buy-win',
+          symbol: 'EURUSD',
+          side: 'BUY',
+          volume: .1,
+          openPrice: 1.10,
+          currentPrice: 1.11,
+          profit: 10,
+        ),
+      ],
+      deals: [],
+    );
+
+ProviderContainer _createContextualBulkContainer() => ProviderContainer(
+  overrides: [demoTradingSeedProvider.overrideWithValue(_contextualBulkSeed)],
+);
 
 void main() {
   test('placing and closing a demo order updates positions and history', () {
@@ -319,6 +369,133 @@ void main() {
         startsWith('closed-${remainingPositionIds[index]}-'),
       );
     }
+  });
+
+  test('contextual bulk closes positions matching symbol and side', () {
+    final container = _createContextualBulkContainer();
+    addTearDown(container.dispose);
+
+    final closed = container
+        .read(demoTradingProvider.notifier)
+        .closeMatchingPositions(symbol: 'XAUUSD', side: 'buy');
+
+    expect(closed, 2);
+    expect(
+      container.read(demoPositionsProvider).map((item) => item.id),
+      orderedEquals(['x-sell-win', 'e-buy-win']),
+    );
+    expect(
+      container
+          .read(demoTradingProvider)
+          .historyPositions
+          .map((item) => item.id),
+      orderedEquals([
+        startsWith('closed-x-buy-win-'),
+        startsWith('closed-x-buy-loss-'),
+      ]),
+    );
+  });
+
+  test('contextual bulk closes only profitable positions', () {
+    final container = _createContextualBulkContainer();
+    addTearDown(container.dispose);
+
+    final closed = container
+        .read(demoTradingProvider.notifier)
+        .closeMatchingPositions(profitableOnly: true);
+
+    expect(closed, 3);
+    expect(
+      container.read(demoPositionsProvider).map((item) => item.id),
+      orderedEquals(['x-buy-loss']),
+    );
+  });
+
+  test('contextual profitable bulk keeps zero-profit positions open', () {
+    final container = ProviderContainer(
+      overrides: [
+        demoTradingSeedProvider.overrideWithValue(
+          (accountId) => const DemoTradingState(
+            balance: 1000,
+            positions: [
+              DemoPosition(
+                id: 'break-even',
+                symbol: 'XAUUSD',
+                side: 'BUY',
+                volume: 1,
+                openPrice: 4622.83,
+                currentPrice: 4622.83,
+                profit: 0,
+              ),
+              DemoPosition(
+                id: 'winner',
+                symbol: 'XAUUSD',
+                side: 'BUY',
+                volume: 1,
+                openPrice: 4622.83,
+                currentPrice: 4623.83,
+                profit: 100,
+              ),
+            ],
+            deals: [],
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    expect(
+      container
+          .read(demoTradingProvider.notifier)
+          .closeMatchingPositions(profitableOnly: true),
+      1,
+    );
+    expect(container.read(demoPositionsProvider).single.id, 'break-even');
+  });
+
+  test('contextual bulk closes only the selected symbol', () {
+    final container = _createContextualBulkContainer();
+    addTearDown(container.dispose);
+
+    final closed = container
+        .read(demoTradingProvider.notifier)
+        .closeMatchingPositions(symbol: 'XAUUSD');
+
+    expect(closed, 3);
+    expect(
+      container.read(demoPositionsProvider).map((item) => item.id),
+      orderedEquals(['e-buy-win']),
+    );
+  });
+
+  test('contextual bulk normalizes the selected side', () {
+    final container = _createContextualBulkContainer();
+    addTearDown(container.dispose);
+
+    final closed = container
+        .read(demoTradingProvider.notifier)
+        .closeMatchingPositions(side: ' sell ');
+
+    expect(closed, 1);
+    expect(
+      container.read(demoPositionsProvider).map((item) => item.id),
+      orderedEquals(['x-buy-win', 'x-buy-loss', 'e-buy-win']),
+    );
+  });
+
+  test('legacy bulk losing filter remains compatible', () {
+    final container = _createContextualBulkContainer();
+    addTearDown(container.dispose);
+
+    final closed = container
+        .read(demoTradingProvider.notifier)
+        .closeAllPositions(losingOnly: true);
+
+    expect(closed, 1);
+    expect(
+      container.read(demoPositionsProvider).map((item) => item.id),
+      orderedEquals(['x-buy-win', 'x-sell-win', 'e-buy-win']),
+    );
   });
 
   test('partial close keeps the remainder and records only closed volume', () {

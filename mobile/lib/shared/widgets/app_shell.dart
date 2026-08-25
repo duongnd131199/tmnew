@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_shadows.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/chart/data/chart_market_warmup_provider.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
@@ -72,18 +73,23 @@ class _AppShellState extends ConsumerState<AppShell>
   Widget build(BuildContext context) {
     // Warmup is deliberately fire-and-forget from the UI's perspective.
     // Loading or failure must never delay navigation or cover the chart.
-    ref.watch(chartMarketWarmupProvider);
+    ref.listen<AsyncValue<void>>(
+      chartMarketWarmupProvider,
+      (previous, next) {},
+    );
     final accountGeneration = ref.watch(exV2AccountGenerationProvider);
     if (!_accountGenerationInitialized) {
       _accountGenerationInitialized = true;
       _lastAccountGeneration = accountGeneration;
-    } else if (_lastAccountGeneration != accountGeneration) {
+    } else if (_lastAccountGeneration?.value != accountGeneration.value) {
       _lastAccountGeneration = accountGeneration;
       _resettingAccountScope = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_resettingAccountScope) return;
         setState(() => _resettingAccountScope = false);
       });
+    } else {
+      _lastAccountGeneration = accountGeneration;
     }
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
@@ -99,10 +105,7 @@ class _AppShellState extends ConsumerState<AppShell>
                 color: AppColors.background,
               )
             : KeyedSubtree(
-                key: ValueKey((
-                  accountGeneration.accountId,
-                  accountGeneration.value,
-                )),
+                key: ValueKey(accountGeneration.value),
                 child: AppTabScope(
                   index: widget.navigationShell.currentIndex,
                   child: widget.navigationShell,
@@ -133,7 +136,7 @@ class MtBottomNavigationBar extends ConsumerWidget {
   const MtBottomNavigationBar({
     required this.selectedIndex,
     required this.onTap,
-    this.selectedColor = const Color(0xFF25A8F3),
+    this.selectedColor = AppColors.primary,
     super.key,
   });
 
@@ -173,16 +176,9 @@ class MtBottomNavigationBar extends ConsumerWidget {
               height: double.infinity,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: usesChartChrome
-                      ? const Color(0xFF121212)
-                      : const Color(0xFF19191A),
-                  border: Border.all(
-                    color: usesChartChrome
-                        ? const Color(0xFF2D2D2F)
-                        : const Color(0xFF373739),
-                    width: .7,
-                  ),
+                  color: AppColors.navigationSurface,
                   borderRadius: BorderRadius.circular(31),
+                  boxShadow: AppShadows.card,
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(31),
@@ -195,7 +191,7 @@ class MtBottomNavigationBar extends ConsumerWidget {
                         final itemSelectedColor =
                             _items[index].$1 == _MtNavKind.trade
                             ? tradeProfit < 0
-                                  ? const Color(0xFFE84C4C)
+                                  ? AppColors.negative
                                   : selectedColor
                             : selectedColor;
                         return Expanded(
@@ -225,9 +221,8 @@ class MtBottomNavigationBar extends ConsumerWidget {
                                         bottom: 0,
                                         child: DecoratedBox(
                                           decoration: BoxDecoration(
-                                            color: usesChartChrome
-                                                ? const Color(0xFF2D2D2D)
-                                                : const Color(0xFF333333),
+                                            color: AppColors
+                                                .navigationSelectedSurface,
                                             borderRadius: BorderRadius.circular(
                                               27,
                                             ),
@@ -276,7 +271,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? selectedColor : Colors.white;
+    final color = selected ? selectedColor : AppColors.navigationUnselected;
     final baseLabelScaleX = switch (kind) {
       _MtNavKind.quotes => .96,
       _MtNavKind.chart => .94,
@@ -287,7 +282,7 @@ class _NavItem extends StatelessWidget {
     return Stack(
       alignment: Alignment.topCenter,
       children: [
-        Positioned(top: 8.7666666667, child: _MtNavIcon(kind, color: color)),
+        Positioned(top: 12.7666666667, child: _MtNavIcon(kind, color: color)),
         Positioned(
           left: 0,
           right: 0,
@@ -355,26 +350,35 @@ class _MtNavIcon extends StatelessWidget {
     );
     return switch (kind) {
       _MtNavKind.chart => Transform.translate(
-        offset: const Offset(-1.3333333333, 0),
+        offset: const Offset(.1666666667, 2),
         child: Transform.scale(
-          scaleX: 1,
-          scaleY: .93,
-          alignment: Alignment.bottomLeft,
+          scaleX: .93,
+          scaleY: .83,
+          alignment: Alignment.topCenter,
           child: icon,
         ),
       ),
       _MtNavKind.trade => Transform.translate(
-        offset: const Offset(0, .3333333333),
-        child: Transform.scale(scaleY: 1.12, child: icon),
+        offset: const Offset(0, -.6666666667),
+        child: Transform.scale(
+          scaleX: 1.02,
+          scaleY: 1.06,
+          alignment: Alignment.topLeft,
+          child: icon,
+        ),
       ),
       _MtNavKind.history => Transform.translate(
-        offset: const Offset(1.5, .3333333333),
-        child: Transform.scale(scaleX: 1, child: icon),
-      ),
-      _MtNavKind.quotes => Transform.scale(
-        scaleX: 1.04,
-        alignment: Alignment.topLeft,
+        offset: const Offset(.5, .3333333333),
         child: icon,
+      ),
+      _MtNavKind.quotes => Transform.translate(
+        offset: const Offset(1, 0),
+        child: Transform.scale(
+          scaleX: .90,
+          scaleY: .94,
+          alignment: Alignment.topCenter,
+          child: icon,
+        ),
       ),
       _ => icon,
     };
@@ -456,7 +460,7 @@ class _MtNavIconPainter extends CustomPainter {
       case _MtNavKind.history:
         stroke.strokeWidth = 2.05;
         canvas.drawArc(
-          Rect.fromCircle(center: const Offset(13.5, 13.5), radius: 10.2),
+          Rect.fromCircle(center: const Offset(13.5, 13.5), radius: 10),
           math.pi * .9777777778,
           math.pi * 1.7611111111,
           false,

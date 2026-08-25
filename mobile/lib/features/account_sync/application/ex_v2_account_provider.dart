@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import 'package:trading_mobile/features/account_sync/data/ex_v2_demo_mapper.dart
 import 'package:trading_mobile/features/account_sync/data/ex_v2_history_reconciler.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_repository.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_realtime_service.dart';
+import 'package:trading_mobile/features/account_sync/data/ex_v2_wallet_history_mapper.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 
@@ -73,6 +75,16 @@ final exV2ApiClientProvider = Provider<ExV2ApiClient>((ref) {
 
 final exV2RepositoryProvider = Provider<ExV2Repository>(
   (ref) => ExV2Repository(ref.watch(exV2ApiClientProvider)),
+);
+
+typedef ExV2OrderFailureReporter = void Function(Object error);
+
+final exV2OrderFailureReporterProvider = Provider<ExV2OrderFailureReporter>(
+  (ref) =>
+      (error) => developer.log(
+        safeOrderFailureDiagnostic(error),
+        name: 'trading.order',
+      ),
 );
 
 final exV2RealtimeServiceProvider = Provider<ExV2RealtimeService>((ref) {
@@ -163,7 +175,12 @@ final class ExV2AccountGenerationController
     ref.listen(exV2AccountProvider, (_, next) {
       final nextAccountId = next.value?.bootstrap.account.id;
       if (nextAccountId == null || nextAccountId == _committedAccountId) return;
+      final previousAccountId = _committedAccountId;
       _committedAccountId = nextAccountId;
+      if (previousAccountId == null) {
+        state = ExV2AccountGeneration(accountId: nextAccountId, value: _value);
+        return;
+      }
       _value += 1;
       state = ExV2AccountGeneration(accountId: nextAccountId, value: _value);
     });
@@ -186,7 +203,15 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
   int _loadGeneration = 0;
   int _accountGeneration = 0;
   int _publishedActivationAuthority = 0;
+  bool _deferredRefreshRequested = false;
+  Future<void>? _refreshInFlight;
+  bool _refreshAfterInFlightQueued = false;
+  bool _queuedRefreshAllowsAccountSwitch = false;
+  Future<void>? _orderReconciliationInFlight;
+  bool _orderReconciliationQueued = false;
+  Future<void> _closeCommandTail = Future<void>.value();
   final Set<String> _optimisticHiddenPositionIds = <String>{};
+  final Set<String> _groupedClosePositionIds = <String>{};
   final Set<String> _optimisticHiddenOrderIds = <String>{};
 
   _AccountMutationScope _captureMutationScope(ExV2AccountViewState current) =>
@@ -199,6 +224,15 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         current != null &&
         current.bootstrap.account.id == scope.accountId &&
         current.bootstrap.summary.accountId == scope.accountId;
+  }
+
+  Future<T> _runSerializedCloseCommand<T>(Future<T> Function() command) {
+    final result = _closeCommandTail.then((_) => command());
+    _closeCommandTail = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return result;
   }
 
   @override
@@ -233,6 +267,32 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     }
   }
 
+  Future<void> restartRealtimeForCurrentToken() async {
+    final subscription = _realtimeSubscription;
+    final service = _realtimeService;
+    _realtimeSubscription = null;
+    _realtimeService = null;
+    _realtimeStarted = false;
+    try {
+      await subscription?.cancel();
+    } catch (_) {
+      // A confirmed account switch must survive realtime cleanup failures.
+    }
+    if (!ref.mounted) return;
+    try {
+      await service?.dispose();
+    } catch (_) {
+      // The next connection still gets a fresh service for the current token.
+    }
+    if (!ref.mounted) return;
+    ref.invalidate(exV2RealtimeServiceProvider);
+    try {
+      await _startRealtime();
+    } catch (_) {
+      // REST state is authoritative; realtime can reconnect on the next event.
+    }
+  }
+
   void _onRealtimeEvent(ExV2RealtimeEvent event) {
     final current = state.value;
     if (event.name != 'ActiveAccountChanged' &&
@@ -243,7 +303,9 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     }
     _refreshDebounce?.cancel();
     _refreshDebounce = Timer(const Duration(milliseconds: 250), () {
-      unawaited(refresh());
+      unawaited(
+        refresh(allowDuringGroupedClose: event.name == 'ActiveAccountChanged'),
+      );
     });
   }
 
@@ -289,6 +351,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       _readOrNull(repository.historyDeals()),
       _readOrNull(repository.historyPositions()),
       _readOr(repository.historyTransactions(), const <JsonMap>[]),
+      _readOr(repository.walletTransactions(), const <JsonMap>[]),
       _readOr(repository.deposits(), const <JsonMap>[]),
       _readOr(repository.withdrawals(), const <JsonMap>[]),
       _readOr(repository.transfers(), const <JsonMap>[]),
@@ -299,28 +362,39 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     final orderRows = results[0] as List<JsonMap>;
     final dealRows = results[1] as List<JsonMap>?;
     final historyRows = results[2] as List<JsonMap>?;
+    final transactionRows = <JsonMap>[
+      ...results[3] as List<JsonMap>,
+      ...results[4] as List<JsonMap>,
+    ];
     final hasCoherentTradingHistory = dealRows != null && historyRows != null;
+    final tradingHistory = hasCoherentTradingHistory
+        ? _mapRows(
+            ExV2HistoryReconciler.enrichClosedPositions(historyRows, dealRows),
+            ExV2DemoMapper.historyPosition,
+          )
+        : base.historyPositions;
+    final walletHistory = ExV2WalletHistoryMapper.entries(
+      historyTransactions: transactionRows,
+      deposits: results[5] as List<JsonMap>,
+      withdrawals: results[6] as List<JsonMap>,
+    );
+    final combinedHistory = ExV2WalletHistoryMapper.normalizeReferences(
+      [...tradingHistory, ...walletHistory]
+        ..sort((left, right) => left.time.compareTo(right.time)),
+    );
     return base.copyWith(
       orders: _mapRows(orderRows, ExV2DemoMapper.historyOrder),
       deals: hasCoherentTradingHistory
           ? _mapRows(dealRows, ExV2DemoMapper.historyDeal)
           : base.deals,
-      historyPositions: hasCoherentTradingHistory
-          ? _mapRows(
-              ExV2HistoryReconciler.enrichClosedPositions(
-                historyRows,
-                dealRows,
-              ),
-              ExV2DemoMapper.historyPosition,
-            )
-          : base.historyPositions,
-      historyTransactions: results[3] as List<JsonMap>,
-      deposits: results[4] as List<JsonMap>,
-      withdrawals: results[5] as List<JsonMap>,
-      transfers: results[6] as List<JsonMap>,
-      notifications: results[7] as List<JsonMap>,
-      settings: results[8] as JsonMap,
-      historySummary: results[9] as ExV2HistorySummary,
+      historyPositions: combinedHistory,
+      historyTransactions: transactionRows,
+      deposits: results[5] as List<JsonMap>,
+      withdrawals: results[6] as List<JsonMap>,
+      transfers: results[7] as List<JsonMap>,
+      notifications: results[8] as List<JsonMap>,
+      settings: results[9] as JsonMap,
+      historySummary: results[10] as ExV2HistorySummary,
     );
   }
 
@@ -344,11 +418,14 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       incoming = incoming.copyWith(presentation: current.presentation);
     }
     if (current == null) return incoming;
+    incoming = incoming.preserveLiveValuationFrom(current);
     if (current.pendingOperationIds.isEmpty &&
         _optimisticHiddenPositionIds.isEmpty &&
+        _groupedClosePositionIds.isEmpty &&
         _optimisticHiddenOrderIds.isEmpty) {
       return incoming;
     }
+    final preserveGroupedCloseHistory = _groupedClosePositionIds.isNotEmpty;
     final closingPositionIds = current.pendingOperationIds
         .where((id) => id.startsWith('position:'))
         .map((id) => id.substring('position:'.length))
@@ -394,6 +471,13 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
           (order) => !sendingOrders.any((item) => item.id == order.id),
         ),
       ],
+      deals: preserveGroupedCloseHistory ? current.deals : incoming.deals,
+      historyPositions: preserveGroupedCloseHistory
+          ? current.historyPositions
+          : incoming.historyPositions,
+      historySummary: preserveGroupedCloseHistory
+          ? current.historySummary
+          : incoming.historySummary,
       deposits: current.deposits,
       withdrawals: current.withdrawals,
       transfers: current.transfers,
@@ -468,7 +552,12 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
             takeProfit: takeProfit,
             metadata: metadata,
           );
-    } catch (_) {
+    } catch (error) {
+      try {
+        ref.read(exV2OrderFailureReporterProvider)(error);
+      } catch (_) {
+        // Diagnostics must never replace the original trading failure.
+      }
       if (!_isMutationScopeCurrent(scope)) rethrow;
       final current = state.value ?? before;
       state = AsyncData(
@@ -499,7 +588,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
         },
       ),
     );
-    unawaited(_refreshAfterMutation());
+    _scheduleOrderReconciliation();
     return order;
   }
 
@@ -551,7 +640,13 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
             if (position.id != positionId)
               position
             else if (isPartial)
-              position.copyWith(volume: position.volume - closeVolume),
+              position.copyWith(
+                volume: position.volume - closeVolume,
+                profit:
+                    position.profit *
+                    (position.volume - closeVolume) /
+                    position.volume,
+              ),
         ],
         pendingOperationIds: {...before.pendingOperationIds, operationId},
       ),
@@ -563,13 +658,16 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       final baselineSnapshot = await _loadTradingHistorySnapshot(repository);
       if (!_isMutationScopeCurrent(scope)) return null;
       try {
-        await repository.closePosition(
-          positionId: positionId,
-          volume: volume,
-          metadata: ExV2CommandMetadata.create(),
-        );
-        commandCommitted = true;
+        await _runSerializedCloseCommand<void>(() async {
+          if (!_isMutationScopeCurrent(scope)) return;
+          await repository.closePosition(
+            positionId: positionId,
+            volume: volume,
+            metadata: ExV2CommandMetadata.create(),
+          );
+        });
         if (!_isMutationScopeCurrent(scope)) return null;
+        commandCommitted = true;
       } on ExV2RequestFailure {
         if (!_isMutationScopeCurrent(scope)) rethrow;
         if (await _reconcileMissingPosition(
@@ -626,6 +724,245 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       );
       rethrow;
     }
+  }
+
+  Future<void> closePositions(Iterable<String> positionIds) async {
+    final before = state.value;
+    if (before == null) throw const ExV2TokenMissing();
+    final seenIds = <String>{};
+    final targets = <DemoPosition>[];
+    for (final positionId in positionIds) {
+      if (!seenIds.add(positionId)) continue;
+      final position = before.positions
+          .where((item) => item.id == positionId)
+          .firstOrNull;
+      if (position == null ||
+          before.pendingOperationIds.contains('position:$positionId')) {
+        continue;
+      }
+      targets.add(position);
+    }
+    if (targets.isEmpty) return;
+
+    ++_loadGeneration;
+    final scope = _captureMutationScope(before);
+    final targetIds = targets.map((position) => position.id).toSet();
+    final operationIds = {
+      for (final positionId in targetIds) 'position:$positionId',
+    };
+    _optimisticHiddenPositionIds.addAll(targetIds);
+    _groupedClosePositionIds.addAll(targetIds);
+    state = AsyncData(
+      before.copyWith(
+        positions: before.positions
+            .where((position) => !targetIds.contains(position.id))
+            .toList(growable: false),
+        pendingOperationIds: {...before.pendingOperationIds, ...operationIds},
+      ),
+    );
+
+    final repository = ref.read(exV2RepositoryProvider);
+    final commandSucceededIds = <String>{};
+    for (final target in targets) {
+      if (!_isMutationScopeCurrent(scope)) return;
+      try {
+        var dispatched = false;
+        await _runSerializedCloseCommand<void>(() async {
+          if (!_isMutationScopeCurrent(scope)) return;
+          dispatched = true;
+          await repository.closePosition(
+            positionId: target.id,
+            metadata: ExV2CommandMetadata.create(),
+          );
+        });
+        if (dispatched) commandSucceededIds.add(target.id);
+      } catch (_) {
+        // Continue the group. The final canonical read decides whether an
+        // ambiguous response committed and restores only positions still open.
+      }
+    }
+    if (!_isMutationScopeCurrent(scope)) return;
+
+    await _retryCommittedBulkCloseHistory(
+      targetIds: targetIds,
+      commandSucceededIds: commandSucceededIds,
+      operationIds: operationIds,
+      fallback: before,
+      minimumBootstrapVersion: before.bootstrap.version,
+      scope: scope,
+    );
+  }
+
+  Future<void> _retryCommittedBulkCloseHistory({
+    required Set<String> targetIds,
+    required Set<String> commandSucceededIds,
+    required Set<String> operationIds,
+    required ExV2AccountViewState fallback,
+    required int minimumBootstrapVersion,
+    required _AccountMutationScope scope,
+  }) async {
+    const delays = <Duration>[
+      Duration.zero,
+      Duration(milliseconds: 100),
+      Duration(milliseconds: 200),
+      Duration(milliseconds: 400),
+      Duration(milliseconds: 800),
+      Duration(milliseconds: 1600),
+    ];
+    final repository = ref.read(exV2RepositoryProvider);
+    ExV2AccountViewState? latestCore;
+    for (final delay in delays) {
+      await Future<void>.delayed(delay);
+      if (!_isMutationScopeCurrent(scope)) return;
+      try {
+        final results = await Future.wait<Object>([
+          _loadCore(applyOptimisticHides: false),
+          _loadTradingHistorySnapshot(repository),
+        ]);
+        final core = results[0] as ExV2AccountViewState;
+        final snapshot = results[1] as _TradingHistorySnapshot;
+        if (!_isMutationScopeCurrent(scope)) return;
+        final current = state.value;
+        if (current == null ||
+            core.bootstrap.account.id != scope.accountId ||
+            core.bootstrap.summary.accountId != scope.accountId ||
+            core.bootstrap.version < minimumBootstrapVersion ||
+            core.bootstrap.version < current.bootstrap.version) {
+          continue;
+        }
+        latestCore = core;
+        final latestCurrent = state.value;
+        if (latestCurrent == null ||
+            core.bootstrap.version < latestCurrent.bootstrap.version) {
+          continue;
+        }
+        final openIds = core.positions.map((position) => position.id).toSet();
+        final closedIds = targetIds.difference(openIds);
+        final successfulCommandsAreClosed = commandSucceededIds.every(
+          closedIds.contains,
+        );
+        final closedHistoryIsReady = closedIds.every(
+          (positionId) =>
+              _hasResolvedClosedHistory(snapshot.positions, positionId),
+        );
+        if (!successfulCommandsAreClosed || !closedHistoryIsReady) continue;
+
+        _publishCommittedBulkClose(
+          core: core,
+          snapshot: snapshot,
+          targetIds: targetIds,
+          operationIds: operationIds,
+          scope: scope,
+        );
+        return;
+      } catch (_) {
+        // Mutations are never resent. Retry only the canonical GET snapshot.
+      }
+    }
+
+    _finishBulkCloseWithoutCompleteHistory(
+      targetIds: targetIds,
+      commandSucceededIds: commandSucceededIds,
+      operationIds: operationIds,
+      fallback: fallback,
+      latestCore: latestCore,
+      scope: scope,
+    );
+  }
+
+  void _publishCommittedBulkClose({
+    required ExV2AccountViewState core,
+    required _TradingHistorySnapshot snapshot,
+    required Set<String> targetIds,
+    required Set<String> operationIds,
+    required _AccountMutationScope scope,
+  }) {
+    if (!_isMutationScopeCurrent(scope)) return;
+    final current = state.value;
+    if (current == null) return;
+    ++_loadGeneration;
+    _groupedClosePositionIds.removeAll(targetIds);
+    _optimisticHiddenPositionIds.removeAll(targetIds);
+    final historyPositions = <DemoHistoryPosition>[
+      ...snapshot.positions,
+      ...current.historyPositions.where(
+        (position) => position.id.startsWith('wallet-'),
+      ),
+    ]..sort((left, right) => left.time.compareTo(right.time));
+    final settledCurrent = current.copyWith(
+      pendingOperationIds: {
+        ...current.pendingOperationIds.where(
+          (operationId) => !operationIds.contains(operationId),
+        ),
+      },
+    );
+    state = AsyncData(
+      _applyOptimisticOverlay(
+        _mergeCoreWithHydrated(
+          core,
+          settledCurrent,
+          deals: snapshot.deals,
+          historyPositions: historyPositions,
+          historySummary: snapshot.summary,
+        ),
+        settledCurrent,
+      ),
+    );
+    _flushDeferredRefresh();
+  }
+
+  void _finishBulkCloseWithoutCompleteHistory({
+    required Set<String> targetIds,
+    required Set<String> commandSucceededIds,
+    required Set<String> operationIds,
+    required ExV2AccountViewState fallback,
+    required ExV2AccountViewState? latestCore,
+    required _AccountMutationScope scope,
+  }) {
+    if (!_isMutationScopeCurrent(scope)) return;
+    final current = state.value ?? fallback;
+    ++_loadGeneration;
+    final confirmedClosedIds = latestCore == null
+        ? commandSucceededIds
+        : targetIds.difference(
+            latestCore.positions.map((position) => position.id).toSet(),
+          );
+    final stillOpenIds = targetIds.difference(confirmedClosedIds);
+    _groupedClosePositionIds.removeAll(targetIds);
+    _optimisticHiddenPositionIds.removeAll(stillOpenIds);
+    _optimisticHiddenPositionIds.addAll(confirmedClosedIds);
+    final settledCurrent = current.copyWith(
+      positions: latestCore == null
+          ? [
+              ...current.positions,
+              for (final position in fallback.positions)
+                if (stillOpenIds.contains(position.id) &&
+                    !current.positions.any((item) => item.id == position.id))
+                  position,
+            ]
+          : current.positions,
+      pendingOperationIds: {
+        ...current.pendingOperationIds.where(
+          (operationId) => !operationIds.contains(operationId),
+        ),
+      },
+    );
+    state = AsyncData(
+      latestCore == null
+          ? settledCurrent
+          : _applyOptimisticOverlay(
+              _mergeCoreWithHydrated(latestCore, settledCurrent),
+              settledCurrent,
+            ),
+    );
+    _deferredRefreshRequested = false;
+    unawaited(refresh(queueAfterInFlight: true));
+  }
+
+  void _flushDeferredRefresh() {
+    if (!_deferredRefreshRequested || !ref.mounted) return;
+    _deferredRefreshRequested = false;
+    unawaited(refresh(queueAfterInFlight: true));
   }
 
   Future<bool> _reconcileMissingPosition({
@@ -759,6 +1096,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
           expectedRemainingVolume: expectedRemainingVolume,
         )) {
           latestAuthoritativeCore = core;
+          _publishCommittedCloseCore(core: core, scope: scope);
         }
         final snapshot = await _loadTradingHistorySnapshot(repository);
         if (!_isMutationScopeCurrent(scope)) return null;
@@ -828,6 +1166,25 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     }
     _finishCommittedCloseWithoutDeal(operationId, fallback, scope);
     return null;
+  }
+
+  void _publishCommittedCloseCore({
+    required ExV2AccountViewState core,
+    required _AccountMutationScope scope,
+  }) {
+    if (!_isMutationScopeCurrent(scope)) return;
+    final current = state.value;
+    if (current == null ||
+        core.bootstrap.account.id != scope.accountId ||
+        core.bootstrap.summary.accountId != scope.accountId ||
+        core.bootstrap.version < current.bootstrap.version) {
+      return;
+    }
+    final published = _applyOptimisticOverlay(
+      _mergeCoreWithHydrated(core, current),
+      current,
+    );
+    state = AsyncData(published);
   }
 
   bool _isCommittedCloseVisible({
@@ -1206,13 +1563,16 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       ),
     );
     try {
-      await ref
-          .read(exV2RepositoryProvider)
-          .closeBy(
-            positionId: positionId,
-            oppositePositionId: oppositePositionId,
-            metadata: ExV2CommandMetadata.create(),
-          );
+      await _runSerializedCloseCommand<void>(() async {
+        if (!_isMutationScopeCurrent(scope)) return;
+        await ref
+            .read(exV2RepositoryProvider)
+            .closeBy(
+              positionId: positionId,
+              oppositePositionId: oppositePositionId,
+              metadata: ExV2CommandMetadata.create(),
+            );
+      });
       if (!_isMutationScopeCurrent(scope)) return;
       final core = await _loadCore(applyOptimisticHides: false);
       if (!_isMutationScopeCurrent(scope)) return;
@@ -1427,19 +1787,80 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     return result;
   }
 
-  Future<void> refresh() async {
-    if (!ref.read(exV2EnabledProvider)) return;
+  Future<void> refresh({
+    bool allowDuringGroupedClose = false,
+    bool queueAfterInFlight = false,
+  }) {
+    if (!ref.read(exV2EnabledProvider)) return Future<void>.value();
+    if (!allowDuringGroupedClose && _groupedClosePositionIds.isNotEmpty) {
+      _deferredRefreshRequested = true;
+      return Future<void>.value();
+    }
+    final existing = _refreshInFlight;
+    if (existing != null) {
+      if (allowDuringGroupedClose || queueAfterInFlight) {
+        _refreshAfterInFlightQueued = true;
+        _queuedRefreshAllowsAccountSwitch |= allowDuringGroupedClose;
+      }
+      return existing;
+    }
+    late final Future<void> operation;
+    operation =
+        _performRefresh(
+          authoritativeAccountSwitch: allowDuringGroupedClose,
+        ).whenComplete(() {
+          if (!identical(_refreshInFlight, operation)) return;
+          _refreshInFlight = null;
+          if (_refreshAfterInFlightQueued && ref.mounted) {
+            final allowsAccountSwitch = _queuedRefreshAllowsAccountSwitch;
+            _refreshAfterInFlightQueued = false;
+            _queuedRefreshAllowsAccountSwitch = false;
+            unawaited(refresh(allowDuringGroupedClose: allowsAccountSwitch));
+          }
+        });
+    _refreshInFlight = operation;
+    return operation;
+  }
+
+  Future<void> _performRefresh({
+    required bool authoritativeAccountSwitch,
+  }) async {
     final generation = ++_loadGeneration;
     if (state.value == null) {
       state = const AsyncLoading<ExV2AccountViewState?>();
     }
     try {
-      final core = await _loadCore();
-      if (!ref.mounted || generation != _loadGeneration) return;
-      final current = state.value;
-      if (current != null &&
-          core.bootstrap.version < current.bootstrap.version) {
+      final core = await _loadCore(
+        applyOptimisticHides: !authoritativeAccountSwitch,
+      );
+      if (!ref.mounted) return;
+      if (generation != _loadGeneration) {
+        if (authoritativeAccountSwitch) {
+          _refreshAfterInFlightQueued = true;
+          _queuedRefreshAllowsAccountSwitch = true;
+        }
         return;
+      }
+      final current = state.value;
+      if (current != null) {
+        final sameIdentity =
+            core.bootstrap.account.id == current.bootstrap.account.id &&
+            core.bootstrap.summary.accountId ==
+                current.bootstrap.summary.accountId;
+        if (!sameIdentity) {
+          if (!authoritativeAccountSwitch) return;
+          _accountGeneration += 1;
+          _publishedActivationAuthority = 0;
+          _refreshDebounce?.cancel();
+          _deferredRefreshRequested = false;
+          _optimisticHiddenPositionIds.clear();
+          _groupedClosePositionIds.clear();
+          _optimisticHiddenOrderIds.clear();
+          state = AsyncData(core);
+          await _hydrateAndPublish(core, generation);
+          return;
+        }
+        if (core.bootstrap.version < current.bootstrap.version) return;
       }
       final overlaid = _applyOptimisticOverlay(core, current);
       final staged = current == null
@@ -1448,7 +1869,9 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       state = AsyncData(staged);
       await _hydrateAndPublish(staged, generation);
     } catch (error, stackTrace) {
-      if (ref.mounted && generation == _loadGeneration) {
+      if (ref.mounted &&
+          generation == _loadGeneration &&
+          (!authoritativeAccountSwitch || state.value == null)) {
         state = AsyncError(error, stackTrace);
       }
     }
@@ -1492,7 +1915,9 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     _publishedActivationAuthority = operationAuthority;
     final generation = ++_loadGeneration;
     _refreshDebounce?.cancel();
+    _deferredRefreshRequested = false;
     _optimisticHiddenPositionIds.clear();
+    _groupedClosePositionIds.clear();
     _optimisticHiddenOrderIds.clear();
     final replacement = ExV2AccountViewState.fromBootstrap(
       bootstrap,
@@ -1501,6 +1926,22 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     state = AsyncData(replacement);
     unawaited(_hydrateAndPublish(replacement, generation));
     return ExV2BootstrapPublication.committed;
+  }
+
+  void _scheduleOrderReconciliation() {
+    if (_orderReconciliationInFlight != null) {
+      _orderReconciliationQueued = true;
+      return;
+    }
+    late final Future<void> operation;
+    operation = _refreshAfterMutation().whenComplete(() {
+      if (!identical(_orderReconciliationInFlight, operation)) return;
+      _orderReconciliationInFlight = null;
+      if (!_orderReconciliationQueued || !ref.mounted) return;
+      _orderReconciliationQueued = false;
+      _scheduleOrderReconciliation();
+    });
+    _orderReconciliationInFlight = operation;
   }
 
   Future<void> _refreshAfterMutation() async {

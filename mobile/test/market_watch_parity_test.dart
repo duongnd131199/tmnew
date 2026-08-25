@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' show ImageByteFormat;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
@@ -28,7 +31,10 @@ void main() {
               size: Size(384, 848),
               padding: EdgeInsets.only(top: 24),
             ),
-            child: MarketWatchScreen(),
+            child: RepaintBoundary(
+              key: Key('market-icon-reference-capture'),
+              child: MarketWatchScreen(),
+            ),
           ),
         ),
       ),
@@ -36,6 +42,32 @@ void main() {
     await tester.pump();
     return scope;
   }
+
+  testWidgets('Quotes toolbar icon ink matches the measured references', (
+    tester,
+  ) async {
+    await pumpMarket(tester);
+
+    final list = await _buttonInkMetrics(
+      tester,
+      const Key('market-toggle-view'),
+    );
+    final edit = await _buttonInkMetrics(
+      tester,
+      const Key('market-manage-button'),
+    );
+    final search = await _buttonInkMetrics(
+      tester,
+      const Key('market-search-button'),
+    );
+
+    expect(list.bounds, const Rect.fromLTWH(14, 14, 15, 13));
+    expect(list.pixels, inInclusiveRange(70, 100));
+    expect(edit.bounds, const Rect.fromLTWH(13, 13, 16, 16));
+    expect(edit.pixels, inInclusiveRange(50, 75));
+    expect(search.bounds, const Rect.fromLTWH(11, 11, 20, 20));
+    expect(search.pixels, inInclusiveRange(75, 105));
+  });
 
   double rowOffset(WidgetTester tester, String symbol) {
     final row = tester.widget<AnimatedContainer>(
@@ -81,7 +113,7 @@ void main() {
     );
     expect(dailyChange.style?.fontFamily, 'sans-serif-condensed');
     expect(dailyChange.style?.fontSize, 17);
-    final symbol = tester.widget<Text>(find.text('XAUUSD+'));
+    final symbol = tester.widget<Text>(find.text('XAUUSD'));
     expect(symbol.style?.fontFamily, 'sans-serif-condensed');
     expect(symbol.style?.fontSize, 18);
     final tickTime = tester.widget<Text>(
@@ -110,7 +142,7 @@ void main() {
     expect(btcSpans[0].text, '65175.');
     expect(btcSpans[1].text, '98');
 
-    await tester.tap(find.text('XAUUSD+'));
+    await tester.tap(find.text('XAUUSD'));
     await tester.pumpAndSettle();
     final menuRect = tester.getRect(
       find.byKey(const ValueKey('market-symbol-menu-XAUUSD+')),
@@ -129,19 +161,19 @@ void main() {
     (tester) async {
       await pumpMarket(tester);
 
-      final xau = find.text('XAUUSD+');
+      final xau = find.text('XAUUSD');
       final xauRowY = tester.getCenter(xau).dy;
       final drag = await tester.startGesture(Offset(180, xauRowY));
       await drag.moveBy(const Offset(-35, 0));
       await tester.pump();
-      expect(rowOffset(tester, 'XAUUSD+'), lessThan(-1));
-      expect(rowOffset(tester, 'XAUUSD+'), greaterThan(-80));
-      expect(rowOffset(tester, 'XAUUSD+'), isNot(-123));
+      expect(rowOffset(tester, 'XAUUSD'), lessThan(-1));
+      expect(rowOffset(tester, 'XAUUSD'), greaterThan(-80));
+      expect(rowOffset(tester, 'XAUUSD'), isNot(-123));
       await drag.moveBy(const Offset(-45, 0));
       await tester.pump();
       await drag.up();
       await tester.pumpAndSettle();
-      expect(rowOffset(tester, 'XAUUSD+'), -142);
+      expect(rowOffset(tester, 'XAUUSD'), -142);
 
       expect(
         find.byKey(const ValueKey('market-order-XAUUSD+')),
@@ -170,23 +202,23 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       await rebound.up();
       await tester.pumpAndSettle();
-      expect(rowOffset(tester, 'XAUUSD+'), -142);
+      expect(rowOffset(tester, 'XAUUSD'), -142);
 
       final close = await tester.startGesture(Offset(180, xauRowY));
       await close.moveBy(const Offset(95, 0));
       await tester.pump(const Duration(milliseconds: 50));
       await close.up();
       await tester.pumpAndSettle();
-      expect(rowOffset(tester, 'XAUUSD+'), 0);
+      expect(rowOffset(tester, 'XAUUSD'), 0);
 
       final elastic = await tester.startGesture(Offset(180, xauRowY));
       await elastic.moveBy(const Offset(80, 0));
       await tester.pump();
-      expect(rowOffset(tester, 'XAUUSD+'), greaterThan(0));
-      expect(rowOffset(tester, 'XAUUSD+'), lessThanOrEqualTo(24));
+      expect(rowOffset(tester, 'XAUUSD'), greaterThan(0));
+      expect(rowOffset(tester, 'XAUUSD'), lessThanOrEqualTo(24));
       await elastic.up();
       await tester.pumpAndSettle();
-      expect(rowOffset(tester, 'XAUUSD+'), 0);
+      expect(rowOffset(tester, 'XAUUSD'), 0);
 
       await tester.drag(find.text('BTCUSD'), const Offset(-220, 0));
       await tester.pumpAndSettle();
@@ -201,7 +233,7 @@ void main() {
         tester.getSize(find.byKey(const ValueKey('market-chart-BTCUSD'))),
         const Size(48, 48),
       );
-      expect(rowOffset(tester, 'XAUUSD+'), 0);
+      expect(rowOffset(tester, 'XAUUSD'), 0);
     },
   );
 
@@ -279,4 +311,61 @@ void main() {
     expect(dailySpans[1].style?.color, AppColors.primary);
     expect(dailyChange.textSpan!.toPlainText(), contains('1.26%'));
   });
+}
+
+Future<({Rect bounds, int pixels})> _buttonInkMetrics(
+  WidgetTester tester,
+  Key buttonKey,
+) async {
+  final buttonRect = tester.getRect(find.byKey(buttonKey));
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(const Key('market-icon-reference-capture')),
+  );
+  final captured = await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1);
+    final bytes = await image.toByteData(format: ImageByteFormat.rawRgba);
+    final result = (width: image.width, height: image.height, bytes: bytes);
+    image.dispose();
+    return result;
+  });
+  if (captured == null || captured.bytes == null) {
+    throw StateError('Unable to read Quotes toolbar pixels');
+  }
+
+  var minX = captured.width;
+  var minY = captured.height;
+  var maxX = -1;
+  var maxY = -1;
+  var pixels = 0;
+  for (var y = buttonRect.top.floor(); y < buttonRect.bottom.ceil(); y++) {
+    for (var x = buttonRect.left.floor(); x < buttonRect.right.ceil(); x++) {
+      final offset = (y * captured.width + x) * 4;
+      final red = captured.bytes!.getUint8(offset);
+      final green = captured.bytes!.getUint8(offset + 1);
+      final blue = captured.bytes!.getUint8(offset + 2);
+      final alpha = captured.bytes!.getUint8(offset + 3);
+      if (alpha < 128 || (red + green + blue) / 3 >= 100) continue;
+      pixels++;
+      minX = math.min(minX, x);
+      minY = math.min(minY, y);
+      maxX = math.max(maxX, x);
+      maxY = math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    throw StateError('No dark icon ink found for $buttonKey');
+  }
+  final origin = Offset(
+    buttonRect.left.floorToDouble(),
+    buttonRect.top.floorToDouble(),
+  );
+  return (
+    bounds: Rect.fromLTRB(
+      minX.toDouble(),
+      minY.toDouble(),
+      (maxX + 1).toDouble(),
+      (maxY + 1).toDouble(),
+    ).shift(-origin),
+    pixels: pixels,
+  );
 }

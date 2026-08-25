@@ -6,6 +6,7 @@ import 'package:trading_mobile/features/account_link/application/account_link_co
 import 'package:trading_mobile/features/account_link/data/linked_account_presentation_store.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_link/domain/linked_account_presentation.dart';
+import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
@@ -590,7 +591,12 @@ final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
         ? const <DemoAccountProfile>[]
         : ref.watch(demoAccountCatalogProvider);
   }
-  final linked = ref.watch(linkedTradingAccountsProvider).value;
+  final linkedState = ref.watch(linkedTradingAccountsProvider);
+  final linked = linkedState.value;
+  final storedActivePresentationState = ref.watch(
+    linkedAccountPresentationProvider(server.bootstrap.account.id),
+  );
+  final storedActivePresentation = storedActivePresentationState.value;
   final linkedActive = linked
       ?.where((account) => account.id == server.bootstrap.account.id)
       .firstOrNull;
@@ -600,22 +606,49 @@ final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
           .watch(linkedAccountPresentationProvider(account.id))
           .value,
   };
+  final loginConfig = ref.watch(exV2LoginConfigProvider);
   final activePresentation = linkedActive == null
-      ? null
+      ? storedActivePresentation
       : resolveLinkedAccountPresentation(
           linkedActive,
-          selectedPresentations[linkedActive.id],
+          selectedPresentations[linkedActive.id] ?? storedActivePresentation,
         );
+  final useLegacyReferencePresentation =
+      (linkedState.hasValue || linkedState.hasError) &&
+      storedActivePresentationState.hasValue &&
+      _isLegacyGenericPresentation(
+        server: server,
+        linkedAccount: linkedActive,
+        presentation: activePresentation,
+      );
+  final effectiveActivePresentation =
+      useLegacyReferencePresentation &&
+          usesReferenceServerPresentation(loginConfig.brokerId)
+      ? const LinkedAccountPresentation(
+          companyName: referenceServerBrokerDisplayName,
+          serverName: referenceDefaultServerDisplayName,
+        )
+      : activePresentation;
   final active = ExV2AccountProfileMapper.map(
-    linkedActive == null
+    effectiveActivePresentation == null
         ? server
         : server.copyWith(
             presentation: ExV2AccountPresentation(
-              brokerId: linkedActive.brokerId,
-              companyName: activePresentation!.companyName,
-              serverId: linkedActive.serverId,
-              tradingServer: activePresentation.serverName,
-              accessPoint: 'Access Point #1',
+              brokerId: useLegacyReferencePresentation
+                  ? loginConfig.brokerId
+                  : linkedActive?.brokerId ??
+                        server.presentation?.brokerId ??
+                        '',
+              companyName: effectiveActivePresentation.companyName,
+              serverId: useLegacyReferencePresentation
+                  ? loginConfig.serverId
+                  : linkedActive?.serverId ??
+                        server.presentation?.serverId ??
+                        '',
+              tradingServer: effectiveActivePresentation.serverName,
+              accessPoint: useLegacyReferencePresentation
+                  ? referenceDefaultAccessPoint
+                  : server.presentation?.accessPoint ?? 'Access Point #1',
             ),
           ),
   );
@@ -632,9 +665,10 @@ final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
         _mapLinkedAccount(
           account,
           displayName: account.displayName ?? active.name,
-          presentation: resolveLinkedAccountPresentation(
-            account,
-            selectedPresentations[account.id],
+          presentation: _resolveCatalogAccountPresentation(
+            account: account,
+            selected: selectedPresentations[account.id],
+            referenceBrokerId: loginConfig.brokerId,
           ),
         ),
       );
@@ -643,6 +677,68 @@ final demoAccountsProvider = Provider<List<DemoAccountProfile>>((ref) {
   if (!foundActive) profiles.insert(0, active);
   return List.unmodifiable(profiles);
 });
+
+LinkedAccountPresentation _resolveCatalogAccountPresentation({
+  required LinkedTradingAccount account,
+  required LinkedAccountPresentation? selected,
+  required String referenceBrokerId,
+}) {
+  final resolved = resolveLinkedAccountPresentation(account, selected);
+  final brand = resolveDemoBrokerBrand(
+    brokerId: account.brokerId,
+    companyName: resolved.companyName,
+    serverName: resolved.serverName,
+  );
+  final lostLegacyPresentation =
+      brand == DemoBrokerBrand.unknown &&
+      _isGenericBrokerText(account.brokerId) &&
+      _isGenericBrokerText(resolved.companyName) &&
+      _isGenericBrokerText(resolved.serverName);
+  if (lostLegacyPresentation &&
+      usesReferenceServerPresentation(referenceBrokerId)) {
+    return const LinkedAccountPresentation(
+      companyName: referenceServerBrokerDisplayName,
+      serverName: referenceDefaultServerDisplayName,
+    );
+  }
+  return resolved;
+}
+
+bool _isLegacyGenericPresentation({
+  required ExV2AccountViewState server,
+  required LinkedTradingAccount? linkedAccount,
+  required LinkedAccountPresentation? presentation,
+}) {
+  final canonical = ExV2AccountProfileMapper.metadata(server.settings);
+  if (canonical.brand != DemoBrokerBrand.unknown ||
+      !_isGenericBrokerText(canonical.companyName) ||
+      !_isGenericBrokerText(canonical.tradingServer)) {
+    return false;
+  }
+  if (server.presentation != null) return false;
+  if (linkedAccount == null && presentation == null) return true;
+  final brand = resolveDemoBrokerBrand(
+    brokerId: linkedAccount?.brokerId ?? '',
+    companyName: presentation?.companyName ?? linkedAccount?.brokerName ?? '',
+    serverName: presentation?.serverName ?? linkedAccount?.serverName ?? '',
+  );
+  return brand == DemoBrokerBrand.unknown &&
+      _isGenericBrokerText(
+        presentation?.companyName ?? linkedAccount?.brokerName ?? '',
+      ) &&
+      _isGenericBrokerText(
+        presentation?.serverName ?? linkedAccount?.serverName ?? '',
+      );
+}
+
+bool _isGenericBrokerText(String value) {
+  final normalized = value.trim().toLowerCase();
+  return normalized.isEmpty ||
+      normalized == 'trading account' ||
+      normalized == 'trading server' ||
+      normalized == 'unknown-broker' ||
+      normalized == 'unknown-server';
+}
 
 final linkedTradingAccountsProvider =
     AsyncNotifierProvider<
@@ -659,7 +755,6 @@ final class LinkedTradingAccountsController
     if (!ref.watch(exV2EnabledProvider)) return const [];
     final activeId = ref.watch(exV2AccountGenerationProvider).accountId;
     if (activeId == null) return const [];
-
     final accounts = await ref.read(accountLinkRepositoryProvider).accounts();
     return List.unmodifiable([
       ...accounts.where((account) => account.id == activeId),
@@ -684,9 +779,21 @@ final class LinkedTradingAccountsController
 
     _activationInFlight = true;
     try {
-      final activation = await ref
-          .read(accountActivationCoordinatorProvider.notifier)
-          .activate(accountId, metadata: ExV2CommandMetadata.create());
+      late final AccountActivationOutcome activation;
+      try {
+        activation = await ref
+            .read(accountActivationCoordinatorProvider.notifier)
+            .activate(accountId, metadata: ExV2CommandMetadata.create());
+      } on ExV2RequestFailure catch (error) {
+        final code = error.code?.trim().toLowerCase().replaceAll('-', '_');
+        if (error.statusCode == 404 && code == 'account_not_found') {
+          ref.invalidateSelf();
+        }
+        if (error.statusCode == 401 || error.statusCode == 403) {
+          ref.invalidate(exV2AccountProvider);
+        }
+        rethrow;
+      }
       if (!ref.mounted) return null;
       return activation.accepted ? activation.result : null;
     } finally {
@@ -700,15 +807,11 @@ DemoAccountProfile _mapLinkedAccount(
   required String displayName,
   required LinkedAccountPresentation presentation,
 }) {
-  final broker = '${account.brokerId} ${presentation.companyName}'
-      .toLowerCase();
-  final brand = broker.contains('exness')
-      ? DemoBrokerBrand.exness
-      : broker.contains('yodo')
-      ? DemoBrokerBrand.yodo
-      : broker.contains('vantage')
-      ? DemoBrokerBrand.vantage
-      : DemoBrokerBrand.unknown;
+  final brand = resolveDemoBrokerBrand(
+    brokerId: account.brokerId,
+    companyName: presentation.companyName,
+    serverName: presentation.serverName,
+  );
   return DemoAccountProfile(
     id: account.login,
     linkedAccountId: account.id,
@@ -976,6 +1079,7 @@ class DemoTradingController extends Notifier<DemoTradingState> {
       volume: volume,
       price: price,
       createdAt: time,
+      status: 'placed',
       stopLoss: stopLoss,
       takeProfit: takeProfit,
     );
@@ -1229,23 +1333,43 @@ class DemoTradingController extends Notifier<DemoTradingState> {
     return true;
   }
 
-  int closeAllPositions({
+  int closeMatchingPositions({
     bool profitableOnly = false,
     bool losingOnly = false,
+    String? symbol,
+    String? side,
   }) {
+    final normalizedSide = side?.trim().toUpperCase();
     final targets = state.positions
         .where(
           (position) =>
               (!profitableOnly || position.profit > 0) &&
-              (!losingOnly || position.profit < 0),
+              (!losingOnly || position.profit < 0) &&
+              (symbol == null || position.symbol == symbol) &&
+              (normalizedSide == null ||
+                  position.side.toUpperCase() == normalizedSide),
         )
         .map((position) => position.id)
         .toList(growable: false);
+    if (ref.read(exV2EnabledProvider)) {
+      _submitServer(
+        ref.read(exV2AccountProvider.notifier).closePositions(targets),
+      );
+      return targets.length;
+    }
     for (final id in targets) {
       closePosition(id);
     }
     return targets.length;
   }
+
+  int closeAllPositions({
+    bool profitableOnly = false,
+    bool losingOnly = false,
+  }) => closeMatchingPositions(
+    profitableOnly: profitableOnly,
+    losingOnly: losingOnly,
+  );
 
   bool cancelPendingOrder(String orderId) {
     if (!state.pendingOrders.any((item) => item.id == orderId)) return false;
@@ -1459,19 +1583,21 @@ final demoTradingProvider =
       DemoTradingController.new,
     );
 final demoPositionsProvider = Provider<List<DemoPosition>>(
-  (ref) => ref.watch(demoTradingProvider).positions,
+  (ref) => ref.watch(demoTradingProvider.select((state) => state.positions)),
 );
 final demoPendingOrdersProvider = Provider<List<DemoPendingOrder>>(
-  (ref) => ref.watch(demoTradingProvider).pendingOrders,
+  (ref) =>
+      ref.watch(demoTradingProvider.select((state) => state.pendingOrders)),
 );
 final demoOrdersProvider = Provider<List<DemoOrder>>(
-  (ref) => ref.watch(demoTradingProvider).orders,
+  (ref) => ref.watch(demoTradingProvider.select((state) => state.orders)),
 );
 final demoDealsProvider = Provider<List<DemoDeal>>(
-  (ref) => ref.watch(demoTradingProvider).deals,
+  (ref) => ref.watch(demoTradingProvider.select((state) => state.deals)),
 );
 final demoHistoryPositionsProvider = Provider<List<DemoHistoryPosition>>(
-  (ref) => ref.watch(demoTradingProvider).historyPositions,
+  (ref) =>
+      ref.watch(demoTradingProvider.select((state) => state.historyPositions)),
 );
 
 class DemoAccountSnapshot {
@@ -1501,7 +1627,20 @@ final demoMarginCalculatorProvider = Provider<DemoMarginCalculator>(
 );
 
 final demoAccountProvider = Provider<DemoAccountSnapshot>((ref) {
-  final server = ref.watch(exV2AccountProvider).value;
+  final server = ref.watch(
+    exV2AccountProvider.select((asyncState) {
+      final state = asyncState.value;
+      if (state == null) return null;
+      return (
+        balance: state.balance,
+        equity: state.equity,
+        margin: state.margin,
+        freeMargin: state.freeMargin,
+        marginLevel: state.marginLevel,
+        profit: state.profit,
+      );
+    }),
+  );
   if (server != null) {
     return DemoAccountSnapshot(
       balance: server.balance,
@@ -1512,7 +1651,11 @@ final demoAccountProvider = Provider<DemoAccountSnapshot>((ref) {
       profit: server.profit,
     );
   }
-  final trading = ref.watch(demoTradingProvider);
+  final trading = ref.watch(
+    demoTradingProvider.select(
+      (state) => (balance: state.balance, positions: state.positions),
+    ),
+  );
   final account = ref.watch(activeDemoAccountProvider);
   final profit = trading.positions.fold<double>(
     0,

@@ -71,6 +71,50 @@ void main() {
     expect(profile.brand, DemoBrokerBrand.yodo);
   });
 
+  test('MetaQuotes account metadata resolves the MetaQuotes brand', () {
+    final state = _accountState(
+      accountCode: '1115000232',
+      name: 'HaiAa NamAa',
+      status: 'active',
+      balance: 100000,
+      presentation: const ExV2AccountPresentation(
+        brokerId: 'metaquotes-demo',
+        companyName: 'MetaQuotes Ltd.',
+        serverId: 'metaquotes-demo',
+        tradingServer: 'MetaQuotes-Demo',
+      ),
+    );
+
+    final profile = ExV2AccountProfileMapper.map(state);
+
+    expect(profile.brand.name, 'metaquotes');
+  });
+
+  test('stored broker identity replaces generic server placeholders', () {
+    final state = _accountState(
+      accountCode: '1115000232',
+      name: 'HaiAa NamAa',
+      status: 'active',
+      balance: 100000,
+      settings: const {
+        'brokerCompany': 'Trading Account',
+        'tradingServer': 'Trading Server',
+      },
+      presentation: const ExV2AccountPresentation(
+        brokerId: 'metaquotes-demo',
+        companyName: 'MetaQuotes Ltd.',
+        serverId: 'metaquotes-demo',
+        tradingServer: 'MetaQuotes-Demo',
+      ),
+    );
+
+    final profile = ExV2AccountProfileMapper.map(state);
+
+    expect(profile.company, 'MetaQuotes Ltd.');
+    expect(profile.server, 'MetaQuotes-Demo');
+    expect(profile.brand.name, 'metaquotes');
+  });
+
   test('canonical settings metadata wins over activated metadata', () {
     final state = _accountState(
       accountCode: 'LIVE-7',

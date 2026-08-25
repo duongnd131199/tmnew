@@ -8,8 +8,14 @@ import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/data/account_link_repository.dart';
-import 'package:trading_mobile/features/account_link/data/account_reconnect_grant_store.dart';
+import 'package:trading_mobile/features/account_link/data/linked_account_presentation_store.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
+import 'package:trading_mobile/features/account_link/domain/linked_account_presentation.dart';
+import 'package:trading_mobile/features/account_login/data/account_password_login_dependencies.dart';
+import 'package:trading_mobile/features/account_login/data/account_password_login_repository.dart';
+import 'package:trading_mobile/features/account_login/data/installation_id_store.dart';
+import 'package:trading_mobile/features/account_login/domain/account_password_login_models.dart';
+import 'package:trading_mobile/features/account_sessions/application/account_session_committer.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
@@ -18,6 +24,55 @@ import 'package:trading_mobile/features/market_watch/data/data_sources/realtime_
 import 'package:trading_mobile/shared/providers/realtime_market_provider.dart';
 
 void main() {
+  testWidgets('remembered account route prefills login and selected server', (
+    tester,
+  ) async {
+    await _openForm(tester, repository: _LoginRepository());
+
+    appRouter.go('/accounts/add/exness?login=109740422&serverId=real-15');
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const Key('existing-account-login-field')),
+          )
+          .controller
+          ?.text,
+      '109740422',
+    );
+    expect(find.text('Exness-MT5Real15'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const Key('existing-account-password-field')),
+          )
+          .controller
+          ?.text,
+      isEmpty,
+    );
+  });
+
+  testWidgets(
+    'reference remembered route keeps the Exness server presentation',
+    (tester) async {
+      await _openForm(
+        tester,
+        repository: _LoginRepository(referenceCatalog: true),
+        brokerKey: 'exness',
+        brokerId: 'yodo-demo',
+      );
+
+      appRouter.go(
+        '/accounts/add/yodo-demo?login=109740422&serverId=yodo-demo-01',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Exness-MT5Real20'), findsOneWidget);
+      expect(find.text('YODO-Demo-01'), findsNothing);
+    },
+  );
+
   testWidgets('12 second frame keeps the reference copy and vertical order', (
     tester,
   ) async {
@@ -32,7 +87,6 @@ void main() {
       'existing-account-server-row',
       'existing-account-login-field',
       'existing-account-password-field',
-      'existing-account-save-switch',
       'existing-account-forgot-password',
       'existing-account-login-button',
     ];
@@ -51,7 +105,6 @@ void main() {
       'Sử dụng tài khoản hiện có',
       'Máy chủ',
       'Mật khẩu',
-      'Lưu mật khẩu',
       'Quên mật khẩu',
     ]) {
       expect(find.text(copy), findsOneWidget);
@@ -74,12 +127,14 @@ void main() {
           .obscureText,
       isTrue,
     );
-    final saveSwitch = tester.widget<Switch>(
-      find.byKey(const Key('existing-account-save-switch')),
+    expect(
+      tester
+          .widget<Container>(
+            find.byKey(const Key('existing-account-section-title')),
+          )
+          .color,
+      AppColors.groupedBackground,
     );
-    expect(saveSwitch.value, isTrue);
-    expect(saveSwitch.activeTrackColor, AppColors.savePasswordEnabled);
-    expect(AppColors.savePasswordEnabled, const Color(0xFF30D158));
     expect(
       tester
           .widget<OutlinedButton>(
@@ -143,6 +198,7 @@ void main() {
       await tester.tap(find.byKey(const Key('existing-account-login-button')));
       await tester.pumpAndSettle();
 
+      expect(repository.loginRequests, isEmpty);
       expect(repository.linkRequests, hasLength(1));
       expect(repository.linkRequests.single.serverId, 'real-15');
       expect(repository.linkRequests.single.login, '425297911');
@@ -156,9 +212,10 @@ void main() {
     await _openForm(
       tester,
       repository: _LoginRepository(
-        linkError: const ExV2RequestFailure(
+        authError: const ExV2RequestFailure(
           statusCode: 401,
           code: 'invalid_credentials',
+          correlationId: 'corr-safe-widget',
           message: 'Thông tin đăng nhập không hợp lệ',
         ),
       ),
@@ -178,7 +235,14 @@ void main() {
     await tester.pump();
 
     expect(appRouter.state.uri.path, '/accounts/add/exness');
-    expect(find.text('Thông tin đăng nhập không hợp lệ'), findsOneWidget);
+    expect(
+      find.text(
+        'Thông tin đăng nhập không hợp lệ\n'
+        'Mã lỗi: invalid_credentials\n'
+        'Mã tra cứu: corr-safe-widget',
+      ),
+      findsOneWidget,
+    );
     expect(
       tester
           .widget<TextField>(
@@ -198,12 +262,6 @@ void main() {
       isEmpty,
     );
     expect(find.text('Exness-MT5Real20'), findsOneWidget);
-    expect(
-      tester
-          .widget<Switch>(find.byKey(const Key('existing-account-save-switch')))
-          .value,
-      isTrue,
-    );
   });
 
   testWidgets(
@@ -314,65 +372,56 @@ void main() {
     },
   );
 
-  testWidgets(
-    'navigation waits for link activation and bootstrap publication',
-    (tester) async {
-      final activationGate = Completer<void>();
-      final events = <String>[];
-      await _openForm(
-        tester,
-        repository: _LoginRepository(
-          activationGate: activationGate,
-          events: events,
-        ),
-      );
-      await tester.enterText(
-        find.byKey(const Key('existing-account-login-field')),
-        '425297911',
-      );
-      await tester.enterText(
-        find.byKey(const Key('existing-account-password-field')),
-        'correct-password',
-      );
-      await tester.pump();
-      final providerContainer = ProviderScope.containerOf(
-        tester.element(find.byKey(const Key('existing-account-login-screen'))),
-      );
+  testWidgets('navigation waits for linked-account activation', (tester) async {
+    final sessionCommitGate = Completer<void>();
+    final events = <String>[];
+    await _openForm(
+      tester,
+      repository: _LoginRepository(
+        sessionCommitGate: sessionCommitGate,
+        events: events,
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const Key('existing-account-login-field')),
+      '425297911',
+    );
+    await tester.enterText(
+      find.byKey(const Key('existing-account-password-field')),
+      'correct-password',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('existing-account-login-button')));
+    await tester.pump();
 
-      await tester.tap(find.byKey(const Key('existing-account-login-button')));
-      await tester.pump();
+    expect(events, ['link', 'activate:start']);
+    expect(appRouter.state.uri.path, '/accounts/add/exness');
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const Key('existing-account-password-field')),
+          )
+          .controller
+          ?.text,
+      'correct-password',
+    );
 
-      expect(events, ['link', 'activate:start']);
-      expect(appRouter.state.uri.path, '/accounts/add/exness');
+    sessionCommitGate.complete();
+    await tester.pumpAndSettle();
 
-      activationGate.complete();
-      await tester.pumpAndSettle();
+    expect(events, ['link', 'activate:start', 'activate:complete']);
+    expect(appRouter.state.uri.path, '/trade');
+  });
 
-      expect(events, ['link', 'activate:start', 'activate:complete']);
-      expect(
-        providerContainer
-            .read(exV2AccountProvider)
-            .requireValue
-            ?.bootstrap
-            .account
-            .id,
-        'account-1',
-      );
-      expect(appRouter.state.uri.path, '/trade');
-    },
-  );
-
-  testWidgets('offline link stays disabled and reconnect enables it', (
+  testWidgets('market feed disconnection does not block REST account login', (
     tester,
   ) async {
-    final statuses = StreamController<MarketConnectionStatus>()
-      ..add(MarketConnectionStatus.disconnected);
-    addTearDown(statuses.close);
-    final repository = _LoginRepository(activationGate: Completer<void>());
+    final statuses = Stream.value(MarketConnectionStatus.disconnected);
+    final repository = _LoginRepository();
     await _openForm(
       tester,
       repository: repository,
-      connectionStatuses: statuses.stream,
+      connectionStatuses: statuses,
     );
     await tester.enterText(
       find.byKey(const Key('existing-account-login-field')),
@@ -390,24 +439,14 @@ void main() {
             find.byKey(const Key('existing-account-login-button')),
           )
           .onPressed,
-      isNull,
-    );
-    expect(repository.linkRequests, isEmpty);
-
-    statuses.add(MarketConnectionStatus.connected);
-    await tester.pump();
-    expect(
-      tester
-          .widget<OutlinedButton>(
-            find.byKey(const Key('existing-account-login-button')),
-          )
-          .onPressed,
       isNotNull,
     );
     await tester.tap(find.byKey(const Key('existing-account-login-button')));
     await tester.pump();
     await tester.pump();
+    expect(repository.loginRequests, isEmpty);
     expect(repository.linkRequests, hasLength(1));
+    expect(appRouter.state.uri.path, '/trade');
   });
 
   testWidgets('registration and forgot-password rows provide safe feedback', (
@@ -447,6 +486,8 @@ Future<void> _openForm(
   WidgetTester tester, {
   required _LoginRepository repository,
   Stream<MarketConnectionStatus>? connectionStatuses,
+  String brokerKey = 'exness',
+  String brokerId = 'exness',
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 844));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -454,8 +495,15 @@ Future<void> _openForm(
     ProviderScope(
       overrides: [
         accountLinkRepositoryProvider.overrideWithValue(repository),
-        accountReconnectGrantStoreProvider.overrideWithValue(
-          _MemoryGrantStore(),
+        accountPasswordLoginRepositoryProvider.overrideWithValue(
+          _PasswordLoginRepository(repository),
+        ),
+        installationIdStoreProvider.overrideWithValue(_InstallationStore()),
+        accountSessionCommitterProvider.overrideWithValue(
+          _SessionCommitter(repository),
+        ),
+        linkedAccountPresentationStoreProvider.overrideWithValue(
+          _MemoryPresentationStore(),
         ),
         if (connectionStatuses != null) ...[
           exV2EnabledProvider.overrideWithValue(true),
@@ -469,35 +517,85 @@ Future<void> _openForm(
           ),
         ],
       ],
-      child: MaterialApp.router(theme: AppTheme.dark, routerConfig: appRouter),
+      child: MaterialApp.router(theme: AppTheme.light, routerConfig: appRouter),
     ),
   );
   addTearDown(() => appRouter.go('/'));
   appRouter.go('/accounts/add');
   await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('broker-row-exness')));
+  await tester.tap(find.byKey(Key('broker-row-$brokerKey')));
   await tester.pumpAndSettle();
 
-  expect(appRouter.state.uri.path, '/accounts/add/exness');
+  expect(appRouter.state.uri.path, '/accounts/add/$brokerId');
   expect(
     find.byKey(const Key('existing-account-login-screen')),
     findsOneWidget,
   );
 }
 
+final class _PasswordLoginRepository implements AccountPasswordLoginRepository {
+  _PasswordLoginRepository(this.repository);
+
+  final _LoginRepository repository;
+
+  @override
+  Future<AccountPasswordLoginResult> login(
+    AccountPasswordLoginRequest request, {
+    required String installationId,
+    required ExV2CommandMetadata metadata,
+  }) async {
+    repository.loginRequests.add(request);
+    repository.events?.add('authenticate');
+    if (repository.authError case final error?) throw error;
+    return AccountPasswordLoginResult(
+      deviceToken: 'token-account-1',
+      account: _linkedAccount,
+      bootstrap: ExV2Bootstrap.fromJson(_bootstrapJson),
+    );
+  }
+}
+
+final class _SessionCommitter implements AccountSessionCommitter {
+  _SessionCommitter(this.repository);
+
+  final _LoginRepository repository;
+
+  @override
+  Future<ExV2BootstrapPublication> commit(
+    AccountPasswordLoginResult result,
+  ) async {
+    repository.events?.add('commit-session:start');
+    if (repository.sessionCommitGate != null) {
+      await repository.sessionCommitGate!.future;
+    }
+    repository.events?.add('commit-session:complete');
+    return ExV2BootstrapPublication.idempotentReplay;
+  }
+}
+
+final class _InstallationStore implements InstallationIdStore {
+  @override
+  Future<String> readOrCreate() async => '11111111-1111-4111-8111-111111111111';
+}
+
 final class _LoginRepository implements AccountLinkRepository {
   _LoginRepository({
-    this.linkError,
-    this.activationGate,
+    this.authError,
+    this.sessionCommitGate,
     this.events,
     this.serverFailures = 0,
+    this.referenceCatalog = false,
   });
 
-  final Object? linkError;
-  final Completer<void>? activationGate;
+  final Object? authError;
+  final Completer<void>? sessionCommitGate;
   final List<String>? events;
   final int serverFailures;
+  final bool referenceCatalog;
+  final List<AccountPasswordLoginRequest> loginRequests =
+      <AccountPasswordLoginRequest>[];
   final List<LinkAccountRequest> linkRequests = <LinkAccountRequest>[];
+  final Map<String, LinkedTradingAccount> linkedAccounts = {};
   int serverCalls = 0;
 
   @override
@@ -509,20 +607,32 @@ final class _LoginRepository implements AccountLinkRepository {
     required ExV2CommandMetadata metadata,
   }) async {
     events?.add('activate:start');
-    if (activationGate != null) await activationGate!.future;
+    if (sessionCommitGate != null) await sessionCommitGate!.future;
+    final account = linkedAccounts[accountId];
+    if (account == null) throw StateError('Account was not linked');
     events?.add('activate:complete');
     return ActivateLinkedAccountResult(
-      account: _linkedAccount,
-      bootstrap: ExV2Bootstrap.fromJson(_bootstrapJson),
+      account: LinkedTradingAccount(
+        id: account.id,
+        brokerId: account.brokerId,
+        brokerName: account.brokerName,
+        serverId: account.serverId,
+        serverName: account.serverName,
+        login: account.login,
+        isActive: true,
+      ),
+      bootstrap: ExV2Bootstrap.fromJson(
+        _bootstrapForAccount(account.id, account.login),
+      ),
     );
   }
 
   @override
-  Future<List<MobileBroker>> brokers({String query = ''}) async => const [
+  Future<List<MobileBroker>> brokers({String query = ''}) async => [
     MobileBroker(
-      id: 'exness',
-      name: 'Exness Technologies Ltd',
-      companyName: 'Exness',
+      id: referenceCatalog ? 'yodo-demo' : 'exness',
+      name: referenceCatalog ? 'YODO Demo Markets' : 'Exness Technologies Ltd',
+      companyName: referenceCatalog ? 'YODO' : 'Exness',
     ),
   ];
 
@@ -531,12 +641,28 @@ final class _LoginRepository implements AccountLinkRepository {
     LinkAccountRequest request, {
     required ExV2CommandMetadata metadata,
   }) async {
-    events?.add('link');
     linkRequests.add(request);
-    if (linkError case final error?) throw error;
-    return const LinkAccountResult(
-      account: _linkedAccount,
-      reconnectGrant: 'opaque-grant',
+    events?.add('link');
+    if (authError case final error?) throw error;
+    final account = LinkedTradingAccount(
+      id: 'account-1',
+      brokerId: request.brokerId,
+      brokerName: request.brokerId == 'exness'
+          ? 'Exness Technologies Ltd'
+          : 'YODO Demo Markets',
+      serverId: request.serverId,
+      serverName: switch (request.serverId) {
+        'real-15' => 'Exness-MT5Real15',
+        'real-20' => 'Exness-MT5Real20',
+        _ => 'YODO-Demo-01',
+      },
+      login: request.login,
+      isActive: false,
+    );
+    linkedAccounts[account.id] = account;
+    return LinkAccountResult(
+      account: account,
+      reconnectGrant: 'opaque-grant-account-1',
       alreadyLinked: false,
     );
   }
@@ -549,6 +675,15 @@ final class _LoginRepository implements AccountLinkRepository {
     serverCalls += 1;
     if (serverCalls <= serverFailures) {
       throw StateError('server catalog unavailable');
+    }
+    if (referenceCatalog) {
+      return const [
+        MobileTradingServer(
+          id: 'yodo-demo-01',
+          name: 'YODO-Demo-01',
+          brokerId: 'yodo-demo',
+        ),
+      ];
     }
     return const [
       MobileTradingServer(
@@ -565,15 +700,17 @@ final class _LoginRepository implements AccountLinkRepository {
   }
 }
 
-final class _MemoryGrantStore implements AccountReconnectGrantStore {
-  @override
-  Future<void> delete(String accountId) async {}
+final class _MemoryPresentationStore implements LinkedAccountPresentationStore {
+  final Map<String, LinkedAccountPresentation> values = {};
 
   @override
-  Future<String?> read(String accountId) async => null;
+  Future<LinkedAccountPresentation?> read(String accountId) async =>
+      values[accountId];
 
   @override
-  Future<void> write(String accountId, String grant) async {}
+  Future<void> write(String accountId, LinkedAccountPresentation value) async {
+    values[accountId] = value;
+  }
 }
 
 const _linkedAccount = LinkedTradingAccount(
@@ -628,4 +765,17 @@ const _bootstrapJson = <String, Object?>{
   },
   'connection': {'marketFeedStatus': 'connected', 'lastMarketTickAt': null},
   'integrityWarnings': 0,
+};
+
+Map<String, Object?> _bootstrapForAccount(String accountId, String login) => {
+  ..._bootstrapJson,
+  'activeAccount': {
+    ...(_bootstrapJson['activeAccount']! as Map<String, Object?>),
+    'id': accountId,
+    'accountCode': login,
+  },
+  'summary': {
+    ...(_bootstrapJson['summary']! as Map<String, Object?>),
+    'accountId': accountId,
+  },
 };

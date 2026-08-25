@@ -21,10 +21,14 @@ abstract final class ExV2AccountProfileMapper {
       'mt5Server',
       'server',
     ]);
-    final companyName = preferSelectedPresentation
+    final preferPresentationCompany =
+        preferSelectedPresentation || _isPlaceholder(settingsCompany);
+    final preferPresentationServer =
+        preferSelectedPresentation || _isPlaceholder(settingsServer);
+    final companyName = preferPresentationCompany
         ? presentation?.companyName ?? settingsCompany ?? 'Trading Account'
         : settingsCompany ?? presentation?.companyName ?? 'Trading Account';
-    final tradingServer = preferSelectedPresentation
+    final tradingServer = preferPresentationServer
         ? presentation?.tradingServer ?? settingsServer ?? 'Trading Server'
         : settingsServer ?? presentation?.tradingServer ?? 'Trading Server';
     return AccountPresentationMetadata(
@@ -34,7 +38,11 @@ abstract final class ExV2AccountProfileMapper {
           _text(settings, const ['accessPoint', 'mt5AccessPoint']) ??
           presentation?.accessPoint ??
           'Access Point #1',
-      brand: _brand('${presentation?.brokerId ?? ''} $companyName'),
+      brand: resolveDemoBrokerBrand(
+        brokerId: presentation?.brokerId ?? '',
+        companyName: companyName,
+        serverName: tradingServer,
+      ),
       accountMode:
           _text(settings, const ['accountMode', 'positionMode']) ?? 'Hedge',
       isMaster: _bool(settings, 'isMaster') ?? true,
@@ -90,11 +98,8 @@ abstract final class ExV2AccountProfileMapper {
     return null;
   }
 
-  static DemoBrokerBrand _brand(String value) {
-    final normalized = value.toLowerCase();
-    if (normalized.contains('exness')) return DemoBrokerBrand.exness;
-    if (normalized.contains('yodo')) return DemoBrokerBrand.yodo;
-    if (normalized.contains('vantage')) return DemoBrokerBrand.vantage;
-    return DemoBrokerBrand.unknown;
+  static bool _isPlaceholder(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    return normalized == 'trading account' || normalized == 'trading server';
   }
 }

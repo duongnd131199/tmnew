@@ -1,4 +1,8 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -236,7 +240,10 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: const MaterialApp(
-            home: MediaQuery(data: media, child: TradeScreen()),
+            home: RepaintBoundary(
+              key: Key('trade-icon-reference-capture'),
+              child: MediaQuery(data: media, child: TradeScreen()),
+            ),
           ),
         ),
       );
@@ -255,6 +262,13 @@ void main() {
       expect(addButton.top, closeTo(91.5, .01));
       expect(addButton.right, closeTo(556, .01));
       expect(addButton.bottom, closeTo(155.5, .01));
+      final addInk = await _tradeButtonInkMetrics(
+        tester,
+        const Key('trade-add-button'),
+        pixelRatio: 1.5,
+      );
+      expect(addInk.bounds, const Rect.fromLTRB(19, 16.5, 44, 41.5));
+      expect(addInk.pixels, inInclusiveRange(115, 140));
 
       final first = tester.getRect(
         find.byKey(ValueKey('trade-position-${positions[0].id}')),
@@ -309,6 +323,14 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Đóng Các Lệnh Có Trạng Thái Đang Lỗ'), findsOneWidget);
+      expect(
+        find.byKey(const Key('position-bulk-actions-dialog')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('position-bulk-action-sameSide')),
+        findsNothing,
+      );
 
       await tester.tap(find.text('Đóng Các Lệnh Có Trạng Thái Đang Có Lời'));
       await tester.pump();
@@ -397,11 +419,11 @@ void main() {
       );
       await tester.pump();
 
-      await tester.drag(find.text('XAUUSD+'), const Offset(-220, 0));
+      await tester.drag(find.text('XAUUSD'), const Offset(-220, 0));
       await tester.pumpAndSettle();
       final xauAnimatedRow = tester.widget<AnimatedContainer>(
         find.ancestor(
-          of: find.text('XAUUSD+'),
+          of: find.text('XAUUSD'),
           matching: find.byType(AnimatedContainer),
         ),
       );
@@ -431,9 +453,9 @@ void main() {
 
       router.go('/market');
       await tester.pumpAndSettle();
-      await tester.tap(find.text('XAUUSD+'));
+      await tester.tap(find.text('XAUUSD'));
       await tester.pumpAndSettle();
-      expect(find.text('XAUUSD+: Gold US Dollar'), findsOneWidget);
+      expect(find.text('XAUUSD: Gold US Dollar'), findsOneWidget);
       expect(find.text('Giao dich'), findsOneWidget);
       expect(find.text('Bieu do'), findsOneWidget);
       expect(find.text('Chi tiet'), findsOneWidget);
@@ -472,5 +494,66 @@ void main() {
       await tester.pump();
       expect(container.read(marketSymbolsProvider), const ['XAUUSD+']);
     },
+  );
+}
+
+Future<({Rect bounds, int pixels})> _tradeButtonInkMetrics(
+  WidgetTester tester,
+  Key buttonKey, {
+  required double pixelRatio,
+}) async {
+  final buttonRect = tester.getRect(find.byKey(buttonKey));
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(const Key('trade-icon-reference-capture')),
+  );
+  final captured = await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final result = (width: image.width, height: image.height, bytes: bytes);
+    image.dispose();
+    return result;
+  });
+  if (captured == null || captured.bytes == null) {
+    throw StateError('Unable to read Trade toolbar pixels');
+  }
+
+  final physicalButtonRect = Rect.fromLTRB(
+    buttonRect.left * pixelRatio,
+    buttonRect.top * pixelRatio,
+    buttonRect.right * pixelRatio,
+    buttonRect.bottom * pixelRatio,
+  );
+  final searchRect = physicalButtonRect.deflate(5);
+  var minX = captured.width;
+  var minY = captured.height;
+  var maxX = -1;
+  var maxY = -1;
+  var pixels = 0;
+  for (var y = searchRect.top.floor(); y < searchRect.bottom.ceil(); y++) {
+    for (var x = searchRect.left.floor(); x < searchRect.right.ceil(); x++) {
+      final offset = (y * captured.width + x) * 4;
+      final red = captured.bytes!.getUint8(offset);
+      final green = captured.bytes!.getUint8(offset + 1);
+      final blue = captured.bytes!.getUint8(offset + 2);
+      final alpha = captured.bytes!.getUint8(offset + 3);
+      if (alpha < 128 || (red + green + blue) / 3 >= 100) continue;
+      pixels++;
+      minX = math.min(minX, x);
+      minY = math.min(minY, y);
+      maxX = math.max(maxX, x);
+      maxY = math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    throw StateError('No Trade icon ink found for $buttonKey');
+  }
+  return (
+    bounds: Rect.fromLTRB(
+      minX.toDouble(),
+      minY.toDouble(),
+      (maxX + 1).toDouble(),
+      (maxY + 1).toDouble(),
+    ).shift(-physicalButtonRect.topLeft),
+    pixels: pixels,
   );
 }

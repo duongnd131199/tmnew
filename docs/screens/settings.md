@@ -66,7 +66,8 @@ Personal and financial values must not be replaced with strings copied from the 
 - Card radius: 24 logical pixels in the current Android rendering, matching the normalized video silhouette.
 - Row icon frame: 29 × 29 logical pixels.
 - Messaging badge: 21 × 21 logical pixels, positioned over the upper-right corner of the left icon.
-- The messaging base raster contains only the blue tile and white thumbs-up glyph; the unread badge is always rendered separately from the server-owned count.
+- All twelve row icons use code-native vector glyphs inside 29 x 29 rounded color tiles; no bitmap is scaled into the icon frame.
+- The messaging tile contains only the blue tile and white thumbs-up glyph; the unread badge is always rendered separately from the server-owned count.
 - Connected status: a blue circular signal glyph with three light strokes, 28 logical pixels inside a 29 × 29 frame.
 - Dividers use the semantic `AppColors.divider` token.
 

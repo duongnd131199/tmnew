@@ -1,0 +1,1958 @@
+
+{
+  "schemaVersion": 3,
+  "canonicalDevice": {
+    "width": 590,
+    "height": 1280,
+    "densityDpi": 240
+  },
+  "referenceTargetPalette": {
+    "canvas": "#FFFFFF",
+    "grid": "#E8E8E8",
+    "bullishCandle": "#26A69A",
+    "bearishCandle": "#EF5350",
+    "tradingBlue": "#3183FF",
+    "primaryTextAndAxes": "#000000"
+  },
+  "referenceTargetPaletteProvenance": "Exact target palette sampled from the live MT5 reference chart; it is not an observation about dev-before screenshots.",
+  "comparisonMaskExclusions": [
+    "changing prices",
+    "timestamps",
+    "candle data contour",
+    "Android status/navigation chrome",
+    "shared bottom navigation"
+  ],
+  "captureLimitations": [
+    "The emulator state is captured only at the real canonical BTCUSD/M5 default viewport.",
+    "Native pinch automation is intentionally not claimed: remaining timeframe and zoom rows are deterministic metadata fixtures with no screenshot path.",
+    "Development entries preserve the pre-light-parity screenshot state. Their observed colors are not sampled or inferred from the reference target palette."
+  ],
+  "commitPolicy": "No task commit is created: the shared checkout is dirty and predominantly untracked, so an isolated baseline commit is unsafe.",
+  "goldenMatrix": {
+    "logicalSurface": {
+      "width": 394,
+      "height": 854
+    },
+    "derivedFromDevice": {
+      "width": 590,
+      "height": 1280,
+      "densityDpi": 240
+    },
+    "pathPattern": "mobile/test/goldens/chart/light/<timeframe>-<zoom>.png",
+    "generatedCount": 27,
+    "fixture": "Deterministic BTCUSD OHLC, fixed UTC clock, one position line, one-click panel visible, and min/default/max viewport clamps."
+  },
+  "entries": [
+    {
+      "source": "ref",
+      "timeframe": "M1",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M1",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M1",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M5",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M5",
+      "zoom": "default",
+      "screenshotPath": "reference/screens/chart/light/ref-M5-default.png",
+      "captureState": "captured",
+      "captureMode": "adb-screencap",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 184,
+        "width": 590,
+        "height": 970
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "reference-sampled",
+      "observedColors": {
+        "canvas": "#FFFFFF",
+        "grid": "#E8E8E8",
+        "bullishCandle": "#26A69A",
+        "bearishCandle": "#EF5350",
+        "tradingBlue": "#3183FF",
+        "primaryTextAndAxes": "#000000"
+      },
+      "visibleCandleCount": 14,
+      "rightAxisWidth": 116,
+      "bottomAxisHeight": 36,
+      "capturedAt": "2026-08-23T01:56:47.6697828Z",
+      "operatorStateConfirmation": {
+        "timeframe": "M5",
+        "zoom": "default",
+        "symbol": "BTCUSD",
+        "oneClickPanel": "visible",
+        "zoomVerification": "operator-confirmed; native automation unavailable"
+      },
+      "measurementMethod": "Manual pixel measurement from the ADB screencap.",
+      "observedSurface": "Reference MT5 BTCUSD/M5 chart with one-click panel visible."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M5",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M15",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M15",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M15",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M30",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M30",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "M30",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "H1",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "H1",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "H1",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "H4",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "H4",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "H4",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "D1",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "D1",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "D1",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "W1",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "W1",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "W1",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "MN",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "MN",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "ref",
+      "timeframe": "MN",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M1",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M1",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M1",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M5",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M5",
+      "zoom": "default",
+      "screenshotPath": "reference/screens/chart/light/dev-before-M5-default.png",
+      "captureState": "captured",
+      "captureMode": "adb-screencap",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 184,
+        "width": 590,
+        "height": 980
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 20,
+      "rightAxisWidth": 104,
+      "bottomAxisHeight": 28,
+      "capturedAt": "2026-08-23T01:56:47.6805170Z",
+      "operatorStateConfirmation": {
+        "timeframe": "M5",
+        "zoom": "default",
+        "symbol": "BTCUSD",
+        "oneClickPanel": "visible",
+        "zoomVerification": "operator-confirmed; native automation unavailable"
+      },
+      "measurementMethod": "Manual pixel measurement from the ADB screencap.",
+      "observedSurface": "Development Chart tab before light-chart parity, BTCUSD/M5 with one-click panel visible."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M5",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M15",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M15",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M15",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M30",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M30",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "M30",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "H1",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "H1",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "H1",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "H4",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "H4",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "H4",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "D1",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "D1",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "D1",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "W1",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "W1",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "W1",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "MN",
+      "zoom": "min",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "MN",
+      "zoom": "default",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    },
+    {
+      "source": "dev-before",
+      "timeframe": "MN",
+      "zoom": "max",
+      "screenshotPath": null,
+      "captureState": "fixture-pending-native-pinch",
+      "captureMode": "deterministic-metadata-fixture",
+      "device": {
+        "width": 590,
+        "height": 1280,
+        "densityDpi": 240
+      },
+      "chartRegion": {
+        "x": 0,
+        "y": 80,
+        "width": 590,
+        "height": 720
+      },
+      "comparisonMaskExclusions": [
+        "changing prices",
+        "timestamps",
+        "candle data contour",
+        "Android status/navigation chrome",
+        "shared bottom navigation"
+      ],
+      "targetPalette": "referenceTargetPalette",
+      "observedColorStatus": "not-sampled",
+      "observedColors": null,
+      "visibleCandleCount": 1,
+      "rightAxisWidth": 1,
+      "bottomAxisHeight": 1,
+      "capturedAt": "2026-08-23T00:00:00.000Z",
+      "operatorStateConfirmation": null,
+      "fixtureNote": "No native pinch screenshot is claimed. This deterministic metadata fixture reserves the required matrix row until a verified emulator capture is available."
+    }
+  ]
+}

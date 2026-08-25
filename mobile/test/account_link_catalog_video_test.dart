@@ -97,7 +97,8 @@ void main() {
     expect(find.text('Exness'), findsOneWidget);
     expect(find.text('exness'), findsOneWidget);
     expect(find.textContaining('YODO'), findsNothing);
-    expect(find.textContaining('MetaQuotes'), findsNothing);
+    expect(find.text('MetaQuotes Ltd.'), findsOneWidget);
+    expect(find.text('MetaQuotes'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const Key('broker-row-yodo-demo')));
@@ -258,6 +259,89 @@ void main() {
     },
   );
 
+  testWidgets(
+    'presentation fallback adds MetaQuotes when the API returns only Exness',
+    (tester) async {
+      await _pump(
+        tester,
+        repository: _ExnessOnlyCatalogRepository(),
+        child: const BrokerListScreen(),
+      );
+
+      expect(find.byKey(const Key('broker-row-exness')), findsOneWidget);
+      expect(find.byKey(const Key('broker-row-metaquotes')), findsOneWidget);
+      expect(find.text('Exness Technologies Ltd'), findsOneWidget);
+      expect(find.text('Exness'), findsOneWidget);
+      expect(find.text('MetaQuotes Ltd.'), findsOneWidget);
+      expect(find.text('MetaQuotes'), findsOneWidget);
+      expect(
+        tester.getCenter(find.byKey(const Key('broker-row-metaquotes'))).dy,
+        greaterThan(
+          tester.getCenter(find.byKey(const Key('broker-row-exness'))).dy,
+        ),
+      );
+    },
+  );
+
+  testWidgets('MetaQuotes fallback is deduplicated and stays below Exness', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      repository: _DuplicateMetaquotesCatalogRepository(),
+      child: const BrokerListScreen(),
+    );
+
+    expect(find.text('Exness Technologies Ltd'), findsOneWidget);
+    expect(find.text('MetaQuotes Ltd.'), findsOneWidget);
+    expect(find.byKey(const Key('broker-row-metaquotes')), findsOneWidget);
+    expect(
+      tester.getCenter(find.byKey(const Key('broker-row-metaquotes'))).dy,
+      greaterThan(
+        tester.getCenter(find.byKey(const Key('broker-row-exness'))).dy,
+      ),
+    );
+  });
+
+  testWidgets(
+    'fallback participates in search without leaking into unrelated queries',
+    (tester) async {
+      await _pump(
+        tester,
+        repository: _ExnessOnlyCatalogRepository(),
+        child: const BrokerListScreen(),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('broker-search-field')),
+        'meta',
+      );
+      await tester.pump();
+      expect(find.byKey(const Key('broker-row-exness')), findsNothing);
+      expect(find.byKey(const Key('broker-row-metaquotes')), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('broker-search-field')),
+        'unrelated',
+      );
+      await tester.pump();
+      expect(find.byKey(const Key('broker-row-exness')), findsNothing);
+      expect(find.byKey(const Key('broker-row-metaquotes')), findsNothing);
+    },
+  );
+
+  testWidgets('MetaQuotes fallback row is presentation-only', (tester) async {
+    MobileBroker? selected;
+    await _pump(
+      tester,
+      repository: _ExnessOnlyCatalogRepository(),
+      child: BrokerListScreen(onBrokerSelected: (broker) => selected = broker),
+    );
+
+    await tester.tap(find.byKey(const Key('broker-row-metaquotes')));
+    expect(selected, isNull);
+  });
+
   testWidgets('broker search filters immediately and sends a debounced query', (
     tester,
   ) async {
@@ -283,6 +367,38 @@ void main() {
 
     expect(repository.brokerQueries, ['', 'meta']);
     expect(find.text('MetaQuotes Ltd.'), findsOneWidget);
+  });
+
+  testWidgets('MetaQuotes broker mark uses the exact reference raster source', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      repository: _CatalogRepository(),
+      child: const BrokerListScreen(),
+    );
+
+    final mark = find.byKey(const Key('broker-mark-metaquotes'));
+    expect(mark, findsOneWidget);
+    expect(tester.getSize(mark), const Size.square(31));
+
+    final imageFinder = find.descendant(of: mark, matching: find.byType(Image));
+    expect(imageFinder, findsOneWidget);
+    final crop = find.descendant(of: mark, matching: find.byType(ClipRect));
+    expect(crop, findsOneWidget);
+    expect(tester.getSize(crop).width, closeTo(27.33, 0.01));
+    expect(tester.getSize(crop).height, closeTo(27.33, 0.01));
+    final cropOffset =
+        tester.getRect(crop).center - tester.getRect(mark).center;
+    expect(cropOffset.dx, closeTo(-2 / 3, 0.01));
+    expect(cropOffset.dy, closeTo(2 / 3, 0.01));
+    final image = tester.widget<Image>(imageFinder);
+    expect(image.image, isA<AssetImage>());
+    expect(
+      (image.image as AssetImage).assetName,
+      'assets/images/metatrader5_splash.png',
+    );
+    expect(image.fit, BoxFit.fill);
   });
 
   testWidgets('catalog text retains its semantic typography family', (
@@ -352,12 +468,9 @@ void main() {
       child: BrokerListScreen(onBrokerSelected: (_) {}),
     );
 
-    await tester.enterText(
-      find.byKey(const Key('broker-search-field')),
-      'meta',
-    );
+    await tester.enterText(find.byKey(const Key('broker-search-field')), 'e');
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.tap(find.byKey(const Key('broker-row-metaquotes')));
+    await tester.tap(find.byKey(const Key('broker-row-exness')));
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(repository.brokerQueries, ['']);
@@ -481,7 +594,7 @@ void main() {
           accountLinkRepositoryProvider.overrideWithValue(repository),
         ],
         child: MaterialApp.router(
-          theme: AppTheme.dark,
+          theme: AppTheme.light,
           routerConfig: appRouter,
         ),
       ),
@@ -612,7 +725,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [accountLinkRepositoryProvider.overrideWithValue(repository)],
-      child: MaterialApp(theme: AppTheme.dark, home: child),
+      child: MaterialApp(theme: AppTheme.light, home: child),
     ),
   );
   if (settle) {
@@ -729,6 +842,49 @@ final class _LiveCatalogRepository extends _CatalogRepository {
       brokerId: 'yodo-demo',
     ),
   ];
+}
+
+final class _ExnessOnlyCatalogRepository extends _CatalogRepository {
+  @override
+  Future<List<MobileBroker>> brokers({String query = ''}) async {
+    brokerQueries.add(query);
+    final normalized = query.trim().toLowerCase();
+    const exness = MobileBroker(
+      id: 'exness',
+      name: 'Exness Technologies Ltd',
+      companyName: 'Exness',
+    );
+    if (normalized.isEmpty ||
+        exness.name.toLowerCase().contains(normalized) ||
+        exness.companyName!.toLowerCase().contains(normalized)) {
+      return const [exness];
+    }
+    return const [];
+  }
+}
+
+final class _DuplicateMetaquotesCatalogRepository extends _CatalogRepository {
+  @override
+  Future<List<MobileBroker>> brokers({String query = ''}) async {
+    brokerQueries.add(query);
+    return const [
+      MobileBroker(
+        id: 'exness',
+        name: 'Exness Technologies Ltd',
+        companyName: 'Exness',
+      ),
+      MobileBroker(
+        id: 'metaquotes',
+        name: 'MetaQuotes Ltd.',
+        companyName: 'MetaQuotes',
+      ),
+      MobileBroker(
+        id: 'metaquotes-copy',
+        name: 'MetaQuotes Ltd.',
+        companyName: 'metaquotes',
+      ),
+    ];
+  }
 }
 
 final class _DeferredCatalogRepository extends _CatalogRepository {

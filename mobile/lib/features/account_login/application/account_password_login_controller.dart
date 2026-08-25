@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trading_mobile/features/account_login/data/account_password_login_dependencies.dart';
 import 'package:trading_mobile/features/account_login/domain/account_password_login_models.dart';
+import 'package:trading_mobile/features/account_sessions/application/account_session_committer.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
-import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 
 enum AccountPasswordLoginPhase { editing, submitting, succeeded, failed }
@@ -49,7 +49,6 @@ final class AccountPasswordLoginController
     }
 
     _operationInFlight = true;
-    var tokenStored = false;
     state = const AccountPasswordLoginState(
       phase: AccountPasswordLoginPhase.submitting,
     );
@@ -72,29 +71,11 @@ final class AccountPasswordLoginController
           );
       if (!ref.mounted) return false;
 
-      final tokenStore = ref.read(deviceTokenStoreProvider);
-      await tokenStore.write(result.deviceToken);
-      tokenStored = true;
-      if (!ref.mounted) {
-        await tokenStore.delete();
-        return false;
-      }
-
-      final publication = ref
-          .read(exV2AccountProvider.notifier)
-          .publishBootstrap(
-            result.bootstrap,
-            authoritativeAccountSwitch: true,
-            presentation: ExV2AccountPresentation(
-              brokerId: result.account.brokerId,
-              companyName: result.account.brokerName,
-              serverId: result.account.serverId,
-              tradingServer: result.account.serverName,
-            ),
-          );
+      final publication = await ref
+          .read(accountSessionCommitterProvider)
+          .commit(result);
+      if (!ref.mounted) return false;
       if (publication == ExV2BootstrapPublication.rejectedStale) {
-        await tokenStore.delete();
-        tokenStored = false;
         state = const AccountPasswordLoginState(
           phase: AccountPasswordLoginPhase.failed,
           errorMessage: 'Một phiên tài khoản mới hơn đang hoạt động',
@@ -108,9 +89,6 @@ final class AccountPasswordLoginController
       );
       return true;
     } catch (error) {
-      if (tokenStored) {
-        await ref.read(deviceTokenStoreProvider).delete();
-      }
       if (ref.mounted) {
         state = AccountPasswordLoginState(
           phase: AccountPasswordLoginPhase.failed,

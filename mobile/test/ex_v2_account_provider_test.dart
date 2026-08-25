@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
@@ -13,6 +14,8 @@ import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
   test('production loading never exposes offline fixture accounts', () {
     final gate = Completer<ExV2AccountViewState?>();
     final container = ProviderContainer(
@@ -61,6 +64,66 @@ void main() {
     expect(accounts.single.accessPoint, 'Access Point #1');
   });
 
+  test('empty account API never exposes a local-only account', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+      ..httpClientAdapter = _BootstrapAdapter();
+    FlutterSecureStorage.setMockInitialValues({
+      'ex_v2_account_sessions_v1': jsonEncode([
+        {
+          'account': {'id': 'account-2', 'login': 'TEST-200'},
+          'deviceToken': 'legacy-token-account-2',
+        },
+      ]),
+    });
+    final container = ProviderContainer(
+      overrides: [
+        exV2EnabledProvider.overrideWithValue(true),
+        exV2DioProvider.overrideWithValue(dio),
+        deviceTokenStoreProvider.overrideWithValue(
+          _MemoryTokenStore('test-token'),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final linkedSubscription = container.listen(
+      linkedTradingAccountsProvider,
+      (previous, next) {},
+      fireImmediately: true,
+    );
+    addTearDown(linkedSubscription.close);
+
+    await container.read(exV2AccountProvider.future);
+    await container.read(linkedTradingAccountsProvider.future);
+
+    final accounts = container.read(demoAccountsProvider);
+    expect(accounts.map((account) => account.linkedAccountId), ['account-1']);
+  });
+
+  test('linked account activation uses the server catalog', () async {
+    final adapter = _BootstrapAdapter(includeLinkedAccounts: true);
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+      ..httpClientAdapter = adapter;
+    final container = ProviderContainer(
+      overrides: [
+        exV2EnabledProvider.overrideWithValue(true),
+        exV2DioProvider.overrideWithValue(dio),
+        deviceTokenStoreProvider.overrideWithValue(
+          _MemoryTokenStore('test-token'),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+    await container.read(linkedTradingAccountsProvider.future);
+
+    final result = await container
+        .read(linkedTradingAccountsProvider.notifier)
+        .activate('account-2');
+
+    expect(adapter.activationCalls, 1);
+    expect(result?.account.id, 'account-2');
+  });
+
   test('bootstrap becomes visible before slower history endpoints', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
       ..httpClientAdapter = _BootstrapAdapter(
@@ -105,13 +168,20 @@ void main() {
     expect(state.orders.single.id, 'history-order-1');
     expect(state.deals, hasLength(2));
     expect(state.deals.every((deal) => deal.entry == 'out'), isTrue);
-    expect(state.historyPositions.single.id, 'history-position-1');
-    expect(state.historyPositions.single.volume, 0.01);
-    expect(
-      state.historyPositions.single.closePrice,
-      closeTo(4369.4, 0.000001),
+    final tradingHistory = state.historyPositions.singleWhere(
+      (entry) => entry.id == 'history-position-1',
     );
-    expect(state.historyPositions.single.profit, -0.77);
+    expect(tradingHistory.volume, 0.01);
+    expect(tradingHistory.closePrice, closeTo(4369.4, 0.000001));
+    expect(tradingHistory.profit, -0.77);
+    final balanceHistory = state.historyPositions
+        .where((entry) => entry.isBalance)
+        .toList(growable: false);
+    expect(balanceHistory.map((entry) => entry.subtitle), [
+      'D-ALLINT-USD-INT-924750483461',
+      'W-BANKVNGT-USD-1475391737862',
+    ]);
+    expect(balanceHistory.map((entry) => entry.profit), [518.54, -2000]);
     final profile = container.read(demoAccountsProvider).single;
     expect(profile.historyDeposit, 1200);
     expect(profile.historyWithdrawal, -300);
@@ -139,7 +209,10 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 100));
     final confirmed = container.read(exV2AccountProvider).value!;
     expect(confirmed.deals, hasLength(2));
-    expect(confirmed.historyPositions.single.closePrice, isNotNull);
+    final confirmedTradingHistory = confirmed.historyPositions.singleWhere(
+      (entry) => !entry.isBalance,
+    );
+    expect(confirmedTradingHistory.closePrice, isNotNull);
 
     adapter.failHistoryDeals = true;
     await container.read(exV2AccountProvider.notifier).refresh();
@@ -149,9 +222,11 @@ void main() {
       'history-deal-1',
       'history-deal-2',
     ]);
+    final tradingHistoryAfterFailure = afterFailure.historyPositions
+        .singleWhere((entry) => !entry.isBalance);
     expect(
-      afterFailure.historyPositions.single.closePrice,
-      confirmed.historyPositions.single.closePrice,
+      tradingHistoryAfterFailure.closePrice,
+      confirmedTradingHistory.closePrice,
     );
   });
 
@@ -579,13 +654,16 @@ final class _BootstrapAdapter implements HttpClientAdapter {
     this.productionHistory = false,
     this.mutationGate,
     this.includeNotification = false,
+    this.includeLinkedAccounts = false,
   });
 
   final Duration historyDelay;
   final bool productionHistory;
   final Completer<void>? mutationGate;
   final bool includeNotification;
+  final bool includeLinkedAccounts;
   bool failHistoryDeals = false;
+  int activationCalls = 0;
 
   @override
   Future<ResponseBody> fetch(
@@ -594,6 +672,57 @@ final class _BootstrapAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     final path = options.uri.path;
+    if (options.method == 'PUT' &&
+        path.endsWith('/mobile/accounts/account-2/activate')) {
+      activationCalls += 1;
+      return _jsonResponse({
+        'account': {
+          'id': 'account-2',
+          'brokerId': 'exness-demo',
+          'brokerName': 'Exness',
+          'serverId': 'exness-demo',
+          'serverName': 'Exness-MT5Trial',
+          'login': 'TEST-200',
+          'isActive': true,
+          'displayName': null,
+          'currency': 'USD',
+          'status': 'active',
+        },
+        'bootstrap': _bootstrapForAccount('account-2', 'TEST-200'),
+      });
+    }
+    if (options.method == 'GET' && path.endsWith('/mobile/accounts')) {
+      return _jsonResponse(
+        includeLinkedAccounts
+            ? [
+                {
+                  'id': 'account-1',
+                  'brokerId': 'exness-demo',
+                  'brokerName': 'Exness',
+                  'serverId': 'exness-demo',
+                  'serverName': 'Exness-MT5Trial',
+                  'login': 'TEST-100',
+                  'isActive': true,
+                  'displayName': null,
+                  'currency': 'USD',
+                  'status': 'active',
+                },
+                {
+                  'id': 'account-2',
+                  'brokerId': 'exness-demo',
+                  'brokerName': 'Exness',
+                  'serverId': 'exness-demo',
+                  'serverName': 'Exness-MT5Trial',
+                  'login': 'TEST-200',
+                  'isActive': false,
+                  'displayName': null,
+                  'currency': 'USD',
+                  'status': 'active',
+                },
+              ]
+            : const <Object?>[],
+      );
+    }
     if (failHistoryDeals && path.endsWith('/history/deals')) {
       return ResponseBody.fromString(
         jsonEncode({
@@ -721,6 +850,47 @@ Object? _productionHistoryPayload(String path) {
       'commission': -2.5,
       'netChange': 883.91,
     };
+  }
+  if (path.endsWith('/history/transactions')) {
+    return paged({
+      'id': 'transaction:1475391737862',
+      'type': 'Rút tiền',
+      'timestamp': '2026-07-21T06:49:19Z',
+      'amountValue': 2000,
+      'currency': 'USD',
+      'status': 'hoàn tất',
+    });
+  }
+  if (path.endsWith('/wallet/transactions')) {
+    return <Object?>[];
+  }
+  if (path.endsWith('/deposits')) {
+    return [
+      {
+        'id': 'deposit:1',
+        'amount': 518.54,
+        'currency': 'USD',
+        'method': 'VNVIETQR-1',
+        'reference': '924750483461',
+        'status': 'hoàn tất',
+        'createdAt': '2026-07-21T02:28:53Z',
+        'updatedAt': '2026-07-21T02:31:53Z',
+      },
+    ];
+  }
+  if (path.endsWith('/withdrawals')) {
+    return [
+      {
+        'id': 'withdrawal:1',
+        'amount': 2000,
+        'currency': 'USD',
+        'bankName': 'BANKVNGT',
+        'reference': 'W-BANKVNGT-USD-1475391737862',
+        'status': 'hoàn tất',
+        'createdAt': '2026-07-21T06:49:18.900Z',
+        'updatedAt': '2026-07-21T06:52:19Z',
+      },
+    ];
   }
   if (path.endsWith('/history/positions')) {
     return {

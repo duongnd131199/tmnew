@@ -1,0 +1,31 @@
+name: trading_mobile
+description: Android-first client for the Trading Demo application.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  dio: ^5.10.0
+  flutter_riverpod: ^3.3.2
+  flutter_secure_storage: ^10.3.1
+  go_router: ^17.3.0
+  signalr_hub: ^2.0.2
+  webview_flutter: ^4.14.1
+
+dev_dependencies:
+  fake_async: ^1.3.3
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/metatrader5_splash.png

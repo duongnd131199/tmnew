@@ -152,6 +152,31 @@ final class ExV2AccountViewState {
     hasLiveValuation: true,
   );
 
+  ExV2AccountViewState preserveLiveValuationFrom(
+    ExV2AccountViewState previous,
+  ) {
+    if (!previous.hasLiveValuation ||
+        previous.bootstrap.account.id != bootstrap.account.id ||
+        previous.bootstrap.summary.accountId != bootstrap.summary.accountId) {
+      return this;
+    }
+    final previousPositions = {
+      for (final position in previous.positions) position.id: position,
+    };
+    return copyWith(
+      positions: [
+        for (final position in positions)
+          if (previousPositions[position.id] case final previousPosition?
+              when previousPosition.symbol == position.symbol &&
+                  previousPosition.side == position.side)
+            _withCurrentPrice(position, previousPosition.currentPrice)
+          else
+            position,
+      ],
+      hasLiveValuation: true,
+    );
+  }
+
   DemoPosition _withPrice(
     DemoPosition position, {
     required double bid,
@@ -159,6 +184,11 @@ final class ExV2AccountViewState {
   }) {
     final isBuy = position.side == 'BUY';
     final price = isBuy ? bid : ask;
+    return _withCurrentPrice(position, price);
+  }
+
+  DemoPosition _withCurrentPrice(DemoPosition position, double price) {
+    final isBuy = position.side == 'BUY';
     final direction = isBuy ? 1.0 : -1.0;
     return position.copyWith(
       currentPrice: price,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 class SectionScreen extends StatelessWidget {
@@ -43,7 +44,7 @@ class SectionScreen extends StatelessWidget {
       _ => ['Nội dung hướng dẫn', 'Thông tin ứng dụng', 'Trợ giúp và hỗ trợ'],
     };
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: Text(displayTradingSymbolText(title))),
       body: ListView.separated(
         itemCount: items.length,
         separatorBuilder: (_, _) => const Divider(height: 1),
@@ -158,7 +159,7 @@ class _SymbolPropertiesScreen extends ConsumerWidget {
                     left: 16,
                     top: 37,
                     child: Material(
-                      color: const Color(0xFF171719),
+                      color: AppColors.surface,
                       shape: const CircleBorder(
                         side: BorderSide(color: AppColors.divider, width: .6),
                       ),
@@ -184,7 +185,7 @@ class _SymbolPropertiesScreen extends ConsumerWidget {
                     right: 75,
                     top: 49,
                     child: Text(
-                      symbol,
+                      displayTradingSymbol(symbol),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: AppColors.textPrimary,
@@ -312,7 +313,7 @@ class _DepthOfMarketScreenState extends ConsumerState<_DepthOfMarketScreen> {
     final step = widget.symbol.startsWith('XAUUSD') ? .05 : .0001;
     final maximalVolume = widget.symbol.startsWith('XAUUSD') ? 100.0 : 10.0;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(title: Text(displayTradingSymbolText(widget.title))),
       body: Column(
         children: [
           SizedBox(
@@ -489,7 +490,7 @@ class _MarketStatisticsScreen extends ConsumerWidget {
       ('Số tick', '—'),
     ];
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: Text(displayTradingSymbolText(title))),
       body: ListView.separated(
         itemCount: rows.length,
         separatorBuilder: (_, _) => const Divider(height: 1),

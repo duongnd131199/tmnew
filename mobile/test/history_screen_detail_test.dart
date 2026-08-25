@@ -1,6 +1,12 @@
+import 'dart:math' as math;
+import 'dart:ui' show ImageByteFormat;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/features/account_sync/data/ex_v2_wallet_history_mapper.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
 import 'package:trading_mobile/features/history/presentation/screens/history_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
@@ -12,7 +18,12 @@ void main() {
   Widget testApp() {
     return ProviderScope(
       overrides: videoReferenceOverrides,
-      child: const MaterialApp(home: HistoryScreen()),
+      child: const MaterialApp(
+        home: RepaintBoundary(
+          key: Key('history-icon-reference-capture'),
+          child: HistoryScreen(),
+        ),
+      ),
     );
   }
 
@@ -21,6 +32,50 @@ void main() {
       await tester.pump();
     }
   }
+
+  testWidgets('History toolbar icon ink matches the measured references', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(384, 848);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    await tester.pumpWidget(testApp());
+    await pumpBottomAnchor(tester);
+
+    final sort = await _historyButtonInkMetrics(
+      tester,
+      const Key('history-sort-button'),
+    );
+    final clock = await _historyButtonInkMetrics(
+      tester,
+      const Key('history-period-button'),
+    );
+
+    expect(sort.bounds, const Rect.fromLTWH(14, 14, 16, 14));
+    expect(sort.pixels, inInclusiveRange(70, 95));
+    expect(clock.bounds, const Rect.fromLTWH(12, 12, 19, 19));
+    expect(clock.pixels, inInclusiveRange(95, 125));
+  });
+
+  testWidgets('History header fade stays white through its transparent edge', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(384, 848);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    await tester.pumpWidget(testApp());
+    await pumpBottomAnchor(tester);
+
+    final minimumChannel = await _historyHeaderEdgeMinimumChannel(tester);
+
+    expect(minimumChannel, greaterThanOrEqualTo(245));
+  });
 
   testWidgets('closed position without close price renders unavailable', (
     tester,
@@ -55,6 +110,151 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+    'wallet history Balance rows match the deposit and withdrawal reference',
+    (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final entries = ExV2WalletHistoryMapper.entries(
+        historyTransactions: const [],
+        deposits: const [
+          {
+            'id': 'deposit-1',
+            'amount': 518.54,
+            'status': 'pending',
+            'reference': 'D-ALLINT-USD-INT-924750483461',
+            'createdAt': '2026-07-21T02:28:53',
+          },
+        ],
+        withdrawals: const [
+          {
+            'id': 'withdrawal-1',
+            'amount': 2000,
+            'status': 'rejected',
+            'reference': 'W-BANKVNGT-USD-1475391737862',
+            'createdAt': '2026-07-21T06:49:19',
+          },
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ...videoReferenceOverrides,
+            demoHistoryPositionsProvider.overrideWithValue(entries),
+          ],
+          child: const MaterialApp(home: HistoryScreen()),
+        ),
+      );
+      await pumpBottomAnchor(tester);
+
+      final depositRow = find.byKey(
+        const ValueKey('history-position-wallet-deposit-1'),
+      );
+      final withdrawalRow = find.byKey(
+        const ValueKey('history-position-wallet-withdrawal-1'),
+      );
+      expect(find.text('Balance'), findsNWidgets(2));
+      expect(find.text('D-ALLINT-USD-INT-924750483461'), findsOneWidget);
+      expect(find.text('2026.07.21 02:28:53'), findsOneWidget);
+      expect(find.text('W-BANKVNGT-USD-1475391737862'), findsOneWidget);
+      expect(find.text('2026.07.21 06:49:19'), findsOneWidget);
+      expect(tester.getSize(depositRow).height, 52);
+      expect(
+        tester.getTopLeft(withdrawalRow).dy - tester.getTopLeft(depositRow).dy,
+        52,
+      );
+      expect(
+        tester.widget<Text>(find.text('518.54')).style?.color,
+        AppColors.primary,
+      );
+      expect(
+        tester.widget<Text>(find.text('-2 000.00')).style?.color,
+        AppColors.negative,
+      );
+    },
+  );
+
+  testWidgets('position history typography matches the compact reference', (
+    tester,
+  ) async {
+    await tester.pumpWidget(testApp());
+    await pumpBottomAnchor(tester);
+
+    final summaryLabel = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('history-summary-Tien nap')),
+        matching: find.text('Tien nap'),
+      ),
+    );
+    expect(summaryLabel.style?.fontSize, 15);
+    expect(summaryLabel.style?.fontWeight, FontWeight.w500);
+
+    final listFinder = find.byKey(
+      const PageStorageKey('history-positions-list'),
+    );
+    tester.widget<ListView>(listFinder).controller!.jumpTo(0);
+    await tester.pump();
+
+    final row = find.byKey(const Key('history-position-small-history-0'));
+    final texts = tester
+        .widgetList<Text>(find.descendant(of: row, matching: find.byType(Text)))
+        .toList();
+    String labelOf(Text text) =>
+        text.data ?? text.textSpan?.toPlainText() ?? '';
+    final title = texts.firstWhere(
+      (text) => labelOf(text).startsWith('XAUUSD sell'),
+    );
+    final profit = texts.firstWhere((text) => labelOf(text) == '-2.05');
+    final price = texts.firstWhere(
+      (text) => labelOf(text).contains('4061.390'),
+    );
+    final time = texts.firstWhere((text) => labelOf(text).startsWith('2026.'));
+
+    expect(title.style?.fontSize, 16);
+    expect(profit.style?.fontSize, 16);
+    expect(price.style?.fontSize, 14);
+    expect(time.style?.fontSize, 14);
+    expect(
+      tester.getTopLeft(find.byWidget(price)).dy -
+          tester.getTopLeft(find.byWidget(title)).dy,
+      closeTo(22, .1),
+    );
+  });
+
+  testWidgets('order and deal rows use the compact reference typography', (
+    tester,
+  ) async {
+    await tester.pumpWidget(testApp());
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('history-tab-1')));
+    await tester.pump();
+    final order = find.byKey(const Key('history-order-57360798130'));
+    final orderTexts = tester
+        .widgetList<Text>(
+          find.descendant(of: order, matching: find.byType(Text)),
+        )
+        .toList();
+    expect(orderTexts.first.style?.fontSize, 16);
+    expect(orderTexts.last.style?.fontSize, 14);
+
+    await tester.tap(find.byKey(const Key('history-tab-2')));
+    await tester.pump();
+    final deal = find.byKey(const Key('history-deal-57016800413'));
+    final dealTexts = tester
+        .widgetList<Text>(
+          find.descendant(of: deal, matching: find.byType(Text)),
+        )
+        .toList();
+    expect(dealTexts.first.style?.fontSize, 16);
+    expect(dealTexts.last.style?.fontSize, 14);
   });
 
   testWidgets('positions history initially anchors the video footer', (
@@ -181,7 +381,7 @@ void main() {
                 find.byKey(const ValueKey('history-summary-Tien nap')),
               )
               .dy,
-      closeTo(25.3333333333, .1),
+      closeTo(21.3333333333, .1),
     );
     expect(find.text('2 301.60'), findsOneWidget);
   });
@@ -341,7 +541,7 @@ void main() {
       final title = tester.widget<Text>(
         find.byKey(const Key('history-detail-title')),
       );
-      expect(title.textSpan!.toPlainText(), 'XAUUSD+ sell 0.01');
+      expect(title.textSpan!.toPlainText(), 'XAUUSD sell 0.01');
       expect(
         find.descendant(of: detail, matching: find.text('4061.390 → 4063.440')),
         findsOneWidget,
@@ -383,7 +583,7 @@ void main() {
   );
 
   testWidgets(
-    'video two history header overlays a bouncing 90px physical row list',
+    'reference history header overlays a bouncing 78px physical row list',
     (tester) async {
       tester.view.physicalSize = const Size(384, 848);
       tester.view.devicePixelRatio = 1;
@@ -446,7 +646,7 @@ void main() {
         const Key('history-position-small-history-1'),
       );
       final firstTop = tester.getTopLeft(firstRow).dy;
-      expect(tester.getTopLeft(secondRow).dy - firstTop, closeTo(60, .1));
+      expect(tester.getTopLeft(secondRow).dy - firstTop, closeTo(52, .1));
       final headerTop = segmentsFinder.evaluate().single.renderObject;
 
       await tester.drag(listFinder, const Offset(0, -100));
@@ -460,7 +660,7 @@ void main() {
     },
   );
 
-  testWidgets('orders and deals keep the video two 90px physical row pitch', (
+  testWidgets('orders and deals keep the reference 78px physical row pitch', (
     tester,
   ) async {
     await tester.pumpWidget(testApp());
@@ -473,7 +673,7 @@ void main() {
           tester
               .getTopLeft(find.byKey(const Key('history-deal-57016800413')))
               .dy,
-      closeTo(60, .1),
+      closeTo(52, .1),
     );
     expect(find.byKey(const Key('history-deals-scrollbar')), findsOneWidget);
 
@@ -484,7 +684,7 @@ void main() {
           tester
               .getTopLeft(find.byKey(const Key('history-order-57360798130')))
               .dy,
-      closeTo(60, .1),
+      closeTo(52, .1),
     );
     expect(find.byKey(const Key('history-orders-scrollbar')), findsOneWidget);
   });
@@ -612,4 +812,109 @@ void main() {
     expect(ordersTab.properties.selected, isTrue);
     expect(find.byKey(const Key('history-order-57360798130')), findsOneWidget);
   });
+}
+
+Future<({Rect bounds, int pixels})> _historyButtonInkMetrics(
+  WidgetTester tester,
+  Key buttonKey,
+) async {
+  final buttonRect = tester.getRect(find.byKey(buttonKey));
+  final iconKey = buttonKey == const Key('history-sort-button')
+      ? const Key('history-sort-icon')
+      : const Key('history-period-icon');
+  final iconSearchRect = tester.getRect(find.byKey(iconKey)).inflate(1);
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(const Key('history-icon-reference-capture')),
+  );
+  final captured = await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1);
+    final bytes = await image.toByteData(format: ImageByteFormat.rawRgba);
+    final result = (width: image.width, height: image.height, bytes: bytes);
+    image.dispose();
+    return result;
+  });
+  if (captured == null || captured.bytes == null) {
+    throw StateError('Unable to read History toolbar pixels');
+  }
+
+  var minX = captured.width;
+  var minY = captured.height;
+  var maxX = -1;
+  var maxY = -1;
+  var pixels = 0;
+  for (
+    var y = iconSearchRect.top.floor();
+    y < iconSearchRect.bottom.ceil();
+    y++
+  ) {
+    for (
+      var x = iconSearchRect.left.floor();
+      x < iconSearchRect.right.ceil();
+      x++
+    ) {
+      final offset = (y * captured.width + x) * 4;
+      final red = captured.bytes!.getUint8(offset);
+      final green = captured.bytes!.getUint8(offset + 1);
+      final blue = captured.bytes!.getUint8(offset + 2);
+      final alpha = captured.bytes!.getUint8(offset + 3);
+      if (alpha < 128 || (red + green + blue) / 3 >= 100) continue;
+      pixels++;
+      minX = math.min(minX, x);
+      minY = math.min(minY, y);
+      maxX = math.max(maxX, x);
+      maxY = math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    throw StateError('No dark icon ink found for $buttonKey');
+  }
+  final origin = Offset(
+    buttonRect.left.floorToDouble(),
+    buttonRect.top.floorToDouble(),
+  );
+  return (
+    bounds: Rect.fromLTRB(
+      minX.toDouble(),
+      minY.toDouble(),
+      (maxX + 1).toDouble(),
+      (maxY + 1).toDouble(),
+    ).shift(-origin),
+    pixels: pixels,
+  );
+}
+
+Future<int> _historyHeaderEdgeMinimumChannel(WidgetTester tester) async {
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(const Key('history-icon-reference-capture')),
+  );
+  final captured = await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1);
+    final bytes = await image.toByteData(format: ImageByteFormat.rawRgba);
+    final result = (width: image.width, height: image.height, bytes: bytes);
+    image.dispose();
+    return result;
+  });
+  if (captured == null || captured.bytes == null) {
+    throw StateError('Unable to read History header pixels');
+  }
+
+  var minimumChannel = 255;
+  for (final x in [1, captured.width - 2]) {
+    for (var y = 60; y < 82; y++) {
+      final offset = (y * captured.width + x) * 4;
+      minimumChannel = math.min(
+        minimumChannel,
+        captured.bytes!.getUint8(offset),
+      );
+      minimumChannel = math.min(
+        minimumChannel,
+        captured.bytes!.getUint8(offset + 1),
+      );
+      minimumChannel = math.min(
+        minimumChannel,
+        captured.bytes!.getUint8(offset + 2),
+      );
+    }
+  }
+  return minimumChannel;
 }

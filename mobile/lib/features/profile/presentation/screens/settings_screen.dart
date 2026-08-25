@@ -5,7 +5,7 @@ import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
-import 'package:trading_mobile/shared/widgets/mt5_settings_icon_assets.dart';
+import 'package:trading_mobile/shared/widgets/mt5_settings_icons.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -27,6 +27,7 @@ class SettingsScreen extends ConsumerWidget {
         '/section?title=${Uri.encodeComponent(title)}';
 
     return Scaffold(
+      backgroundColor: AppColors.groupedBackground,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -603,26 +604,26 @@ class _SettingsIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rasterKind = switch (kind) {
-      _SettingsIconKind.newAccount => MtSettingsRasterIconKind.newAccount,
-      _SettingsIconKind.mail => MtSettingsRasterIconKind.mail,
-      _SettingsIconKind.news => MtSettingsRasterIconKind.news,
-      _SettingsIconKind.tradays => MtSettingsRasterIconKind.tradays,
-      _SettingsIconKind.community => MtSettingsRasterIconKind.messages,
-      _SettingsIconKind.mql5 => MtSettingsRasterIconKind.community,
-      _SettingsIconKind.telegram => MtSettingsRasterIconKind.telegram,
-      _SettingsIconKind.otp => MtSettingsRasterIconKind.otp,
-      _SettingsIconKind.language => MtSettingsRasterIconKind.interface,
-      _SettingsIconKind.candles => MtSettingsRasterIconKind.charts,
-      _SettingsIconKind.journal => MtSettingsRasterIconKind.journal,
-      _SettingsIconKind.settings => MtSettingsRasterIconKind.about,
+    final vectorKind = switch (kind) {
+      _SettingsIconKind.newAccount => MtSettingsIconKind.newAccount,
+      _SettingsIconKind.mail => MtSettingsIconKind.mail,
+      _SettingsIconKind.news => MtSettingsIconKind.news,
+      _SettingsIconKind.tradays => MtSettingsIconKind.tradays,
+      _SettingsIconKind.community => MtSettingsIconKind.messages,
+      _SettingsIconKind.mql5 => MtSettingsIconKind.community,
+      _SettingsIconKind.telegram => MtSettingsIconKind.telegram,
+      _SettingsIconKind.otp => MtSettingsIconKind.otp,
+      _SettingsIconKind.language => MtSettingsIconKind.interface,
+      _SettingsIconKind.candles => MtSettingsIconKind.charts,
+      _SettingsIconKind.journal => MtSettingsIconKind.journal,
+      _SettingsIconKind.settings => MtSettingsIconKind.about,
     };
     return SizedBox(
       width: 29,
       height: 29,
       child: Align(
         alignment: Alignment.topLeft,
-        child: MtSettingsRasterIcon(rasterKind),
+        child: MtSettingsIcon(vectorKind),
       ),
     );
   }

@@ -23,7 +23,7 @@ void main() {
           ),
         ],
         child: MaterialApp(
-          theme: AppTheme.dark,
+          theme: AppTheme.light,
           home: const ExistingAccountLoginScreen(brokerId: 'yodo-demo'),
         ),
       ),

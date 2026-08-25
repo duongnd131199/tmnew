@@ -192,6 +192,23 @@ final class ExV2RequestFailure extends ExV2ClientFailure {
   }
 }
 
+String safeOrderFailureDiagnostic(Object error) {
+  if (error is! ExV2RequestFailure) {
+    return 'order_failed type=${error.runtimeType}';
+  }
+  final safeCode = _safeDiagnosticValue(error.code, maxLength: 64);
+  final safeCorrelationId = _safeDiagnosticValue(
+    error.correlationId,
+    maxLength: 128,
+  );
+  return [
+    'order_failed',
+    if (error.statusCode case final statusCode?) 'status=$statusCode',
+    if (safeCode != null) 'code=$safeCode',
+    if (safeCorrelationId != null) 'correlationId=$safeCorrelationId',
+  ].join(' ');
+}
+
 String? _errorCode(Object? data) {
   if (data is! Map) return null;
   final value = data['code'];

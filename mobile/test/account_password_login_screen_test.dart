@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_login/data/account_password_login_dependencies.dart';
@@ -13,6 +14,8 @@ import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart'
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
   testWidgets(
     'controllers preserve raw password and success invokes callback',
     (tester) async {

@@ -190,7 +190,7 @@ void main() {
         hasLength(pendingBefore + 1),
       );
       expect(
-        find.textContaining('100.00 XAUUSD+', findRichText: true),
+        find.textContaining('100.00 XAUUSD', findRichText: true),
         findsOneWidget,
       );
     },
@@ -311,7 +311,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.text('XAUUSD+'));
+    await tester.tap(find.text('XAUUSD'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Giao dich'));
     await tester.pumpAndSettle();
@@ -407,6 +407,61 @@ void main() {
     expect(find.byType(Dialog), findsNothing);
     expect(find.text('Đóng trạng thái'), findsOneWidget);
   });
+
+  testWidgets(
+    'selected position opens contextual bulk actions after its sheet closes',
+    (tester) async {
+      useVideoViewport(tester);
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final position = container.read(demoPositionsProvider).first;
+      final initialIds = container
+          .read(demoPositionsProvider)
+          .map((item) => item.id)
+          .toList(growable: false);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: TradeScreen()),
+        ),
+      );
+      await tester.pump();
+
+      for (var attempt = 0; attempt < 2; attempt++) {
+        await tester.tap(find.byKey(ValueKey('trade-position-${position.id}')));
+        await tester.pumpAndSettle();
+        expect(find.byType(BottomSheet), findsOneWidget);
+
+        await tester.tap(find.text('Hoạt động hàng loạt...'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(
+          find.byKey(const Key('position-bulk-actions-dialog')),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            '#${position.id} buy 0.25 XAUUSD '
+            '${position.openPrice.toStringAsFixed(2)}',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          container.read(demoPositionsProvider).map((item) => item.id),
+          orderedEquals(initialIds),
+        );
+
+        await tester.tap(find.byKey(const Key('position-bulk-cancel')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('position-bulk-actions-dialog')),
+          findsNothing,
+        );
+      }
+    },
+  );
 
   testWidgets('trade close action opens the iOS close ticket', (tester) async {
     useVideoViewport(tester);

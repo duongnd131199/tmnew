@@ -1,0 +1,53 @@
+# IDE and operating-system files
+.idea/
+.vscode/
+*.user
+*.suo
+.DS_Store
+
+# Local Codex, emulator, and build-tool workspaces
+.android_home/
+.codex-tmp/
+.codex_tmp/
+.c_drive_cache_backup/
+.gradle_home/
+.nuget_packages/
+.superpowers/
+.tmp/
+**/.tmp/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# .NET build output
+**/bin/
+**/obj/
+TestResults/
+
+# Local market API runtime and distributable archives
+backend/.local-market-api/
+dist/
+
+# Flutter/Dart generated output not already covered by mobile/.gitignore
+**/.dart_tool/
+**/build/
+mobile/test/failures/
+
+# Local signing material and generated packages
+*.keystore
+*.jks
+*.apk
+*.aab
+
+# Machine-local installers
+*.exe
+
+# Large local reference captures and terminal cache exports
+giaoDienMau/*.[mM][pP]4
+docs/mt5-cache/
+docs/mt5-symbols/
+docs/*.hc
+docs/*.hcc
+*.pdf

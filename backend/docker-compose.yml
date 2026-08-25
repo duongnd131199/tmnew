@@ -1,0 +1,82 @@
+name: trading-demo
+
+services:
+  market-api:
+    build:
+      context: .
+      dockerfile: src/Trading.Api/Dockerfile
+    container_name: trading-demo-market-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      MarketFeed__IngestKey: ${MARKET_FEED_INGEST_KEY:?Set MARKET_FEED_INGEST_KEY in backend/.env}
+      MarketFeed__StaleAfterSeconds: ${MARKET_FEED_STALE_AFTER_SECONDS:-5}
+    ports:
+      - "127.0.0.1:${MARKET_API_PORT:-5150}:8080"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS http://localhost:8080/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - trading-network
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: trading-demo-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in backend/.env}
+    ports:
+      - "${MSSQL_PORT:-1433}:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - trading-network
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: trading-demo-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in backend/.env}
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - redis-cli -a "$$REDIS_PASSWORD" ping | grep PONG
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - trading-network
+
+volumes:
+  sqlserver-data:
+  redis-data:
+
+networks:
+  trading-network:
+    driver: bridge

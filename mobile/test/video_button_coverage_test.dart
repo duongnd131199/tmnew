@@ -35,15 +35,15 @@ void main() {
 
     await tester.tap(find.byKey(const Key('history-symbol-filter')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('XAUUSD+').last);
+    await tester.tap(find.text('XAUUSD').last);
     await tester.pumpAndSettle();
-    expect(find.text('XAUUSD+'), findsWidgets);
+    expect(find.text('XAUUSD'), findsWidgets);
 
     await tester.tap(find.byIcon(CupertinoIcons.chevron_left));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('history-period-button')));
     await tester.pumpAndSettle();
-    expect(find.text('XAUUSD+'), findsWidgets);
+    expect(find.text('XAUUSD'), findsWidgets);
   });
 
   testWidgets('settings chevron rows navigate instead of remaining inert', (

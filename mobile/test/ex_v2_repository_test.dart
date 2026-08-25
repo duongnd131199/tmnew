@@ -116,6 +116,65 @@ void main() {
     expect(deals.map((deal) => deal['id']), ['deal-1', 'deal-2']);
     expect(adapter.requestedPages, [1, 2]);
   });
+
+  test('wallet history reads every page from each canonical source', () async {
+    Future<List<Map<String, dynamic>>> load(
+      Future<List<Map<String, dynamic>>> Function(ExV2Repository repository)
+      read,
+    ) {
+      final adapter = _PagedHistoryAdapter({
+        1: const [
+          {'id': 'wallet-1'},
+          {'id': 'wallet-2'},
+        ],
+        2: const [
+          {'id': 'wallet-3'},
+        ],
+      });
+      final repository = ExV2Repository(
+        ExV2ApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+            ..httpClientAdapter = adapter,
+          tokenReader: () async => 'test-token',
+        ),
+      );
+      return read(repository);
+    }
+
+    final transactions = await load(
+      (repository) => repository.historyTransactions(pageSize: 2),
+    );
+    final walletTransactions = await load(
+      (repository) => repository.walletTransactions(pageSize: 2),
+    );
+    final deposits = await load(
+      (repository) => repository.deposits(pageSize: 2),
+    );
+    final withdrawals = await load(
+      (repository) => repository.withdrawals(pageSize: 2),
+    );
+
+    expect(transactions.map((row) => row['id']), [
+      'wallet-1',
+      'wallet-2',
+      'wallet-3',
+    ]);
+    expect(walletTransactions.map((row) => row['id']), [
+      'wallet-1',
+      'wallet-2',
+      'wallet-3',
+    ]);
+    expect(deposits.map((row) => row['id']), [
+      'wallet-1',
+      'wallet-2',
+      'wallet-3',
+    ]);
+    expect(withdrawals.map((row) => row['id']), [
+      'wallet-1',
+      'wallet-2',
+      'wallet-3',
+    ]);
+  });
 }
 
 class _JsonAdapter implements HttpClientAdapter {
@@ -159,7 +218,8 @@ class _PagedHistoryAdapter implements HttpClientAdapter {
   ) async {
     final page = int.parse(options.uri.queryParameters['page']!);
     requestedPages.add(page);
-    final items = pages[page] ??
+    final items =
+        pages[page] ??
         (repeatFirstPage ? pages[1]! : const <Map<String, Object?>>[]);
     return ResponseBody.fromString(
       jsonEncode({

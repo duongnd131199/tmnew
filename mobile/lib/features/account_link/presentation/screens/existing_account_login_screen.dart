@@ -7,15 +7,21 @@ import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
-import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_visuals.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
 
 class ExistingAccountLoginScreen extends ConsumerStatefulWidget {
-  const ExistingAccountLoginScreen({required this.brokerId, super.key});
+  const ExistingAccountLoginScreen({
+    required this.brokerId,
+    this.initialLogin,
+    this.initialServerId,
+    super.key,
+  });
 
   final String brokerId;
+  final String? initialLogin;
+  final String? initialServerId;
 
   @override
   ConsumerState<ExistingAccountLoginScreen> createState() =>
@@ -47,7 +53,6 @@ class _ExistingAccountLoginScreenState
   Widget build(BuildContext context) {
     final asyncState = ref.watch(accountLinkControllerProvider);
     final state = asyncState.value ?? const AccountLinkState();
-    final mutationsConnected = ref.watch(accountMutationsConnectedProvider);
     final routeAuthorized = state.selectedBroker?.id == widget.brokerId;
     final formState = routeAuthorized ? state : const AccountLinkState();
     final referencePresentation = usesReferenceServerPresentation(
@@ -167,17 +172,11 @@ class _ExistingAccountLoginScreenState
                             .read(accountLinkControllerProvider.notifier)
                             .updatePassword,
                         onSubmitted: (_) {
-                          if (state.canSubmit && mutationsConnected) {
+                          if (routeAuthorized && formState.canSubmit) {
                             unawaited(_submit());
                           }
                         },
                       ),
-                    ),
-                    _SavePasswordRow(
-                      value: formState.savePassword,
-                      onChanged: ref
-                          .read(accountLinkControllerProvider.notifier)
-                          .updateSavePassword,
                     ),
                     SizedBox(
                       height: 60,
@@ -202,8 +201,7 @@ class _ExistingAccountLoginScreenState
               ),
             ),
             _LoginAction(
-              enabled:
-                  routeAuthorized && formState.canSubmit && mutationsConnected,
+              enabled: routeAuthorized && formState.canSubmit,
               busy:
                   state.phase == AccountLinkPhase.submitting ||
                   state.phase == AccountLinkPhase.activating,
@@ -243,6 +241,25 @@ class _ExistingAccountLoginScreenState
     state = ref.read(accountLinkControllerProvider).value ?? state;
     if (state.selectedServer == null) {
       await _loadServers();
+    }
+    if (!mounted) return;
+    state = ref.read(accountLinkControllerProvider).value ?? state;
+    final initialServerId = widget.initialServerId?.trim();
+    if (initialServerId != null && initialServerId.isNotEmpty) {
+      final options = referenceServerOptions(
+        brokerId: widget.brokerId,
+        servers: state.servers,
+      );
+      for (final option in options) {
+        if (option.server.id == initialServerId) {
+          controller.selectServer(option.server);
+          break;
+        }
+      }
+    }
+    final initialLogin = widget.initialLogin?.trim();
+    if (initialLogin != null && initialLogin.isNotEmpty) {
+      controller.updateLogin(initialLogin);
     }
   }
 
@@ -366,7 +383,7 @@ class _SectionLabel extends StatelessWidget {
     height: 42,
     alignment: Alignment.centerLeft,
     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-    color: AppColors.background,
+    color: AppColors.groupedBackground,
     child: Text(
       text,
       style: AppTypography.titleMedium.copyWith(
@@ -544,35 +561,6 @@ class _ServerFailureRow extends StatelessWidget {
           child: const Text('Thử lại'),
         ),
       ],
-    ),
-  );
-}
-
-class _SavePasswordRow extends StatelessWidget {
-  const _SavePasswordRow({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) => ColoredBox(
-    color: AppColors.surface,
-    child: SizedBox(
-      height: 56,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-        child: Row(
-          children: [
-            Expanded(child: Text('Lưu mật khẩu', style: _rowLabelStyle)),
-            Switch.adaptive(
-              key: const Key('existing-account-save-switch'),
-              value: value,
-              activeTrackColor: AppColors.savePasswordEnabled,
-              onChanged: onChanged,
-            ),
-          ],
-        ),
-      ),
     ),
   );
 }
