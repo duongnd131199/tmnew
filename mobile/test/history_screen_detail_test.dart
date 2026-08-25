@@ -6,15 +6,20 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_wallet_history_mapper.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
 import 'package:trading_mobile/features/history/presentation/screens/history_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
+import 'test_support/load_test_fonts.dart';
 import 'test_support/video_reference_fixtures.dart';
 
 void main() {
+  setUpAll(loadMt5TestFonts);
+
   Widget testApp() {
     return ProviderScope(
       overrides: videoReferenceOverrides,
@@ -32,6 +37,63 @@ void main() {
       await tester.pump();
     }
   }
+
+  testWidgets('reference typography is shared across history modes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(testApp());
+    await pumpBottomAnchor(tester);
+
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('history-segment-label-0')))
+          .style,
+      AppTypography.historySegment,
+    );
+    final summary = tester.widget<Text>(
+      find.byKey(const ValueKey('history-summary-label-Tien nap')),
+    );
+    expect(summary.style, AppTypography.historySummary);
+
+    final positionsList = tester.widget<ListView>(
+      find.byKey(const PageStorageKey('history-positions-list')),
+    );
+    positionsList.controller!.jumpTo(0);
+    await tester.pump();
+
+    void expectRowTypography(String tab) {
+      final primaryFinder = find.byKey(ValueKey('history-$tab-primary-0'));
+      final secondaryFinder = find.byKey(ValueKey('history-$tab-secondary-0'));
+      expect(
+        tester.widget<Text>(primaryFinder).style,
+        AppTypography.historyPrimary,
+        reason: tab,
+      );
+      expect(
+        tester.widget<Text>(secondaryFinder).style,
+        AppTypography.historySecondary,
+        reason: tab,
+      );
+      expect(
+        tester.getTopLeft(secondaryFinder).dy,
+        closeTo(
+          tester.getTopLeft(primaryFinder).dy +
+              TabReferenceMetrics.historySecondaryTop -
+              TabReferenceMetrics.historyPrimaryTop,
+          .1,
+        ),
+        reason: tab,
+      );
+    }
+
+    expectRowTypography('positions');
+    await tester.tap(find.byKey(const Key('history-tab-1')));
+    await tester.pump();
+    expectRowTypography('orders');
+    await tester.tap(find.byKey(const Key('history-tab-2')));
+    await tester.pump();
+    expectRowTypography('deals');
+  });
 
   testWidgets('History toolbar icon ink matches the measured references', (
     tester,
