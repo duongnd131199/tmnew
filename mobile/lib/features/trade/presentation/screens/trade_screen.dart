@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/chart/presentation/navigation/chart_navigation.dart';
 import 'package:trading_mobile/features/trade/presentation/trade_formatters.dart';
@@ -12,7 +14,6 @@ import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
 
-const _tradeNegative = Color(0xFFE42D30);
 const _tradeSecondaryPrice = Color(0xFFB8B8BD);
 
 enum _PositionMenuResult { bulk }
@@ -143,7 +144,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                   if (index == 1) {
                     if (positions.isNotEmpty || pendingOrders.isNotEmpty) {
                       return Container(
-                        height: 25,
+                        height: TabReferenceMetrics.tradeSectionHeight,
                         width: double.infinity,
                         color: AppColors.surfaceElevated,
                         padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -151,12 +152,8 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                           children: [
                             const Text(
                               'Lenh co trang thai',
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 13.9,
-                                fontWeight: FontWeight.w700,
-                                height: 1,
-                              ),
+                              key: Key('trade-section-label'),
+                              style: AppTypography.tradeSection,
                             ),
                             const Spacer(),
                             Semantics(
@@ -167,7 +164,8 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                                 onTap: () => _showBulkActions(context, ref),
                                 child: SizedBox(
                                   width: 35,
-                                  height: 25,
+                                  height:
+                                      TabReferenceMetrics.tradeSectionHeight,
                                   child: Center(
                                     child: Transform.translate(
                                       offset: const Offset(3.3333333333, 0),
@@ -841,7 +839,7 @@ class _TradeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 86,
+      height: TabReferenceMetrics.tradeHeaderHeight,
       child: Stack(
         children: [
           Positioned(
@@ -862,24 +860,24 @@ class _TradeHeader extends StatelessWidget {
             right: 0,
             top: 46.6333333333,
             child: IgnorePointer(
-              child: Transform.scale(
-                scaleX: empty ? 1 : .92,
-                scaleY: empty ? 1 : 1.14,
-                child: Text(
-                  empty ? 'USD' : '${_formatTradeNumber(totalProfit)} USD',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: empty
-                        ? AppColors.textPrimary
-                        : totalProfit >= 0
-                        ? AppColors.primary
-                        : _tradeNegative,
-                    fontSize: empty ? 19 : 21.5,
-                    fontWeight: empty ? FontWeight.w700 : FontWeight.w500,
-                    height: 1,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
+              child: Text(
+                empty ? 'USD' : '${_formatTradeNumber(totalProfit)} USD',
+                key: const Key('trade-header-profit'),
+                textAlign: TextAlign.center,
+                style:
+                    (empty
+                            ? AppTypography.toolbarTitle.copyWith(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w700,
+                              )
+                            : AppTypography.tradeHeaderProfit)
+                        .copyWith(
+                          color: empty
+                              ? AppColors.textPrimary
+                              : totalProfit >= 0
+                              ? AppColors.primary
+                              : AppColors.negative,
+                        ),
               ),
             ),
           ),
@@ -1088,18 +1086,15 @@ class _AccountMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 25,
+      height: TabReferenceMetrics.tradeMetricRowHeight,
       child: Row(
         children: [
           Expanded(
             child: Text(
               label,
+              key: ValueKey('trade-metric-label-$label'),
               maxLines: 1,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18.5,
-                height: 1.15,
-              ),
+              style: AppTypography.tradeMetric,
             ),
           ),
           const SizedBox(width: 8),
@@ -1111,13 +1106,9 @@ class _AccountMetric extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: Text(
                   value,
+                  key: ValueKey('trade-metric-value-$label'),
                   maxLines: 1,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 18.5,
-                    height: 1.15,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
+                  style: AppTypography.tradeMetric,
                 ),
               ),
             ),
@@ -1243,10 +1234,10 @@ class _PositionRowState extends State<_PositionRow> {
         : _settledOffset;
     final sideColor = position.side == 'BUY'
         ? AppColors.primary
-        : _tradeNegative;
+        : AppColors.negative;
     final profitColor = position.profit >= 0
         ? AppColors.primary
-        : _tradeNegative;
+        : AppColors.negative;
     final volumeLabel = formatTradeVolume(position.volume);
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -1256,7 +1247,7 @@ class _PositionRowState extends State<_PositionRow> {
       onHorizontalDragEnd: _endDrag,
       onHorizontalDragCancel: _cancelDrag,
       child: SizedBox(
-        height: 61.75,
+        height: TabReferenceMetrics.tradePositionRowHeight,
         child: Stack(
           children: [
             Positioned(
@@ -1351,57 +1342,44 @@ class _PositionRowState extends State<_PositionRow> {
                                   left: 0,
                                   right: 0,
                                   top: 0,
-                                  child: Transform.scale(
-                                    scaleX: 1.015,
-                                    scaleY: 1.12,
-                                    alignment: Alignment.topLeft,
-                                    child: Text.rich(
-                                      TextSpan(
-                                        children: [
-                                          TextSpan(
-                                            text:
-                                                '${displayTradingSymbol(position.symbol)} ',
-                                            style: const TextStyle(
-                                              color: AppColors.textPrimary,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                          TextSpan(
-                                            text:
-                                                '${position.side.toLowerCase()} '
-                                                '$volumeLabel',
-                                            style: TextStyle(color: sideColor),
-                                          ),
-                                        ],
-                                      ),
-                                      style: const TextStyle(
-                                        fontSize: 17.3,
-                                        height: 1,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                  child: Text.rich(
+                                    key: ValueKey(
+                                      'trade-position-primary-${position.id}',
                                     ),
+                                    TextSpan(
+                                      children: [
+                                        TextSpan(
+                                          text:
+                                              '${displayTradingSymbol(position.symbol)} ',
+                                          style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text:
+                                              '${position.side.toLowerCase()} '
+                                              '$volumeLabel',
+                                          style: TextStyle(color: sideColor),
+                                        ),
+                                      ],
+                                    ),
+                                    style: AppTypography.tradePositionPrimary,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 Positioned(
                                   left: 0,
-                                  top: 25.3666666667,
-                                  child: Transform.scale(
-                                    scaleY: 1.15,
-                                    alignment: Alignment.topLeft,
-                                    child: Text(
-                                      '${position.openPrice.toStringAsFixed(priceDigits)} → '
-                                      '${position.currentPrice.toStringAsFixed(priceDigits)}',
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 17.2,
-                                        height: 1,
-                                        letterSpacing: 1.51,
-                                        fontFeatures: [
-                                          FontFeature.tabularFigures(),
-                                        ],
-                                      ),
+                                  top: TabReferenceMetrics
+                                      .tradePositionSecondaryTop,
+                                  child: Text(
+                                    '${position.openPrice.toStringAsFixed(priceDigits)} → '
+                                    '${position.currentPrice.toStringAsFixed(priceDigits)}',
+                                    key: ValueKey(
+                                      'trade-position-secondary-${position.id}',
                                     ),
+                                    style: AppTypography.tradePositionSecondary,
                                   ),
                                 ),
                               ],
@@ -1412,21 +1390,13 @@ class _PositionRowState extends State<_PositionRow> {
                           padding: const EdgeInsets.only(top: 9),
                           child: Transform.translate(
                             offset: const Offset(.6666666667, 0),
-                            child: Transform.scale(
-                              scaleX: .956,
-                              scaleY: 1.04,
-                              alignment: Alignment.topRight,
-                              child: Text(
-                                _formatTradeNumber(position.profit),
-                                style: TextStyle(
-                                  color: profitColor,
-                                  fontSize: 23.5,
-                                  height: 1,
-                                  fontWeight: FontWeight.w500,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                ),
+                            child: Text(
+                              _formatTradeNumber(position.profit),
+                              key: ValueKey(
+                                'trade-position-profit-${position.id}',
+                              ),
+                              style: AppTypography.tradePositionProfit.copyWith(
+                                color: profitColor,
                               ),
                             ),
                           ),
@@ -1485,7 +1455,7 @@ class _PendingOrderRow extends StatelessWidget {
     onTap: onTap,
     onLongPress: onTap,
     child: SizedBox(
-      height: 61.75,
+      height: TabReferenceMetrics.tradePositionRowHeight,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(5.3, 9.2, 7.3, 2),
         child: Row(
@@ -1512,7 +1482,7 @@ class _PendingOrderRow extends StatelessWidget {
                           style: TextStyle(
                             color: order.side == 'BUY'
                                 ? AppColors.primary
-                                : _tradeNegative,
+                                : AppColors.negative,
                           ),
                         ),
                       ],

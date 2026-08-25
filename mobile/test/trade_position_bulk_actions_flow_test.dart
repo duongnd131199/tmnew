@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.dart';
 import 'package:trading_mobile/features/trade/presentation/widgets/position_bulk_actions_dialog.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+
+import 'test_support/load_test_fonts.dart';
 
 const _allPositionIds = {'x-buy-win', 'x-buy-loss', 'x-sell-win', 'e-buy-win'};
 const _allPositionIdOrder = [
@@ -108,6 +112,72 @@ Future<void> _openContextualBulkDialog(WidgetTester tester) async {
 }
 
 void main() {
+  setUpAll(loadMt5TestFonts);
+
+  testWidgets('trade reference typography keeps measured baselines', (
+    tester,
+  ) async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+
+    final header = tester.widget<Text>(
+      find.byKey(const Key('trade-header-profit')),
+    );
+    expect(
+      header.style,
+      AppTypography.tradeHeaderProfit.copyWith(color: AppColors.negative),
+    );
+    final metric = tester.widget<Text>(
+      find.byKey(const ValueKey('trade-metric-label-Số dư:')),
+    );
+    expect(metric.style, AppTypography.tradeMetric);
+    expect(
+      tester.getSize(find.byKey(const Key('trade-account-metrics'))).height,
+      TabReferenceMetrics.tradeMetricRowHeight * 5 + 12,
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const Key('trade-section-label'))).style,
+      AppTypography.tradeSection,
+    );
+
+    final primaryFinder = find.byKey(
+      const ValueKey('trade-position-primary-x-buy-win'),
+    );
+    final secondaryFinder = find.byKey(
+      const ValueKey('trade-position-secondary-x-buy-win'),
+    );
+    final profitFinder = find.byKey(
+      const ValueKey('trade-position-profit-x-buy-win'),
+    );
+    expect(
+      tester.widget<Text>(primaryFinder).style,
+      AppTypography.tradePositionPrimary,
+    );
+    expect(
+      tester.widget<Text>(secondaryFinder).style,
+      AppTypography.tradePositionSecondary,
+    );
+    expect(
+      tester.widget<Text>(profitFinder).style,
+      AppTypography.tradePositionProfit.copyWith(color: AppColors.primary),
+    );
+    expect(
+      tester.getTopLeft(secondaryFinder).dy,
+      closeTo(
+        tester.getTopLeft(primaryFinder).dy +
+            TabReferenceMetrics.tradePositionSecondaryTop,
+        .75,
+      ),
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('trade-position-x-buy-win')))
+          .height,
+      TabReferenceMetrics.tradePositionRowHeight,
+    );
+  });
+
   testWidgets('trade position price range uses the reference black text', (
     tester,
   ) async {
