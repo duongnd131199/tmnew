@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/config/market_api_config.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/features/chart/data/market_data_service.dart';
 import 'package:trading_mobile/features/chart/presentation/rendering/chart_hit_targets.dart';
@@ -115,6 +116,71 @@ Map<String, Object> _rendererCharacterization(Mt5CandlePainter painter) {
 }
 
 void main() {
+  testWidgets('reference typography preserves chart frame geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(590, 1280);
+    tester.view.devicePixelRatio = 1.5;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    const media = MediaQueryData(
+      size: Size(393.3333333333, 853.3333333333),
+      devicePixelRatio: 1.5,
+      padding: EdgeInsets.only(top: 24, bottom: 79),
+      viewPadding: EdgeInsets.only(top: 24, bottom: 79),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...videoReferenceOverrides,
+          marketCandlesProvider.overrideWith(
+            (ref, request) => Stream.value(const <MarketCandle>[]),
+          ),
+        ],
+        child: const MaterialApp(
+          home: MediaQuery(
+            data: media,
+            child: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'M1'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final canvasFinder = find.byKey(const Key('chart-canvas'));
+    final canvasRect = tester.getRect(canvasFinder);
+    expect(canvasRect.left, closeTo(0, .001));
+    expect(canvasRect.top, closeTo(80, .001));
+    expect(canvasRect.width, closeTo(393.3333333333, .001));
+    expect(canvasRect.height, closeTo(694.3333333333, .001));
+    final timeframe = tester.widget<Text>(
+      find.byKey(const Key('chart-toolbar-timeframe')),
+    );
+    expect(timeframe.style?.fontFamily, AppTypography.plainFamily);
+    expect(timeframe.style?.fontSize, AppTypography.chartToolbar.fontSize);
+
+    final painter =
+        tester.widget<CustomPaint>(canvasFinder).painter! as Mt5CandlePainter;
+    expect(painter.referenceTextFamily, AppTypography.plainFamily);
+
+    await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
+    await tester.pump();
+    expect(tester.getRect(canvasFinder), canvasRect);
+    final volume = tester.widget<Text>(
+      find.byKey(const Key('chart-one-click-volume-text')),
+    );
+    expect(volume.style?.fontFamily, AppTypography.condensedFamily);
+    expect(volume.style?.fontSize, 16.5);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('chart-plot-subtitle'))).style,
+      AppTypography.chartAnnotation.copyWith(
+        color: ChartReferenceTheme.light.foreground,
+      ),
+    );
+  });
+
   test('current price tag is centered on the active candle close', () {
     const currentPrice = 100.0;
     final painter = _viewportInvariantPainter(

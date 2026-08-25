@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/chart/application/chart_timeframe_session.dart';
@@ -427,7 +428,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
-      fontFamily: 'sans-serif-condensed',
+      fontFamily: AppTypography.condensedFamily,
       splashColor: _theme.tradeBlue.withValues(alpha: .12),
       highlightColor: _theme.tradeBlue.withValues(alpha: .08),
       hoverColor: _theme.tradeBlue.withValues(alpha: .08),
@@ -1831,6 +1832,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       top:
                           1 + (showOneClickTrading && !showTimeframes ? 42 : 0),
                       child: Text.rich(
+                        key: const Key('chart-plot-title'),
                         TextSpan(
                           children: [
                             TextSpan(
@@ -1850,11 +1852,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                             ),
                           ],
                         ),
-                        style: TextStyle(
+                        style: AppTypography.chartAnnotation.copyWith(
+                          color: _theme.foreground,
                           fontSize: _usesVideo2ChartLayout ? 12.3 : 10.5,
-                          fontFamily: _usesVideo2ChartLayout
-                              ? 'sans-serif'
-                              : null,
+                          fontWeight: FontWeight.w400,
                           height: _usesVideo2ChartLayout ? 1.35 : 1.1,
                         ),
                       ),
@@ -1865,75 +1866,46 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       top:
                           2.3333333333 +
                           (showOneClickTrading && !showTimeframes ? 42 : 0),
-                      child: Transform.translate(
-                        offset:
-                            _usesVideo2ChartLayout &&
-                                timeframe == 'H1' &&
-                                _normaliseSymbol(widget.symbol) == 'BTCUSD'
-                            ? const Offset(0, .6666666667)
-                            : Offset.zero,
-                        child: Transform.scale(
-                          scaleX:
-                              _usesVideo2ChartLayout &&
-                                  timeframe == 'H1' &&
-                                  _normaliseSymbol(widget.symbol) == 'BTCUSD'
-                              ? .94
-                              : 1,
-                          scaleY:
-                              _usesVideo2ChartLayout &&
-                                  timeframe == 'H1' &&
-                                  _normaliseSymbol(widget.symbol) == 'BTCUSD'
-                              ? .90
-                              : 1,
-                          alignment: Alignment.topLeft,
-                          child: Text.rich(
+                      child: Text.rich(
+                        key: const Key('chart-plot-title'),
+                        TextSpan(
+                          children: [
                             TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: displayTradingSymbol(widget.symbol),
-                                  style: TextStyle(
-                                    color: _theme.tradeBlue,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: _usesVideo2ChartLayout
-                                        ? 13
-                                        : null,
-                                    letterSpacing: _usesVideo2ChartLayout
-                                        ? .5
-                                        : null,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: ' \u2009▾\u200A',
-                                  style: TextStyle(
-                                    color: _theme.tradeBlue,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: _usesVideo2ChartLayout
-                                        ? 13
-                                        : null,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: ' $chartTimeframeLabel',
-                                  style: TextStyle(
-                                    color: _theme.foreground,
-                                    fontSize: _usesVideo2ChartLayout
-                                        ? 13
-                                        : null,
-                                    letterSpacing: _usesVideo2ChartLayout
-                                        ? .1
-                                        : null,
-                                  ),
-                                ),
-                              ],
+                              text: displayTradingSymbol(widget.symbol),
+                              style: TextStyle(
+                                color: _theme.tradeBlue,
+                                fontWeight: FontWeight.w600,
+                                fontSize: _usesVideo2ChartLayout ? 13 : null,
+                                letterSpacing: _usesVideo2ChartLayout
+                                    ? .5
+                                    : null,
+                              ),
                             ),
-                            style: TextStyle(
-                              fontSize: _usesVideo2ChartLayout ? 12.8 : 10.5,
-                              fontFamily: _usesVideo2ChartLayout
-                                  ? 'sans-serif'
-                                  : null,
-                              height: _usesVideo2ChartLayout ? 1.35 : 1.1,
+                            TextSpan(
+                              text: ' \u2009▾\u200A',
+                              style: TextStyle(
+                                color: _theme.tradeBlue,
+                                fontWeight: FontWeight.w600,
+                                fontSize: _usesVideo2ChartLayout ? 13 : null,
+                              ),
                             ),
-                          ),
+                            TextSpan(
+                              text: ' $chartTimeframeLabel',
+                              style: TextStyle(
+                                color: _theme.foreground,
+                                fontSize: _usesVideo2ChartLayout ? 13 : null,
+                                letterSpacing: _usesVideo2ChartLayout
+                                    ? .1
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                        style: AppTypography.chartAnnotation.copyWith(
+                          color: _theme.foreground,
+                          fontSize: _usesVideo2ChartLayout ? 12.8 : 10.5,
+                          fontWeight: FontWeight.w400,
+                          height: _usesVideo2ChartLayout ? 1.35 : 1.1,
                         ),
                       ),
                     ),
@@ -1942,20 +1914,12 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       top:
                           21.3333333333 +
                           (showOneClickTrading && !showTimeframes ? 42 : 0),
-                      child: Transform.scale(
-                        scaleX: _usesVideo2ChartLayout ? .965 : 1,
-                        scaleY: _usesVideo2ChartLayout ? 1.07 : 1,
-                        alignment: Alignment.topLeft,
-                        child: Text(
-                          chartSubtitle,
-                          style: TextStyle(
-                            color: _theme.foreground,
-                            fontFamily: _usesVideo2ChartLayout
-                                ? 'sans-serif'
-                                : null,
-                            fontSize: _usesVideo2ChartLayout ? 14 : 10.5,
-                            height: 1,
-                          ),
+                      child: Text(
+                        chartSubtitle,
+                        key: const Key('chart-plot-subtitle'),
+                        style: AppTypography.chartAnnotation.copyWith(
+                          color: _theme.foreground,
+                          fontSize: _usesVideo2ChartLayout ? 14 : 10.5,
                         ),
                       ),
                     ),
@@ -2013,9 +1977,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                     bottom: 21.3333333333,
                     child: Text(
                       '•••',
-                      style: TextStyle(
+                      style: AppTypography.chartToolbar.copyWith(
                         color: _theme.foreground,
                         fontSize: 17.5,
+                        fontWeight: FontWeight.w400,
                         letterSpacing: .6666666667,
                       ),
                     ),
@@ -2073,13 +2038,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                     child: Center(
                       child: Text(
                         period,
-                        style: TextStyle(
+                        style: AppTypography.chartToolbar.copyWith(
                           color: period == timeframe
                               ? _theme.tradeBlue
                               : _theme.foreground,
-                          fontFamily: 'sans-serif',
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -2144,21 +2106,12 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                     }),
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: Transform.translate(
-                        offset: const Offset(0, 1.3333333333),
-                        child: Transform.scale(
-                          scaleY: 1.06,
-                          alignment: Alignment.topLeft,
-                          child: Text(
-                            timeframe,
-                            maxLines: 1,
-                            style: TextStyle(
-                              color: _theme.foreground,
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w500,
-                              height: 1,
-                            ),
-                          ),
+                      child: Text(
+                        timeframe,
+                        key: const Key('chart-toolbar-timeframe'),
+                        maxLines: 1,
+                        style: AppTypography.chartToolbar.copyWith(
+                          color: _theme.foreground,
                         ),
                       ),
                     ),
@@ -2375,9 +2328,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                   child: Center(
                     child: Text(
                       period,
-                      style: TextStyle(
+                      style: AppTypography.chartToolbar.copyWith(
                         color: selected ? _theme.background : _theme.foreground,
-                        fontFamily: 'sans-serif',
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -2394,11 +2346,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
             children: [
               Text(
                 title,
-                style: TextStyle(
+                style: AppTypography.chartToolbar.copyWith(
                   color: _theme.foreground,
-                  fontFamily: 'sans-serif',
-                  fontSize: 14.5,
                   fontWeight: FontWeight.w700,
+                  height: 1.65,
                 ),
               ),
               const SizedBox(height: 6),
@@ -2473,10 +2424,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                                   'Nhấn và giữ một khung thời\n'
                                   'gian để thêm hoặc xóa nó\n'
                                   'khỏi menu biểu đồ',
-                                  style: TextStyle(
+                                  style: AppTypography.chartToolbar.copyWith(
                                     color: _theme.foreground,
-                                    fontFamily: 'sans-serif',
-                                    fontSize: 14.5,
                                     fontWeight: FontWeight.w600,
                                     height: 1.49,
                                   ),
@@ -3424,12 +3373,8 @@ class _PendingOrderPillState extends State<_PendingOrderPill> {
                         widget.type,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: AppTypography.chartToolbar.copyWith(
                           color: widget.theme.background,
-                          fontFamily: 'sans-serif',
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w500,
-                          height: 1,
                         ),
                       ),
                     ),
@@ -3438,12 +3383,8 @@ class _PendingOrderPillState extends State<_PendingOrderPill> {
                     padding: const EdgeInsets.only(right: 9),
                     child: Text(
                       widget.volume.toStringAsFixed(2),
-                      style: TextStyle(
+                      style: AppTypography.chartToolbar.copyWith(
                         color: widget.theme.background,
-                        fontFamily: 'sans-serif',
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w500,
-                        height: 1,
                         fontFeatures: [FontFeature.tabularFigures()],
                       ),
                     ),
@@ -3500,11 +3441,7 @@ class _PendingProtectionButton extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          fontFamily: 'sans-serif',
-          fontSize: 16,
-          height: 1,
-        ),
+        style: AppTypography.chartToolbar.copyWith(fontSize: 16),
       ),
     ),
   );
@@ -3842,10 +3779,12 @@ class _OneClickVolumeField extends StatelessWidget {
                 children: [
                   Text(
                     value,
-                    style: TextStyle(
+                    key: const Key('chart-one-click-volume-text'),
+                    style: AppTypography.chartToolbar.copyWith(
                       color: theme.foreground,
+                      fontFamily: AppTypography.condensedFamily,
                       fontSize: 16.5,
-                      height: 1,
+                      fontWeight: FontWeight.w400,
                       fontFeatures: [FontFeature.tabularFigures()],
                     ),
                   ),
@@ -4024,29 +3963,21 @@ class _ChartNumericKeypad extends StatelessWidget {
     );
   }
 
-  TextStyle get _digitStyle => TextStyle(
+  TextStyle get _digitStyle => AppTypography.chartToolbar.copyWith(
     color: theme.foreground,
-    fontFamily: 'sans-serif',
     fontSize: 21.5,
-    fontWeight: FontWeight.w500,
-    height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
 
-  TextStyle get _lettersStyle => TextStyle(
+  TextStyle get _lettersStyle => AppTypography.chartToolbar.copyWith(
     color: theme.foreground,
-    fontFamily: 'sans-serif',
     fontSize: 7.7,
     fontWeight: FontWeight.w700,
-    height: 1,
   );
 
-  TextStyle get _auxiliaryStyle => TextStyle(
+  TextStyle get _auxiliaryStyle => AppTypography.chartToolbar.copyWith(
     color: theme.foreground,
-    fontFamily: 'sans-serif',
     fontSize: 22,
-    fontWeight: FontWeight.w500,
-    height: 1,
   );
 }
 
@@ -4115,11 +4046,8 @@ class _TradeQuote extends StatelessWidget {
               top: 4.33,
               child: Text(
                 label,
-                style: TextStyle(
+                style: AppTypography.chartTicketLabel.copyWith(
                   color: theme.background,
-                  fontSize: 9,
-                  height: 1,
-                  fontFamily: 'sans-serif-condensed',
                 ),
               ),
             ),
@@ -4137,22 +4065,14 @@ class _TradeQuote extends StatelessWidget {
                   children: [
                     Text(
                       leading,
-                      style: TextStyle(
+                      style: AppTypography.chartTicketPriceMajor.copyWith(
                         color: theme.background,
-                        fontSize: 15,
-                        height: 1,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'sans-serif-condensed',
                       ),
                     ),
                     Text(
                       trailing,
-                      style: TextStyle(
+                      style: AppTypography.chartTicketPriceMinor.copyWith(
                         color: theme.background,
-                        fontSize: 22,
-                        height: 1,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'sans-serif-condensed',
                       ),
                     ),
                   ],

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/chart/presentation/geometry/chart_geometry.dart';
 import 'package:trading_mobile/features/chart/presentation/rendering/chart_hit_targets.dart';
 import 'package:trading_mobile/features/chart/presentation/rendering/chart_render_snapshot.dart';
@@ -74,6 +75,7 @@ class Mt5CandlePainter extends CustomPainter {
   final bool showHistoryBadge;
   final bool useRealtimeCandles;
   final ChartHitTargets hitTargets;
+  final String referenceTextFamily = AppTypography.plainFamily;
   List<MarketCandle> get candles => snapshot.resolvedCandles;
   List<MarketCandle> get liveTail => snapshot.liveTail;
   ChartViewport get viewport => snapshot.viewport;
@@ -789,11 +791,9 @@ class Mt5CandlePainter extends CustomPainter {
             _usesVideo2ChartChrome ? 5 : 2,
             y - (_usesVideo2ChartChrome ? 16.3333333333 : 11),
           ),
-          TextStyle(
+          AppTypography.chartAnnotation.copyWith(
             color: theme.tradeBlue,
-            fontFamily: _usesVideo2ChartChrome ? 'sans-serif' : null,
             fontSize: _usesVideo2ChartChrome ? 14 : 9,
-            fontWeight: FontWeight.w600,
           ),
         );
         canvas.drawCircle(
@@ -851,11 +851,9 @@ class Mt5CandlePainter extends CustomPainter {
         canvas,
         '$label ${price >= 1000 ? price.toStringAsFixed(2) : price.toStringAsFixed(5)}',
         Offset(_usesVideo2ChartChrome ? 5 : 2, y - 15),
-        TextStyle(
+        AppTypography.chartAnnotation.copyWith(
           color: color,
-          fontFamily: _usesVideo2ChartChrome ? 'sans-serif' : null,
           fontSize: _usesVideo2ChartChrome ? 12.5 : 9,
-          fontWeight: FontWeight.w600,
         ),
       );
     }
@@ -976,12 +974,10 @@ class Mt5CandlePainter extends CustomPainter {
         canvas,
         label,
         Offset(8, chartHeight - 20.6666666667),
-        TextStyle(
+        AppTypography.chartAnnotation.copyWith(
           color: theme.background,
-          fontFamily: 'sans-serif',
           fontSize: 13.3333333333,
           letterSpacing: .2,
-          height: 1,
         ),
       );
     }
@@ -996,7 +992,10 @@ class Mt5CandlePainter extends CustomPainter {
         canvas,
         label,
         Offset(5, chartHeight - 16),
-        TextStyle(color: theme.background, fontSize: 9.5, height: 1),
+        AppTypography.chartAnnotation.copyWith(
+          color: theme.background,
+          fontSize: 9.5,
+        ),
       );
     }
     if (crosshairEnabled) {
@@ -1103,9 +1102,10 @@ class Mt5CandlePainter extends CustomPainter {
       canvas,
       'RSI(14)',
       Offset(5, top + 3),
-      TextStyle(
+      AppTypography.chartAnnotation.copyWith(
         color: Color.lerp(theme.tradeBlue, theme.bearish, .5),
         fontSize: 9,
+        fontWeight: FontWeight.w400,
       ),
     );
   }
@@ -1202,7 +1202,7 @@ class Mt5CandlePainter extends CustomPainter {
           canvas,
           object.type,
           Offset(x1, y1),
-          TextStyle(
+          AppTypography.chartAnnotation.copyWith(
             color: theme.tradeBlue,
             fontSize: 11,
             fontWeight: FontWeight.w500,
@@ -1306,7 +1306,7 @@ class Mt5CandlePainter extends CustomPainter {
       canvas,
       formattedPrice,
       Offset(chartWidth + 5, point.dy - 7),
-      TextStyle(color: theme.background, fontSize: 10.5),
+      AppTypography.chartAxis.copyWith(color: theme.background, fontSize: 10.5),
     );
     canvas.drawRect(
       Rect.fromLTWH(point.dx - 58, chartHeight + 3, 116, 20),
@@ -1319,7 +1319,10 @@ class Mt5CandlePainter extends CustomPainter {
       canvas,
       timeLabel,
       Offset(point.dx - 54, chartHeight + 5),
-      TextStyle(color: theme.background, fontSize: 10),
+      AppTypography.chartTimeAxis.copyWith(
+        color: theme.background,
+        fontSize: 10,
+      ),
     );
   }
 
@@ -1393,10 +1396,10 @@ class Mt5CandlePainter extends CustomPainter {
       canvas,
       '$points points ($sign${percent.toStringAsFixed(2)}%), $bars bars',
       Offset(rectangle.left + 3, math.max(2, rectangle.top + 3)),
-      TextStyle(
+      AppTypography.chartAnnotation.copyWith(
         color: theme.foreground.withValues(alpha: .62),
         fontSize: 8.5,
-        height: 1,
+        fontWeight: FontWeight.w400,
       ),
     );
   }
@@ -1430,11 +1433,9 @@ class Mt5CandlePainter extends CustomPainter {
           chartWidth + geometry.axisLabelInset,
           y - (_usesVideo2ChartChrome ? 7.5 : 6),
         ),
-        TextStyle(
+        AppTypography.chartAxis.copyWith(
           color: _axisTextColor,
-          fontFamily: _usesVideo2ChartChrome ? 'sans-serif' : null,
-          fontSize: _usesVideo2ChartChrome ? 12 : 9,
-          height: 1,
+          fontSize: _usesVideo2ChartChrome ? 12.5 : 9,
         ),
       );
       labels.add((text: text, y: y));
@@ -1465,12 +1466,10 @@ class Mt5CandlePainter extends CustomPainter {
           canvas,
           label,
           Offset(x, chartHeight + 2),
-          TextStyle(
+          AppTypography.chartTimeAxis.copyWith(
             color: _axisTextColor,
-            fontFamily: 'sans-serif',
-            fontSize: 12,
+            fontSize: 11.5,
             letterSpacing: .1,
-            height: 1,
           ),
         );
       }
@@ -1491,16 +1490,11 @@ class Mt5CandlePainter extends CustomPainter {
         _isXauUsdVideo2Reference && (timeframe == 'H1' || timeframe == 'H4');
     final usesCompactVideo2TimeLabels =
         loadingPlaceholder || (_isBtcUsdVideo2Reference && timeframe == 'H4');
-    final standardTimeLabelStyle = TextStyle(
+    final standardTimeLabelStyle = AppTypography.chartTimeAxis.copyWith(
       color: _axisTextColor,
-      fontFamily: _usesVideo2ChartChrome
-          ? usesCompactVideo2TimeLabels
-                ? 'monospace'
-                : 'sans-serif'
-          : null,
       fontSize: _usesVideo2ChartChrome
           ? usesCompactVideo2TimeLabels
-                ? 12
+                ? 11.5
                 : 14
           : 9,
       letterSpacing: _usesVideo2ChartChrome && !usesCompactVideo2TimeLabels
@@ -1680,10 +1674,8 @@ class Mt5CandlePainter extends CustomPainter {
       ..color = sideColor
       ..strokeWidth = 1;
     _dashedLine(canvas, Offset(1.3, y), Offset(width, y), paint, 4, 3);
-    final style = TextStyle(
-      fontFamily: _usesVideo2ChartChrome ? 'sans-serif' : null,
+    final style = AppTypography.chartAnnotation.copyWith(
       fontSize: _usesVideo2ChartChrome ? 12.5 : 9,
-      fontWeight: FontWeight.w600,
     );
     _richText(
       canvas,
@@ -1773,9 +1765,8 @@ class Mt5CandlePainter extends CustomPainter {
         chartWidth + xOffset + 3,
         tagY - (_usesVideo2ChartChrome ? 7 : 5.5),
       ),
-      TextStyle(
+      AppTypography.chartAnnotation.copyWith(
         color: theme.background,
-        fontFamily: _usesVideo2ChartChrome ? 'sans-serif' : null,
         fontSize: _usesVideo2ChartChrome ? 14 : 9,
         fontWeight: FontWeight.normal,
       ),
@@ -1812,9 +1803,8 @@ class Mt5CandlePainter extends CustomPainter {
       canvas,
       formatted,
       Offset(chartWidth + 5, y - 7),
-      TextStyle(
+      AppTypography.chartAxis.copyWith(
         color: color,
-        fontFamily: _usesVideo2ChartChrome ? 'sans-serif' : null,
         fontSize: _usesVideo2ChartChrome ? 11.5 : 9,
       ),
     );
