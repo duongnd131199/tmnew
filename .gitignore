@@ -13,6 +13,7 @@
 .gradle_home/
 .nuget_packages/
 .superpowers/
+.worktrees/
 .tmp/
 **/.tmp/
 
