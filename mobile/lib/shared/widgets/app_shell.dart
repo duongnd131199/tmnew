@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_shadows.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/chart/data/chart_market_warmup_provider.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
@@ -159,7 +161,7 @@ class MtBottomNavigationBar extends ConsumerWidget {
       demoAccountProvider.select((account) => account.profit),
     );
     return SizedBox(
-      height: 79,
+      height: TabReferenceMetrics.bottomNavigationHeight,
       child: ColoredBox(
         color: Colors.transparent,
         child: Padding(
@@ -272,13 +274,6 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = selected ? selectedColor : AppColors.navigationUnselected;
-    final baseLabelScaleX = switch (kind) {
-      _MtNavKind.quotes => .96,
-      _MtNavKind.chart => .94,
-      _MtNavKind.trade => .97,
-      _MtNavKind.settings => .96,
-      _ => 1.0,
-    };
     return Stack(
       alignment: Alignment.topCenter,
       children: [
@@ -286,30 +281,17 @@ class _NavItem extends StatelessWidget {
         Positioned(
           left: 0,
           right: 0,
-          top: 35.7333333333,
-          child: Transform.translate(
-            offset: Offset(switch (kind) {
-              _MtNavKind.quotes => 1,
-              _MtNavKind.chart => -.6666666667,
-              _MtNavKind.trade => -.6666666667,
-              _MtNavKind.history => 2,
-              _MtNavKind.settings => 0,
-            }, 0),
-            child: Transform.scale(
-              scaleX: baseLabelScaleX,
-              child: Text(
-                label,
-                maxLines: 1,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: color,
-                  fontFamily: 'sans-serif',
-                  fontSize: 10.8,
-                  height: 1,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-            ),
+          top: TabReferenceMetrics.bottomNavigationLabelTop,
+          child: Text(
+            label,
+            key: ValueKey('bottom-nav-label-${kind.name}'),
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            style:
+                (selected
+                        ? AppTypography.navigationLabelSelected
+                        : AppTypography.navigationLabel)
+                    .copyWith(color: color),
           ),
         ),
       ],

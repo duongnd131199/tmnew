@@ -6,8 +6,11 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
+
+import 'test_support/load_test_fonts.dart';
 
 const _positiveAccount = DemoAccountSnapshot(
   balance: 100000,
@@ -42,6 +45,8 @@ const _referenceBounds = <Rect>[
 ];
 
 void main() {
+  setUpAll(loadMt5TestFonts);
+
   testWidgets('navigation renders the measured video palette and no border', (
     tester,
   ) async {
@@ -152,6 +157,31 @@ void main() {
           reason: 'width=$width label=${labels[index]}',
         );
       }
+    }
+  });
+
+  testWidgets('selection changes nav ink without scaling label geometry', (
+    tester,
+  ) async {
+    Rect? referenceRect;
+    for (var selected = 0; selected < 5; selected++) {
+      await _pumpNavigation(
+        tester,
+        selectedIndex: selected,
+        surfaceSize: const Size(393.3333333333, 853.3333333333),
+      );
+      final label = find.byKey(const ValueKey('bottom-nav-label-quotes'));
+      final text = tester.widget<Text>(label);
+      expect(text.style?.fontFamily, AppTypography.plainFamily);
+      expect(text.style?.fontSize, 10.8);
+      expect(text.style?.height, 1);
+      final transform = tester
+          .renderObject<RenderBox>(label)
+          .getTransformTo(null);
+      expect(transform.storage[0], closeTo(1, .0001));
+      final rect = tester.getRect(label);
+      referenceRect ??= rect;
+      expect(rect, referenceRect);
     }
   });
 }
