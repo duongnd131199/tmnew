@@ -31,17 +31,17 @@ const _negativeAccount = DemoAccountSnapshot(
 );
 
 const _iconSearchRects = <Rect>[
-  Rect.fromLTWH(36, 780, 48, 30),
-  Rect.fromLTWH(102, 780, 48, 30),
-  Rect.fromLTWH(169, 780, 48, 30),
-  Rect.fromLTWH(236, 780, 48, 30),
+  Rect.fromLTWH(36, 780, 48, 28),
+  Rect.fromLTWH(102, 780, 48, 28),
+  Rect.fromLTWH(169, 780, 48, 28),
+  Rect.fromLTWH(236, 780, 48, 28),
 ];
 
 const _referenceBounds = <Rect>[
-  Rect.fromLTWH(51, 790, 18, 16),
-  Rect.fromLTWH(120, 790, 13, 16),
-  Rect.fromLTWH(184, 789, 19, 18),
-  Rect.fromLTWH(250, 789, 20, 19),
+  Rect.fromLTWH(52, 790, 18, 16),
+  Rect.fromLTWH(122, 790, 13, 16),
+  Rect.fromLTWH(187, 789, 20, 18),
+  Rect.fromLTWH(255, 789, 20, 19),
 ];
 
 void main() {
@@ -93,7 +93,7 @@ void main() {
 
     final bounds = await _darkInkBounds(tester, _iconSearchRects[3]);
 
-    expect(bounds, const Rect.fromLTWH(250, 789, 20, 19));
+    expect(bounds, const Rect.fromLTWH(255, 789, 20, 19));
     expect(
       bounds.width - bounds.height,
       lessThanOrEqualTo(1),
@@ -173,7 +173,7 @@ void main() {
       final label = find.byKey(const ValueKey('bottom-nav-label-quotes'));
       final text = tester.widget<Text>(label);
       expect(text.style?.fontFamily, AppTypography.plainFamily);
-      expect(text.style?.fontSize, 10.8);
+      expect(text.style?.fontSize, 9.5);
       expect(text.style?.height, 1);
       final transform = tester
           .renderObject<RenderBox>(label)

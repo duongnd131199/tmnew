@@ -174,7 +174,7 @@ class MtBottomNavigationBar extends ConsumerWidget {
           child: Align(
             alignment: Alignment.centerLeft,
             child: SizedBox(
-              width: 346,
+              width: 353.3333333333,
               height: double.infinity,
               child: DecoratedBox(
                 decoration: BoxDecoration(

@@ -65,9 +65,9 @@ void main() {
       const Key('market-search-button'),
     );
 
-    expect(list.bounds, const Rect.fromLTWH(14, 14, 15, 13));
-    expect(list.pixels, inInclusiveRange(70, 100));
-    expect(edit.bounds, const Rect.fromLTWH(13, 13, 16, 16));
+    expect(list.bounds, const Rect.fromLTWH(14, 14, 15, 12));
+    expect(list.pixels, inInclusiveRange(50, 75));
+    expect(edit.bounds, const Rect.fromLTWH(13, 12, 16, 17));
     expect(edit.pixels, inInclusiveRange(50, 75));
     expect(search.bounds, const Rect.fromLTWH(11, 11, 20, 20));
     expect(search.pixels, inInclusiveRange(75, 105));
@@ -101,13 +101,13 @@ void main() {
     );
 
     expect(toggleRect.left, closeTo(15.3, .1));
-    expect(toggleRect.top, closeTo(61.3666666667, .1));
+    expect(toggleRect.top, closeTo(54, .1));
     expect(toggleRect.width, closeTo(42.6666666667, .01));
     expect(toggleRect.height, closeTo(42.6666666667, .01));
     expect(manageRect.left, closeTo(274.6333333333, .1));
-    expect(manageRect.top, closeTo(61.3666666667, .1));
+    expect(manageRect.top, closeTo(54, .1));
     expect(searchRect.left, closeTo(328.0333333333, .1));
-    expect(searchRect.top, closeTo(61.3666666667, .1));
+    expect(searchRect.top, closeTo(54, .1));
 
     final headerTitle = tester.widget<Text>(find.text('Gia'));
     expect(headerTitle.style, AppTypography.toolbarTitle);
@@ -118,7 +118,7 @@ void main() {
     final symbolFinder = find.byKey(const ValueKey('market-symbol-XAUUSD+'));
     final symbol = tester.widget<Text>(symbolFinder);
     expect(symbol.style, AppTypography.quoteSymbol);
-    expect(tester.getTopLeft(symbolFinder).dy, closeTo(142.0666666667, .75));
+    expect(tester.getTopLeft(symbolFinder).dy, closeTo(128.0666666667, .75));
     final tickTime = tester.widget<Text>(
       find.byKey(const ValueKey('market-time-XAUUSD+')),
     );

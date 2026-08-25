@@ -255,7 +255,7 @@ void main() {
         matching: find.text('Tien nap'),
       ),
     );
-    expect(summaryLabel.style?.fontSize, 15);
+    expect(summaryLabel.style?.fontSize, 14.5);
     expect(summaryLabel.style?.fontWeight, FontWeight.w500);
 
     final listFinder = find.byKey(
@@ -663,22 +663,22 @@ void main() {
         find.byKey(const Key('history-period-button')),
       );
       expect(sort.left, closeTo(16, .01));
-      expect(sort.top, closeTo(38, .01));
+      expect(sort.top, closeTo(30, .01));
       expect(sort.width, closeTo(42.6666666667, .01));
       expect(sort.height, closeTo(42.6666666667, .01));
-      expect(segments.left, closeTo(69, .01));
-      expect(segments.top, closeTo(37.3333333333, .01));
+      expect(segments.left, closeTo(70.5, .01));
+      expect(segments.top, closeTo(30, .01));
       expect(segments.width, closeTo(247.6666666667, .01));
       expect(segments.height, closeTo(44, .01));
       expect(period.left, closeTo(328.3333333333, .01));
-      expect(period.top, closeTo(38, .01));
+      expect(period.top, closeTo(30, .01));
       expect(period.width, closeTo(42.6666666667, .01));
       expect(period.height, closeTo(42.6666666667, .01));
       final selectedTab = tester.getRect(
         find.byKey(const Key('history-tab-0')),
       );
-      expect(selectedTab.top, closeTo(39.2666666666, .01));
-      expect(selectedTab.width, closeTo(75.3333333333, .01));
+      expect(selectedTab.top, closeTo(31.9333333333, .01));
+      expect(selectedTab.width, closeTo(80, .01));
       expect(selectedTab.height, closeTo(39.4666666667, .01));
       expect(find.byKey(const Key('history-header-overlay')), findsOneWidget);
 
@@ -717,7 +717,7 @@ void main() {
       expect(tester.getTopLeft(firstRow).dy, lessThan(segments.bottom));
       expect(
         (headerTop as RenderBox).localToGlobal(Offset.zero).dy,
-        closeTo(37.3333333333, .1),
+        closeTo(30, .1),
       );
     },
   );
@@ -813,7 +813,7 @@ void main() {
     final gap =
         tester.getTopLeft(firstDeal).dy - tester.getBottomLeft(dealsTab).dy;
 
-    expect(gap, inInclusiveRange(0, 8.5));
+    expect(gap, inInclusiveRange(0, 13));
   });
 
   testWidgets('deal detail sheet matches the recorded vertical placement', (

@@ -152,9 +152,9 @@ void main() {
     final canvasFinder = find.byKey(const Key('chart-canvas'));
     final canvasRect = tester.getRect(canvasFinder);
     expect(canvasRect.left, closeTo(0, .001));
-    expect(canvasRect.top, closeTo(80, .001));
+    expect(canvasRect.top, closeTo(94.6666666667, .001));
     expect(canvasRect.width, closeTo(393.3333333333, .001));
-    expect(canvasRect.height, closeTo(694.3333333333, .001));
+    expect(canvasRect.height, closeTo(679.6666666666, .001));
     final timeframe = tester.widget<Text>(
       find.byKey(const Key('chart-toolbar-timeframe')),
     );
@@ -627,14 +627,19 @@ void main() {
       count: 80,
       expected: <String, Object>{
         'painterType': 'Mt5CandlePainter',
-        'priceAxisRect': const Rect.fromLTWH(316 + 2 / 3, 0, 67 + 1 / 3, 770),
-        'bottomAxisRect': const Rect.fromLTWH(0, 770, 384, 22),
+        'priceAxisRect': const Rect.fromLTWH(
+          316 + 2 / 3,
+          0,
+          67 + 1 / 3,
+          755 + 1 / 3,
+        ),
+        'bottomAxisRect': const Rect.fromLTWH(0, 755 + 1 / 3, 384, 22),
         'firstResolvedTimestamp': DateTime.utc(2026, 7, 1),
         'lastResolvedTimestamp': DateTime.utc(2026, 7, 1, 6, 35),
         'visibleCandleCount': 12,
         'currentPriceBadgeRect': const Rect.fromLTWH(
           318 + 2 / 3,
-          366.1181481481,
+          358.4306410256,
           67,
           20,
         ),
@@ -650,14 +655,19 @@ void main() {
       count: 40,
       expected: <String, Object>{
         'painterType': 'Mt5CandlePainter',
-        'priceAxisRect': const Rect.fromLTWH(316 + 2 / 3, 0, 67 + 1 / 3, 770),
-        'bottomAxisRect': const Rect.fromLTWH(0, 770, 384, 22),
+        'priceAxisRect': const Rect.fromLTWH(
+          316 + 2 / 3,
+          0,
+          67 + 1 / 3,
+          755 + 1 / 3,
+        ),
+        'bottomAxisRect': const Rect.fromLTWH(0, 755 + 1 / 3, 384, 22),
         'firstResolvedTimestamp': DateTime.utc(2026, 7, 1),
         'lastResolvedTimestamp': DateTime.utc(2026, 7, 7, 12),
         'visibleCandleCount': 12,
         'currentPriceBadgeRect': const Rect.fromLTWH(
           318 + 2 / 3,
-          190.1814814815,
+          179.3064102565,
           67,
           20,
         ),
@@ -728,8 +738,18 @@ void main() {
           painter! as Mt5CandlePainter,
         );
         expect(snapshot['painterType'], testCase.expected['painterType']);
-        expect(snapshot['priceAxisRect'], testCase.expected['priceAxisRect']);
-        expect(snapshot['bottomAxisRect'], testCase.expected['bottomAxisRect']);
+        final priceAxis = snapshot['priceAxisRect']! as Rect;
+        final expectedPriceAxis = testCase.expected['priceAxisRect']! as Rect;
+        expect(priceAxis.left, closeTo(expectedPriceAxis.left, .001));
+        expect(priceAxis.top, closeTo(expectedPriceAxis.top, .001));
+        expect(priceAxis.width, closeTo(expectedPriceAxis.width, .001));
+        expect(priceAxis.height, closeTo(expectedPriceAxis.height, .001));
+        final bottomAxis = snapshot['bottomAxisRect']! as Rect;
+        final expectedBottomAxis = testCase.expected['bottomAxisRect']! as Rect;
+        expect(bottomAxis.left, closeTo(expectedBottomAxis.left, .001));
+        expect(bottomAxis.top, closeTo(expectedBottomAxis.top, .001));
+        expect(bottomAxis.width, closeTo(expectedBottomAxis.width, .001));
+        expect(bottomAxis.height, closeTo(expectedBottomAxis.height, .001));
         expect(
           snapshot['firstResolvedTimestamp'],
           testCase.expected['firstResolvedTimestamp'],
@@ -2657,7 +2677,7 @@ void main() {
       if (entry.key == const Key('chart-crosshair-button') ||
           entry.key == const Key('chart-indicators-button') ||
           entry.key == const Key('chart-objects-button')) {
-        expect(metrics.baseRed, closeTo(102, 4), reason: '${entry.key} ink');
+        expect(metrics.baseRed, closeTo(64, 4), reason: '${entry.key} ink');
       }
     }
   });
@@ -2942,10 +2962,7 @@ void main() {
     );
     await tester.pump();
 
-    final expectedInk = Color.alphaBlend(
-      alternateTheme.foreground.withValues(alpha: .6),
-      alternateTheme.background,
-    );
+    final expectedInk = alternateTheme.toolbarInk;
     final expectedRed = (expectedInk.toARGB32() >> 16) & 0xff;
     for (final key in const <Key>[
       Key('chart-crosshair-button'),
@@ -2998,29 +3015,34 @@ void main() {
 
     final expectedGlobalInk = <Key, Rect>{
       const Key('chart-crosshair-button'): const Rect.fromLTRB(
-        223.6,
-        76.7,
-        251.3,
-        103.5,
+        223,
+        100,
+        251,
+        127,
       ),
       const Key('chart-indicators-button'): const Rect.fromLTRB(
-        285.9,
-        78.9,
-        303.4,
-        102.1,
+        286,
+        103,
+        303,
+        126,
       ),
       const Key('chart-objects-button'): const Rect.fromLTRB(
-        339.3,
-        76.7,
-        364.1,
-        102.1,
+        339,
+        101,
+        364,
+        127,
       ),
-      const Key('chart-windows-button'): const Rect.fromLTRB(486, 80, 513, 101),
+      const Key('chart-windows-button'): const Rect.fromLTRB(
+        486,
+        104,
+        513,
+        125,
+      ),
       const Key('chart-one-click-toggle'): const Rect.fromLTRB(
         542,
-        81,
+        105,
         570,
-        100,
+        124,
       ),
     };
     final actualGlobalInk = <Key, Rect>{};
@@ -3129,13 +3151,13 @@ void main() {
     dynamic painter = tester
         .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
         .painter;
-    expectRect(physical(canvas), left: 0, top: 120, right: 576, bottom: 1161.5);
+    expectRect(physical(canvas), left: 0, top: 142, right: 576, bottom: 1161.5);
     expectRect(
       physical(crosshair),
       left: 202,
-      top: 56.5,
+      top: 80.5,
       right: 259,
-      bottom: 116.5,
+      bottom: 140.5,
     );
     final expectedIconBounds = <Key, Rect>{
       const Key('chart-crosshair-button'): const Rect.fromLTRB(
@@ -3191,21 +3213,21 @@ void main() {
     expectRect(
       painterRectOnScreen(painter.chartFrameRect as Rect),
       left: 0,
-      top: 120,
+      top: 142,
       right: 475,
       bottom: 1128.5,
     );
     expectRect(
       painterRectOnScreen(painter.priceGridRect as Rect),
       left: 0,
-      top: 152,
+      top: 174,
       right: 475,
       bottom: 1128.5,
     );
     expectRect(
       painterRectOnScreen(painter.priceAxisRect as Rect),
       left: 475,
-      top: 120,
+      top: 142,
       right: 576,
       bottom: 1128.5,
     );
@@ -3238,10 +3260,10 @@ void main() {
     final shiftedCanvas = physical(
       tester.getRect(find.byKey(const Key('chart-canvas'))),
     );
-    expect(oneClick.height, 63);
-    expect(oneClick.top, 120);
-    expect(oneClick.bottom, 183);
-    expect(shiftedCanvas.top, 120);
+    expect(oneClick.height, closeTo(58, .01));
+    expect(oneClick.top, closeTo(142, .01));
+    expect(oneClick.bottom, closeTo(200, .01));
+    expect(shiftedCanvas.top, closeTo(142, .01));
     expect(shiftedCanvas.bottom, 1161.5);
     expect(shiftedCanvas, physical(canvas));
     expect(painter.chartFrameRect, originalChartFrame);

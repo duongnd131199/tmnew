@@ -30,6 +30,8 @@ import 'package:trading_mobile/shared/providers/realtime_market_provider.dart';
 import 'package:trading_mobile/shared/widgets/trading_drawer.dart';
 
 const _chartToolbarReferenceWidth = 384.0;
+const _chartToolbarHeight = 70.6666666667;
+const _oneClickPanelHeight = 38.6666666667;
 
 class ChartScreen extends ConsumerStatefulWidget {
   const ChartScreen({
@@ -1577,7 +1579,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
               left: 0,
               right: 0,
               top: 0,
-              height: 42,
+              height: _oneClickPanelHeight,
               child: ColoredBox(
                 color: _theme.background,
                 child: Row(
@@ -1594,7 +1596,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                     ),
                     Expanded(
                       child: SizedBox(
-                        height: 42,
+                        height: _oneClickPanelHeight,
                         child: ColoredBox(
                           color: _theme.background,
                           child: Padding(
@@ -1607,7 +1609,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                                   visualDensity: VisualDensity.compact,
                                   constraints: const BoxConstraints.tightFor(
                                     width: 40,
-                                    height: 42,
+                                    height: _oneClickPanelHeight,
                                   ),
                                   onPressed: volume <= .01
                                       ? null
@@ -1638,7 +1640,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                                   visualDensity: VisualDensity.compact,
                                   constraints: const BoxConstraints.tightFor(
                                     width: 40,
-                                    height: 42,
+                                    height: _oneClickPanelHeight,
                                   ),
                                   onPressed: () => _setVolume(volume + .01),
                                   icon: Transform.translate(
@@ -1674,7 +1676,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
           Positioned.fill(
             child: ClipRect(
               clipper: showOneClickTrading && !showTimeframes
-                  ? const _TopInsetRectClipper(42)
+                  ? const _TopInsetRectClipper(_oneClickPanelHeight)
                   : null,
               child: Stack(
                 children: [
@@ -1830,7 +1832,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                     Positioned(
                       left: 4,
                       top:
-                          1 + (showOneClickTrading && !showTimeframes ? 42 : 0),
+                          1 +
+                          (showOneClickTrading && !showTimeframes
+                              ? _oneClickPanelHeight
+                              : 0),
                       child: Text.rich(
                         key: const Key('chart-plot-title'),
                         TextSpan(
@@ -1865,7 +1870,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       left: 4,
                       top:
                           2.3333333333 +
-                          (showOneClickTrading && !showTimeframes ? 42 : 0),
+                          (showOneClickTrading && !showTimeframes
+                              ? _oneClickPanelHeight
+                              : 0),
                       child: Text.rich(
                         key: const Key('chart-plot-title'),
                         TextSpan(
@@ -1913,7 +1920,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       left: 4,
                       top:
                           21.3333333333 +
-                          (showOneClickTrading && !showTimeframes ? 42 : 0),
+                          (showOneClickTrading && !showTimeframes
+                              ? _oneClickPanelHeight
+                              : 0),
                       child: Text(
                         chartSubtitle,
                         key: const Key('chart-plot-subtitle'),
@@ -2024,11 +2033,11 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
         backgroundColor: _theme.background,
         foregroundColor: _theme.foreground,
         surfaceTintColor: Colors.transparent,
-        toolbarHeight: 56,
+        toolbarHeight: _chartToolbarHeight,
         automaticallyImplyLeading: false,
         titleSpacing: 8.1,
         title: Padding(
-          padding: const EdgeInsets.only(top: 11),
+          padding: const EdgeInsets.only(top: 27),
           child: Row(
             children: [
               for (final period in periods)
@@ -2080,11 +2089,11 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
       backgroundColor: _theme.background,
       foregroundColor: _theme.foreground,
       surfaceTintColor: Colors.transparent,
-      toolbarHeight: 56,
+      toolbarHeight: _chartToolbarHeight,
       automaticallyImplyLeading: false,
       titleSpacing: 0,
       title: SizedBox(
-        height: 56,
+        height: _chartToolbarHeight,
         child: LayoutBuilder(
           builder: (context, constraints) {
             double referenceLeft(double value) =>
@@ -2092,8 +2101,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
             return Stack(
               children: [
                 Positioned(
-                  left: referenceLeft(12),
-                  top: 15.3333333333,
+                  left: referenceLeft(12.6666666667),
+                  top: 30,
                   width: 35,
                   height: 40,
                   child: InkWell(
@@ -2111,7 +2120,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                         key: const Key('chart-toolbar-timeframe'),
                         maxLines: 1,
                         style: AppTypography.chartToolbar.copyWith(
-                          color: _theme.foreground,
+                          color: _theme.toolbarInk,
                         ),
                       ),
                     ),
@@ -2119,7 +2128,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                 ),
                 Positioned(
                   left: referenceLeft(134.6666666667),
-                  top: 13.6666666667,
+                  top: 29.6666666667,
                   width: 38,
                   height: 40,
                   child: InkWell(
@@ -2145,7 +2154,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                 ),
                 Positioned(
                   left: referenceLeft(172),
-                  top: 13.6666666667,
+                  top: 29.6666666667,
                   width: 38,
                   height: 40,
                   child: InkWell(
@@ -2160,7 +2169,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                 ),
                 Positioned(
                   left: referenceLeft(213),
-                  top: 13,
+                  top: 29,
                   width: 38,
                   height: 40,
                   child: InkWell(
@@ -2175,7 +2184,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                 ),
                 Positioned(
                   left: referenceLeft(305),
-                  top: 15,
+                  top: 31,
                   width: 38,
                   height: 40,
                   child: InkWell(
@@ -2186,7 +2195,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                 ),
                 Positioned(
                   left: referenceLeft(343),
-                  top: 15,
+                  top: 31,
                   width: 38,
                   height: 40,
                   child: InkWell(
@@ -4042,8 +4051,8 @@ class _TradeQuote extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             Positioned(
-              left: 4,
-              top: 4.33,
+              left: 6.6666666667,
+              top: 5,
               child: Text(
                 label,
                 style: AppTypography.chartTicketLabel.copyWith(

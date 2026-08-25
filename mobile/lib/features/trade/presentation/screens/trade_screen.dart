@@ -110,7 +110,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                           6,
                           9.3333333333,
                           4.6333333333,
-                          2.6666666667,
+                          1.3333333333,
                         ),
                         child: Column(
                           children: [
@@ -147,7 +147,9 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                         height: TabReferenceMetrics.tradeSectionHeight,
                         width: double.infinity,
                         color: AppColors.surfaceElevated,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5.3333333333,
+                        ),
                         child: Row(
                           children: [
                             const Text(
@@ -1324,8 +1326,8 @@ class _PositionRowState extends State<_PositionRow> {
                   onLongPress: widget.onLongPress,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
-                      5.3,
-                      9.8333333333,
+                      6,
+                      8.6666666667,
                       4.6333333333,
                       2,
                     ),
@@ -1387,7 +1389,7 @@ class _PositionRowState extends State<_PositionRow> {
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.only(top: 9),
+                          padding: const EdgeInsets.only(top: 5),
                           child: Transform.translate(
                             offset: const Offset(.6666666667, 0),
                             child: Text(

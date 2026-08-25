@@ -55,7 +55,7 @@ abstract final class AppTypography {
   );
   static const numberMedium = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 16,
+    fontSize: 16.5,
     fontWeight: FontWeight.w500,
     fontFeatures: [FontFeature.tabularFigures()],
   );
@@ -69,8 +69,9 @@ abstract final class AppTypography {
   static const toolbarTitle = TextStyle(
     color: AppColors.textPrimary,
     fontFamily: plainFamily,
-    fontSize: 20.5,
+    fontSize: 16.5,
     fontWeight: FontWeight.w500,
+    letterSpacing: -.5,
     height: 1,
   );
   static const toolbarControl = TextStyle(
@@ -82,59 +83,60 @@ abstract final class AppTypography {
   );
   static const navigationLabel = TextStyle(
     fontFamily: plainFamily,
-    fontSize: 10.8,
+    fontSize: 9.5,
     fontWeight: FontWeight.w400,
     height: 1,
   );
   static const navigationLabelSelected = TextStyle(
     fontFamily: plainFamily,
-    fontSize: 10.8,
+    fontSize: 9.5,
     fontWeight: FontWeight.w500,
     height: 1,
   );
   static const quoteChange = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 17,
-    letterSpacing: .6,
+    fontSize: 14,
+    letterSpacing: .1,
     height: 1,
   );
   static const quoteSymbol = TextStyle(
     color: AppColors.textPrimary,
     fontFamily: condensedFamily,
-    fontSize: 18,
+    fontSize: 16.5,
     fontWeight: FontWeight.w700,
-    letterSpacing: -.15,
+    letterSpacing: -1.45,
     height: 1,
   );
   static const quoteMeta = TextStyle(
     color: AppColors.textSecondary,
     fontFamily: condensedFamily,
-    fontSize: 17,
+    fontSize: 14,
     height: 1,
   );
   static const quotePriceMajor = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 18.5,
+    fontSize: 15,
     fontWeight: FontWeight.w500,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
   static const quotePriceMinor = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 29,
+    fontSize: 24,
     fontWeight: FontWeight.w700,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
   static const chartToolbar = TextStyle(
     fontFamily: plainFamily,
-    fontSize: 14.5,
+    fontSize: 14.3,
     fontWeight: FontWeight.w500,
+    letterSpacing: -1.2,
     height: 1,
   );
   static const chartTicketLabel = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 9,
+    fontSize: 8.7,
     height: 1,
   );
   static const chartTicketPriceMajor = TextStyle(
@@ -171,7 +173,7 @@ abstract final class AppTypography {
   );
   static const tradeHeaderProfit = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 21.5,
+    fontSize: 20,
     fontWeight: FontWeight.w500,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
@@ -179,32 +181,33 @@ abstract final class AppTypography {
   static const tradeMetric = TextStyle(
     color: AppColors.textPrimary,
     fontFamily: condensedFamily,
-    fontSize: 18.5,
+    fontSize: 16,
     height: 1.15,
     fontFeatures: [FontFeature.tabularFigures()],
   );
   static const tradeSection = TextStyle(
     color: AppColors.textPrimary,
     fontFamily: condensedFamily,
-    fontSize: 13.9,
+    fontSize: 13,
     fontWeight: FontWeight.w700,
     height: 1,
   );
   static const tradePositionPrimary = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 17.3,
+    fontSize: 15.3,
+    letterSpacing: -.6,
     height: 1,
   );
   static const tradePositionSecondary = TextStyle(
     color: AppColors.textPrimary,
     fontFamily: condensedFamily,
-    fontSize: 17.2,
+    fontSize: 15,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
   static const tradePositionProfit = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 23.5,
+    fontSize: 20.5,
     fontWeight: FontWeight.w500,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
@@ -212,26 +215,30 @@ abstract final class AppTypography {
   static const historySegment = TextStyle(
     color: AppColors.textPrimary,
     fontFamily: plainFamily,
-    fontSize: 15.5,
+    fontSize: 14.5,
+    letterSpacing: -.15,
     height: 1,
   );
   static const historyPrimary = TextStyle(
     fontFamily: condensedFamily,
     fontSize: 16,
+    letterSpacing: -1,
     height: 1,
   );
   static const historySecondary = TextStyle(
     color: AppColors.textSecondary,
     fontFamily: condensedFamily,
     fontSize: 14,
+    letterSpacing: -.4,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
   static const historySummary = TextStyle(
     color: AppColors.textPrimary,
     fontFamily: plainFamily,
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: FontWeight.w500,
+    letterSpacing: .05,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );

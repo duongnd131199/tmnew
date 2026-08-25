@@ -744,7 +744,7 @@ class _HistoryHeader extends StatelessWidget {
         children: [
           Positioned(
             left: 16,
-            top: 38,
+            top: 30,
             child: _CircleButton(
               key: const Key('history-sort-button'),
               dimension: 42.6666666667,
@@ -753,9 +753,9 @@ class _HistoryHeader extends StatelessWidget {
             ),
           ),
           Positioned(
-            left: 69,
-            right: 67.3333333333,
-            top: 37.3333333333,
+            left: 70.5,
+            right: 65.8333333333,
+            top: 30,
             height: 44,
             child: Container(
               key: const Key('history-segmented-control'),
@@ -783,19 +783,27 @@ class _HistoryHeader extends StatelessWidget {
                                 : AppColors.transparent,
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: Center(
+                          child: Align(
+                            alignment: index == 2
+                                ? const Alignment(0, -.1)
+                                : Alignment.center,
                             child: Text(
                               labels[index],
                               key: ValueKey('history-segment-label-$index'),
                               maxLines: 1,
-                              style: AppTypography.historySegment,
+                              style: index == 2
+                                  ? AppTypography.historySegment.copyWith(
+                                      fontSize: 14,
+                                      letterSpacing: 1.15,
+                                    )
+                                  : AppTypography.historySegment,
                             ),
                           ),
                         ),
                       ),
                     );
                     if (index == 0) {
-                      return SizedBox(width: 75.3333333333, child: segment);
+                      return SizedBox(width: 80, child: segment);
                     }
                     return Expanded(child: segment);
                   }),
@@ -805,7 +813,7 @@ class _HistoryHeader extends StatelessWidget {
           ),
           Positioned(
             right: 13,
-            top: 38,
+            top: 30,
             child: _CircleButton(
               key: const Key('history-period-button'),
               dimension: 42.6666666667,
@@ -993,7 +1001,8 @@ class _DealsHistory extends StatelessWidget {
             return TabReferenceMetrics.historyRowHeight;
           }
           if (index == deals.length) return 2;
-          return summaryRowCount * TabReferenceMetrics.historySummaryRowHeight;
+          return 1.3333333333 +
+              summaryRowCount * TabReferenceMetrics.historySummaryRowHeight;
         },
         itemBuilder: (context, index) {
           if (index < deals.length) {
@@ -1120,7 +1129,7 @@ class _OrdersHistory extends StatelessWidget {
             return TabReferenceMetrics.historyRowHeight;
           }
           if (index == orders.length) return 3;
-          return 3 * TabReferenceMetrics.historySummaryRowHeight;
+          return 1.3333333333 + 3 * TabReferenceMetrics.historySummaryRowHeight;
         },
         itemBuilder: (context, index) {
           if (index < orders.length) {
@@ -1268,7 +1277,8 @@ class _PositionsHistory extends StatelessWidget {
         itemCount: entries.length + 1,
         itemExtentBuilder: (index, _) => index < entries.length
             ? TabReferenceMetrics.historyRowHeight
-            : summaryRowCount * TabReferenceMetrics.historySummaryRowHeight,
+            : 1.3333333333 +
+                  summaryRowCount * TabReferenceMetrics.historySummaryRowHeight,
         itemBuilder: (context, index) {
           if (index < entries.length) {
             final entry =
@@ -1361,7 +1371,11 @@ class _HistoryPositionRow extends StatelessWidget {
                           ),
                       ],
                     ),
-                    style: AppTypography.historyPrimary,
+                    style: entry.isBalance
+                        ? AppTypography.historyPrimary.copyWith(
+                            letterSpacing: -.8,
+                          )
+                        : AppTypography.historyPrimary,
                   ),
                 ),
                 Positioned(
@@ -1427,31 +1441,39 @@ class _SummaryRows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final row in rows)
-          SizedBox(
-            key: ValueKey('history-summary-${row.$1}'),
-            height: TabReferenceMetrics.historySummaryRowHeight,
-            child: Row(
-              children: [
-                Text(
-                  row.$1,
-                  key: ValueKey('history-summary-label-${row.$1}'),
-                  style: AppTypography.historySummary,
-                ),
-                const Spacer(),
-                Text(
-                  row.$2,
-                  key: row.$1 == 'Loi nhuan'
-                      ? const Key('history-report-profit-value')
-                      : ValueKey('history-summary-value-${row.$1}'),
-                  style: AppTypography.historySummary,
-                ),
-              ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 1.3333333333),
+      child: Column(
+        children: [
+          for (final row in rows)
+            SizedBox(
+              key: ValueKey('history-summary-${row.$1}'),
+              height: TabReferenceMetrics.historySummaryRowHeight,
+              child: Row(
+                children: [
+                  Text(
+                    row.$1,
+                    key: ValueKey('history-summary-label-${row.$1}'),
+                    style: row.$1 == 'Tổng cộng'
+                        ? AppTypography.historySummary.copyWith(
+                            fontSize: 13.5,
+                            letterSpacing: .7,
+                          )
+                        : AppTypography.historySummary,
+                  ),
+                  const Spacer(),
+                  Text(
+                    row.$2,
+                    key: row.$1 == 'Loi nhuan'
+                        ? const Key('history-report-profit-value')
+                        : ValueKey('history-summary-value-${row.$1}'),
+                    style: AppTypography.historySummary,
+                  ),
+                ],
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

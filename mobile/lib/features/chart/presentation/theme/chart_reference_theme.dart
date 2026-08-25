@@ -38,5 +38,5 @@ final class ChartReferenceTheme {
   final Color priceLine;
 
   Color get toolbarInk =>
-      Color.alphaBlend(foreground.withValues(alpha: .6), background);
+      Color.alphaBlend(foreground.withValues(alpha: .75), background);
 }

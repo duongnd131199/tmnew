@@ -8,6 +8,7 @@ import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/chart/application/chart_timeframe_session.dart';
+import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/features/chart/presentation/navigation/chart_navigation.dart';
 import 'package:trading_mobile/features/market_watch/domain/market_symbol_policy.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
@@ -235,14 +236,13 @@ class _QuotesHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      // At the reference 1.5x raster scale this 90 px band starts the first
-      // quote row at physical y=171. The controls below map to y=91..155.
+      // Calibrated against the canonical 590 x 1280 reference capture.
       height: TabReferenceMetrics.quoteHeaderHeight,
       child: Stack(
         children: [
           Positioned(
             left: 15.3,
-            top: 37.3666666667,
+            top: 30,
             child: _RoundToolbarButton(
               key: const Key('market-toggle-view'),
               tooltip: 'View',
@@ -253,7 +253,7 @@ class _QuotesHeader extends StatelessWidget {
           Positioned(
             left: 0,
             right: 0,
-            top: 47.5,
+            top: 41.5,
             child: IgnorePointer(
               child: const Text(
                 'Gia',
@@ -264,7 +264,7 @@ class _QuotesHeader extends StatelessWidget {
           ),
           Positioned(
             right: 66.7,
-            top: 37.3666666667,
+            top: 30,
             child: _RoundToolbarButton(
               key: const Key('market-manage-button'),
               tooltip: 'Sửa',
@@ -292,7 +292,7 @@ class _QuotesHeader extends StatelessWidget {
           ),
           Positioned(
             right: 13.3,
-            top: 37.3666666667,
+            top: 30,
             child: _RoundToolbarButton(
               key: const Key('market-search-button'),
               tooltip: 'Tìm kiếm',
@@ -552,7 +552,10 @@ class _CompactQuoteRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final live = ref.watch(demoQuoteProvider(quote.symbol)).value ?? quote;
-    final meta = _QuoteMeta.fromTick(live);
+    final meta = _QuoteMeta.fromTick(
+      live,
+      receivedAt: ref.read(marketClockProvider)(),
+    );
     final dailyColor = meta.points >= 0
         ? AppColors.primary
         : AppColors.negative;
@@ -945,7 +948,10 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
   Widget build(BuildContext context) {
     final live =
         ref.watch(demoQuoteProvider(widget.quote.symbol)).value ?? widget.quote;
-    final meta = _QuoteMeta.fromTick(live);
+    final meta = _QuoteMeta.fromTick(
+      live,
+      receivedAt: ref.read(marketClockProvider)(),
+    );
     final fallbackTickColor = live.changePercent >= 0
         ? AppColors.primary
         : AppColors.negative;
@@ -986,7 +992,7 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
               ),
             Positioned(
               left: 8,
-              top: 6.6666666667,
+              top: 5.3333333333,
               child: Text.rich(
                 key: ValueKey('market-change-${live.symbol}'),
                 TextSpan(
@@ -1008,7 +1014,7 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
             ),
             Positioned(
               left: 8,
-              top: 28.0666666667,
+              top: 25.4,
               child: Text(
                 displayTradingSymbol(live.symbol),
                 key: ValueKey('market-symbol-${live.symbol}'),
@@ -1017,7 +1023,7 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
             ),
             Positioned(
               left: 7.3333333333,
-              top: isBtcUsd ? 54 : 54.6666666667,
+              top: 47.3333333333,
               child: Row(
                 children: [
                   Text(
@@ -1038,7 +1044,7 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
             ),
             Positioned(
               right: 94.6333333333,
-              top: 19.6666666667,
+              top: 17,
               width: 76,
               child: Align(
                 alignment: Alignment.centerRight,
@@ -1051,7 +1057,7 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
             ),
             Positioned(
               right: 7.9666666667,
-              top: 19.6666666667,
+              top: 17,
               width: 76,
               child: Align(
                 alignment: Alignment.centerRight,
@@ -1064,7 +1070,7 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
             ),
             Positioned(
               right: isBtcUsd ? 94.1 : 94.1333333333,
-              top: isBtcUsd ? 54 : 54.6666666667,
+              top: 47.3333333333,
               child: Text(
                 'L: ${meta.low}',
                 key: ValueKey('market-low-${live.symbol}'),
@@ -1073,7 +1079,7 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
             ),
             Positioned(
               right: isBtcUsd ? 6 : 4.6666666667,
-              top: isBtcUsd ? 53.6666666667 : 54.6666666667,
+              top: 47.3333333333,
               child: Text(
                 'H: ${meta.high}',
                 key: ValueKey('market-high-${live.symbol}'),

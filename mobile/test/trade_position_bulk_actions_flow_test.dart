@@ -134,7 +134,10 @@ void main() {
     expect(metric.style, AppTypography.tradeMetric);
     expect(
       tester.getSize(find.byKey(const Key('trade-account-metrics'))).height,
-      TabReferenceMetrics.tradeMetricRowHeight * 5 + 12,
+      closeTo(
+        TabReferenceMetrics.tradeMetricRowHeight * 5 + 10.6666666667,
+        .001,
+      ),
     );
     expect(
       tester.widget<Text>(find.byKey(const Key('trade-section-label'))).style,
