@@ -119,6 +119,7 @@ class StaticTextRegion {
     this.measureLargestGeometryComponent = false,
     this.measureInkDensity = true,
     this.inkDensityTolerancePercent,
+    this.allowsDynamicMask = false,
   });
 
   final String name;
@@ -129,8 +130,15 @@ class StaticTextRegion {
   final int geometryColorTolerance;
   final int semanticColorTolerance;
   final bool measureLargestGeometryComponent;
+
+  /// Legacy metadata retained for manifest compatibility. The comparator
+  /// always measures and enforces the global optical-density contract.
   final bool measureInkDensity;
   final double? inkDensityTolerancePercent;
+
+  /// Allows a reasoned dynamic mask to overlap this legacy text search area.
+  /// Keep false for every fully static label or control.
+  final bool allowsDynamicMask;
 }
 
 const referencePrimaryInk = ReferenceInk(0, 0, 0);
@@ -566,60 +574,70 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(345, 180, 130, 45),
         candidateRect: ReferencePixelRect(345, 180, 130, 45),
         ink: referenceBlueInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'first-quote-ask',
         referenceRect: ReferencePixelRect(470, 180, 120, 45),
         candidateRect: ReferencePixelRect(470, 180, 120, 45),
         ink: referenceBlueInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'second-quote-bid',
         referenceRect: ReferencePixelRect(365, 278, 110, 45),
         candidateRect: ReferencePixelRect(365, 278, 110, 45),
         ink: referenceRedInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'second-quote-ask',
         referenceRect: ReferencePixelRect(485, 278, 105, 45),
         candidateRect: ReferencePixelRect(485, 278, 105, 45),
         ink: referenceRedInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'first-quote-time',
         referenceRect: ReferencePixelRect(4, 220, 101, 38),
         candidateRect: ReferencePixelRect(4, 220, 101, 38),
         ink: referenceSecondaryInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'first-quote-low',
         referenceRect: ReferencePixelRect(345, 220, 135, 38),
         candidateRect: ReferencePixelRect(345, 220, 135, 38),
         ink: referenceSecondaryInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'first-quote-high',
         referenceRect: ReferencePixelRect(470, 220, 120, 38),
         candidateRect: ReferencePixelRect(470, 220, 120, 38),
         ink: referenceSecondaryInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'second-quote-time',
         referenceRect: ReferencePixelRect(4, 320, 120, 38),
         candidateRect: ReferencePixelRect(4, 320, 120, 38),
         ink: referenceSecondaryInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'second-quote-low',
         referenceRect: ReferencePixelRect(365, 320, 110, 38),
         candidateRect: ReferencePixelRect(365, 320, 110, 38),
         ink: referenceSecondaryInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'second-quote-high',
         referenceRect: ReferencePixelRect(485, 320, 105, 38),
         candidateRect: ReferencePixelRect(485, 320, 105, 38),
         ink: referenceSecondaryInk,
+        allowsDynamicMask: true,
       ),
       ..._pricesNavigationRegions,
     ],
@@ -717,12 +735,14 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(35, 164, 120, 31),
         candidateRect: ReferencePixelRect(35, 164, 120, 31),
         ink: referenceWhiteInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'ticket-buy-price',
         referenceRect: ReferencePixelRect(445, 164, 135, 31),
         candidateRect: ReferencePixelRect(445, 164, 135, 31),
         ink: referenceWhiteInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'plot-symbol',
@@ -800,6 +820,7 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(190, 85, 210, 50),
         candidateRect: ReferencePixelRect(190, 85, 210, 50),
         ink: referenceBlueInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'metric-value',
@@ -818,6 +839,7 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(475, 375, 115, 45),
         candidateRect: ReferencePixelRect(475, 375, 115, 45),
         ink: referenceBlueInk,
+        allowsDynamicMask: true,
       ),
       ..._tradeNavigationRegions,
     ],
@@ -975,6 +997,7 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(505, 238, 85, 38),
         candidateRect: ReferencePixelRect(505, 238, 85, 38),
         ink: referenceBlueInk,
+        allowsDynamicMask: true,
       ),
       StaticTextRegion(
         name: 'position-timestamp',
@@ -987,6 +1010,7 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(455, 552, 135, 40),
         candidateRect: ReferencePixelRect(455, 552, 135, 40),
         ink: referencePrimaryInk,
+        allowsDynamicMask: true,
       ),
       ..._historyNavigationRegions,
     ],
@@ -994,7 +1018,7 @@ const tabReferenceCases = <TabReferenceCase>[
       ..._systemStatusMasks,
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
-        rect: ReferencePixelRect(505, 238, 85, 38),
+        rect: ReferencePixelRect(505, 238, 85, 37),
         reason:
             'The open-position profit value changes until the position closes.',
       ),

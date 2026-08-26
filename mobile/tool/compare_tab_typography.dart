@@ -77,6 +77,9 @@ int runTabTypographyComparison(
         masks: referenceCase.dynamicMaskRegions,
       );
       final staticAudit = _StaticPixelAudit.measure(
+        caseId: referenceCase.id,
+        referencePath: referencePath,
+        candidatePath: candidatePath,
         reference: reference,
         candidate: candidate,
         masks: masks,
@@ -155,9 +158,7 @@ int runTabTypographyComparison(
           final densityDelta = referenceSample.inkDensityDeltaPercent(
             candidateSample,
           );
-          final densityFailed =
-              region.measureInkDensity &&
-              densityDelta > _maximumInkDensityDeltaPercent;
+          final densityFailed = densityDelta > _maximumInkDensityDeltaPercent;
           final regionFailed =
               edgeDelta > _maximumEdgeDelta ||
               semanticInkDelta > _maximumSemanticColorDelta ||
@@ -186,14 +187,10 @@ int runTabTypographyComparison(
             measuredReferenceInk: referenceSample.semanticInk.toString(),
             candidateInk: candidateSample.semanticInk.toString(),
             semanticInkDelta: '$semanticInkDelta',
-            inkDensityDeltaPercent: region.measureInkDensity
-                ? densityDelta.toStringAsFixed(3)
-                : '',
-            candidateInkRatio: region.measureInkDensity
-                ? referenceSample
-                      .inkDensityRatio(candidateSample)
-                      .toStringAsFixed(3)
-                : '',
+            inkDensityDeltaPercent: densityDelta.toStringAsFixed(3),
+            candidateInkRatio: referenceSample
+                .inkDensityRatio(candidateSample)
+                .toStringAsFixed(3),
             status: regionFailed ? 'FAIL' : 'PASS',
             details: details.join('; '),
           );
@@ -300,7 +297,34 @@ bool _writeStaticResult(
 
 List<String> _validateManifest(List<TabReferenceCase> cases) {
   final errors = <String>[];
+  final seenIds = <String>{};
+  final safeCaseId = RegExp(r'^[A-Za-z0-9][A-Za-z0-9_-]*$');
+  final safeFileName = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$');
   for (final item in cases) {
+    if (item.id.trim().isEmpty) {
+      errors.add('case id must be non-empty.');
+    } else {
+      if (!safeCaseId.hasMatch(item.id) || item.id.contains('..')) {
+        errors.add(
+          '${item.id}: unsafe case id "${item.id}"; use only letters, '
+          'digits, underscores, and hyphens.',
+        );
+      }
+      if (!seenIds.add(item.id)) {
+        errors.add('duplicate case id "${item.id}".');
+      }
+    }
+    if (item.fileName.trim().isEmpty) {
+      errors.add('${item.id}: fileName must be non-empty.');
+    } else if (!safeFileName.hasMatch(item.fileName) ||
+        item.fileName.contains('/') ||
+        item.fileName.contains(r'\') ||
+        item.fileName.contains('..')) {
+      errors.add(
+        '${item.id}: unsafe fileName "${item.fileName}"; provide a basename '
+        'without slash, backslash, or traversal segments.',
+      );
+    }
     final canvas = item.staticAuditRegion;
     if (canvas.left != 0 ||
         canvas.top != 0 ||
@@ -346,6 +370,25 @@ List<String> _validateManifest(List<TabReferenceCase> cases) {
           errors.add(
             '$label ${mask.rect} intersects required static control '
             '${control.name} ${control.rect}. Narrow or remove the mask.',
+          );
+        }
+      }
+      for (final text in item.staticTextRegions) {
+        final intersectsReference = _rectsIntersect(
+          mask.rect,
+          text.referenceRect,
+        );
+        final intersectsCandidate = _rectsIntersect(
+          mask.rect,
+          text.candidateRect,
+        );
+        if (!text.allowsDynamicMask &&
+            (intersectsReference || intersectsCandidate)) {
+          errors.add(
+            '$label ${mask.rect} intersects static text ${text.name} '
+            '(reference ${text.referenceRect}, candidate '
+            '${text.candidateRect}). Set allowsDynamicMask only for a '
+            'genuinely dynamic legacy text region.',
           );
         }
       }
@@ -545,6 +588,9 @@ class _StaticPixelAudit {
   });
 
   factory _StaticPixelAudit.measure({
+    required String caseId,
+    required String referencePath,
+    required String candidatePath,
     required image.Image reference,
     required image.Image candidate,
     required _MaskMap masks,
@@ -568,6 +614,20 @@ class _StaticPixelAudit {
       for (var x = 0; x < width; x++) {
         final referencePixel = reference.getPixel(x, y);
         final candidatePixel = candidate.getPixel(x, y);
+        final referenceAlpha = referencePixel.a.toInt();
+        if (referenceAlpha != 255) {
+          throw _ComparisonInputError(
+            '$caseId reference input $referencePath must be fully opaque; '
+            'pixel ($x,$y) has alpha $referenceAlpha.',
+          );
+        }
+        final candidateAlpha = candidatePixel.a.toInt();
+        if (candidateAlpha != 255) {
+          throw _ComparisonInputError(
+            '$caseId candidate input $candidatePath must be fully opaque; '
+            'pixel ($x,$y) has alpha $candidateAlpha.',
+          );
+        }
         final redDelta = (referencePixel.r - candidatePixel.r).abs().toInt();
         final greenDelta = (referencePixel.g - candidatePixel.g).abs().toInt();
         final blueDelta = (referencePixel.b - candidatePixel.b).abs().toInt();
@@ -595,7 +655,7 @@ class _StaticPixelAudit {
           if (isAudited) {
             heatmap!.setPixelRgba(x, y, maximumDelta, 0, 0, 255);
           } else {
-            heatmap!.setPixelRgba(x, y, 48, 48, 48, 255);
+            heatmap!.setPixelRgba(x, y, 0, 0, 0, 0);
           }
         }
       }
