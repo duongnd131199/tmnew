@@ -419,6 +419,10 @@ const _chartStaticControls = <ReferenceStaticControlRegion>[
 const _tradeStaticControls = <ReferenceStaticControlRegion>[
   ..._baseStaticControls,
   ReferenceStaticControlRegion(
+    name: 'trade-header-currency-label',
+    rect: ReferencePixelRect(315, 97, 49, 27),
+  ),
+  ReferenceStaticControlRegion(
     name: 'metric-label',
     rect: ReferencePixelRect(4, 157, 110, 38),
   ),
@@ -821,8 +825,9 @@ const tabReferenceCases = <TabReferenceCase>[
       ..._systemStatusMasks,
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
-        rect: ReferencePixelRect(190, 85, 210, 50),
-        reason: 'The header floating profit and loss changes with live quotes.',
+        rect: ReferencePixelRect(225, 97, 85, 27),
+        reason:
+            'The header floating profit and loss numeric value changes with live quotes.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.liveProfitAndLoss,

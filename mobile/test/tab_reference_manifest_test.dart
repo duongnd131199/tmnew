@@ -337,6 +337,7 @@ void main() {
       'chart-x-axis-labels': ReferencePixelRect(0, 1140, 472, 28),
     },
     'trade': {
+      'trade-header-currency-label': ReferencePixelRect(315, 97, 49, 27),
       'trade-section-surface': ReferencePixelRect(0, 327, 590, 38),
       'trade-scrollbar-indicator': ReferencePixelRect(581, 318, 5, 790),
     },
@@ -380,4 +381,24 @@ void main() {
       }
     });
   }
+
+  test(
+    'trade header profit mask leaves the measured currency suffix static',
+    () {
+      const currencySuffix = ReferencePixelRect(315, 97, 49, 27);
+      final trade = tabReferenceCases.singleWhere((item) => item.id == 'trade');
+      final headerMask = trade.dynamicMaskRegions.singleWhere(
+        (mask) =>
+            mask.kind == ReferenceDynamicMaskKind.liveProfitAndLoss &&
+            mask.rect.top < 145,
+      );
+      final rect = headerMask.rect;
+      final overlaps =
+          rect.left < currencySuffix.right &&
+          rect.right > currencySuffix.left &&
+          rect.top < currencySuffix.bottom &&
+          rect.bottom > currencySuffix.top;
+      expect(overlaps, isFalse);
+    },
+  );
 }
