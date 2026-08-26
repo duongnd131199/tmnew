@@ -13,6 +13,11 @@ void main() {
     () async {
       expect(tabReferenceCases, hasLength(7));
       expect(tabReferenceCases.map((item) => item.id).toSet(), hasLength(7));
+      expect(
+        tabReferenceCases.map((item) => item.fileName).toSet(),
+        hasLength(7),
+      );
+      expect(tabReferenceCases.map((item) => item.state).toSet(), hasLength(7));
       expect(tabReferenceLogicalSize.width, closeTo(393.3333333333, .0001));
       expect(tabReferenceLogicalSize.height, closeTo(853.3333333333, .0001));
       expect(tabReferenceDevicePixelRatio, 1.5);
@@ -81,11 +86,15 @@ void main() {
         'second-quote-bid',
         'second-quote-ask',
         'second-quote-time',
-        'second-quote-low',
-        'second-quote-high',
+        'second-quote-low-label',
+        'second-quote-low-value',
+        'second-quote-high-label',
+        'second-quote-high-value',
         'first-quote-time',
-        'first-quote-low',
-        'first-quote-high',
+        'first-quote-low-label',
+        'first-quote-low-value',
+        'first-quote-high-label',
+        'first-quote-high-value',
       },
       TabReferenceState.chart: {
         'ticket-sell-price',
@@ -94,7 +103,8 @@ void main() {
         'plot-subtitle',
       },
       TabReferenceState.trade: {
-        'header-profit',
+        'header-profit-value',
+        'header-profit-currency',
         'metric-value',
         'position-secondary',
         'position-profit',
@@ -235,58 +245,82 @@ void main() {
         String,
         ({
           String route,
+          String fileName,
+          TabReferenceState state,
           ReferenceSelectedTab selectedTab,
           ReferenceScrollState scrollState,
+          int scrollOffset,
           bool hasVisibleScrollbar,
           ReferencePixelRect? scrollbarRect,
         })
       >{
         'prices': (
           route: '/prices',
+          fileName: 'photo_2026-08-25_22-30-10.jpg',
+          state: TabReferenceState.prices,
           selectedTab: ReferenceSelectedTab.prices,
           scrollState: ReferenceScrollState.atTop,
+          scrollOffset: 0,
           hasVisibleScrollbar: false,
           scrollbarRect: null,
         ),
         'chart': (
           route: '/chart',
+          fileName: 'photo_2026-08-25_22-30-17.jpg',
+          state: TabReferenceState.chart,
           selectedTab: ReferenceSelectedTab.chart,
           scrollState: ReferenceScrollState.atTop,
+          scrollOffset: 0,
           hasVisibleScrollbar: false,
           scrollbarRect: null,
         ),
         'trade': (
           route: '/trade',
+          fileName: 'photo_2026-08-25_22-30-20.jpg',
+          state: TabReferenceState.trade,
           selectedTab: ReferenceSelectedTab.trade,
           scrollState: ReferenceScrollState.atTop,
+          scrollOffset: 0,
           hasVisibleScrollbar: true,
           scrollbarRect: ReferencePixelRect(581, 318, 5, 790),
         ),
         'history-positions': (
           route: '/history/positions',
+          fileName: 'photo_2026-08-25_22-30-23.jpg',
+          state: TabReferenceState.historyPositions,
           selectedTab: ReferenceSelectedTab.history,
           scrollState: ReferenceScrollState.atTop,
+          scrollOffset: 0,
           hasVisibleScrollbar: false,
           scrollbarRect: null,
         ),
         'history-orders': (
           route: '/history/orders',
+          fileName: 'photo_2026-08-25_22-30-26.jpg',
+          state: TabReferenceState.historyOrders,
           selectedTab: ReferenceSelectedTab.history,
           scrollState: ReferenceScrollState.offset,
+          scrollOffset: 32,
           hasVisibleScrollbar: true,
           scrollbarRect: ReferencePixelRect(581, 177, 5, 687),
         ),
         'history-orders-summary': (
           route: '/history/orders',
+          fileName: 'photo_2026-08-25_22-30-29.jpg',
+          state: TabReferenceState.historyOrdersSummary,
           selectedTab: ReferenceSelectedTab.history,
           scrollState: ReferenceScrollState.atEnd,
+          scrollOffset: 0,
           hasVisibleScrollbar: true,
           scrollbarRect: ReferencePixelRect(581, 474, 5, 688),
         ),
         'history-deals': (
           route: '/history/deals',
+          fileName: 'photo_2026-08-25_22-30-34.jpg',
+          state: TabReferenceState.historyDeals,
           selectedTab: ReferenceSelectedTab.history,
           scrollState: ReferenceScrollState.atEnd,
+          scrollOffset: 0,
           hasVisibleScrollbar: true,
           scrollbarRect: ReferencePixelRect(581, 525, 5, 637),
         ),
@@ -299,8 +333,11 @@ void main() {
       );
       final expected = entry.value;
       expect(referenceCase.route, expected.route);
+      expect(referenceCase.fileName, expected.fileName);
+      expect(referenceCase.state, expected.state);
       expect(referenceCase.selectedTab, expected.selectedTab);
       expect(referenceCase.captureState.scrollState, expected.scrollState);
+      expect(referenceCase.captureState.scrollOffset, expected.scrollOffset);
       expect(
         referenceCase.captureState.hasVisibleScrollbar,
         expected.hasVisibleScrollbar,
@@ -401,4 +438,56 @@ void main() {
       expect(overlaps, isFalse);
     },
   );
+
+  test('dynamic-only text audit set is an independent exact oracle', () {
+    const expected = <String, Set<String>>{
+      'prices': {
+        'first-quote-bid',
+        'first-quote-ask',
+        'second-quote-bid',
+        'second-quote-ask',
+        'first-quote-time',
+        'first-quote-low-value',
+        'first-quote-high-value',
+        'second-quote-time',
+        'second-quote-low-value',
+        'second-quote-high-value',
+      },
+      'chart': {'ticket-sell-price', 'ticket-buy-price'},
+      'trade': {'header-profit-value', 'position-profit'},
+      'history-positions': {'position-profit', 'summary-value'},
+      'history-orders': {},
+      'history-orders-summary': {},
+      'history-deals': {},
+    };
+    const requiredStaticMixedParts = <String, Set<String>>{
+      'prices': {
+        'first-quote-low-label',
+        'first-quote-high-label',
+        'second-quote-low-label',
+        'second-quote-high-label',
+      },
+      'trade': {'header-profit-currency'},
+    };
+
+    for (final referenceCase in tabReferenceCases) {
+      final dynamicOnly = referenceCase.staticTextRegions
+          .where(
+            (region) => region.auditMode == StaticTextAuditMode.dynamicOnly,
+          )
+          .map((region) => region.name)
+          .toSet();
+      expect(dynamicOnly, expected[referenceCase.id], reason: referenceCase.id);
+
+      final staticNames = referenceCase.staticTextRegions
+          .where((region) => region.auditMode == StaticTextAuditMode.static)
+          .map((region) => region.name)
+          .toSet();
+      expect(
+        staticNames,
+        containsAll(requiredStaticMixedParts[referenceCase.id] ?? const {}),
+        reason: '${referenceCase.id} protected static mixed text',
+      );
+    }
+  });
 }

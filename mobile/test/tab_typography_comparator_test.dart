@@ -309,6 +309,101 @@ void main() {
     expect(result.diagnostics, contains('100 pixels differ'));
   });
 
+  for (final candidateChannel in [105, 110]) {
+    test('rejects flat static surface drift to $candidateChannel', () async {
+      final reference = _solidImage(100);
+      final result = await _runFixture(
+        reference: reference,
+        candidate: _solidImage(candidateChannel),
+        referenceCase: _fixtureCase(),
+      );
+
+      final delta = candidateChannel - 100;
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(result.diagnostics, contains('rgb(100,100,100)'));
+      expect(
+        result.diagnostics,
+        contains('rgb($candidateChannel,$candidateChannel,$candidateChannel)'),
+      );
+      expect(
+        result.diagnostics,
+        contains('surface RGB delta $delta exceeds 4/channel'),
+      );
+      expect(result.diagnostics, contains(',0,4096,0.000000,FAIL,'));
+    });
+  }
+
+  test('static feature bounds allow one pixel but reject two', () async {
+    final reference = _blankImage();
+    _fillRect(reference, 20, 20, 3, 3, 0, 0, 0);
+    final candidates = <(int, int)>[(0, 0), (1, 0), (2, 1)];
+
+    for (final entry in candidates) {
+      final candidate = _blankImage();
+      _fillRect(candidate, 20 + entry.$1, 20, 3, 3, 0, 0, 0);
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _fixtureCase(
+          staticControlRegions: const [
+            ReferenceStaticControlRegion(
+              name: 'small-feature-control',
+              rect: _canvas,
+            ),
+          ],
+        ),
+      );
+
+      expect(result.exitCode, entry.$2, reason: result.diagnostics);
+      expect(result.diagnostics, contains('small-feature-control'));
+      expect(result.diagnostics, contains('edgeDelta'));
+      if (entry.$1 == 2) {
+        expect(result.diagnostics, contains('feature edge delta 2 exceeds 1'));
+      }
+    }
+  });
+
+  test('rejects a one-sided static foreground feature', () async {
+    final reference = _solidImage(200);
+    final candidate = image.Image.from(reference);
+    _fillRect(candidate, 20, 20, 2, 2, 0, 0, 0);
+
+    final result = await _runFixture(
+      reference: reference,
+      candidate: candidate,
+      referenceCase: _fixtureCase(
+        staticControlRegions: const [
+          ReferenceStaticControlRegion(
+            name: 'one-sided-feature-control',
+            rect: _canvas,
+          ),
+        ],
+      ),
+    );
+
+    expect(result.exitCode, 1, reason: result.diagnostics);
+    expect(result.diagnostics, contains('one-sided-feature-control'));
+    expect(result.diagnostics, contains('foreground exists on only one side'));
+  });
+
+  test('known-equal decoded JPEG raster passes static estimators', () async {
+    final source = _solidImage(220);
+    _fillRect(source, 10, 10, 20, 12, 35, 35, 35);
+    _fillRect(source, 40, 30, 8, 18, 120, 120, 120);
+    final decodedReference = image.decodeJpg(
+      image.encodeJpg(source, quality: 72),
+    )!;
+
+    final result = await _runFixture(
+      reference: decodedReference,
+      candidate: image.Image.from(decodedReference),
+      referenceCase: _fixtureCase(),
+    );
+
+    expect(result.exitCode, 0, reason: result.diagnostics);
+    expect(result.diagnostics, isNot(contains(',FAIL,')));
+  });
+
   test('rejects a dynamic mask intersecting required static control', () async {
     final reference = _blankImage();
 
@@ -444,6 +539,114 @@ void main() {
       expect(result.diagnostics, contains('PASS'));
     },
   );
+
+  test('fully masked dynamic-only text is reported as SKIP', () async {
+    final reference = _blankImage();
+    _fillRect(reference, 12, 12, 16, 10, 0, 0, 0);
+
+    final result = await _runFixture(
+      reference: reference,
+      candidate: image.Image.from(reference),
+      referenceCase: _fixtureCase(
+        staticTextRegions: const [
+          StaticTextRegion(
+            name: 'live-price',
+            referenceRect: _textSearch,
+            candidateRect: _textSearch,
+            ink: referencePrimaryInk,
+            auditMode: StaticTextAuditMode.dynamicOnly,
+          ),
+        ],
+        dynamicMaskRegions: const [
+          ReferenceDynamicMask(
+            kind: ReferenceDynamicMaskKind.livePrices,
+            rect: ReferencePixelRect(12, 12, 16, 10),
+            reason: 'Synthetic quote is supplied by the live market feed.',
+          ),
+        ],
+      ),
+    );
+
+    expect(result.exitCode, 0, reason: result.diagnostics);
+    expect(result.diagnostics, contains('live-price'));
+    expect(result.diagnostics, contains(',SKIP,'));
+    expect(result.diagnostics, contains('supplied by the live market feed'));
+    expect(result.diagnostics, isNot(contains('measurement failed')));
+    final skipRow = result.diagnostics
+        .split('\n')
+        .singleWhere(
+          (row) => row.startsWith(
+            'text,deterministic,fixture,dynamicText,live-price,',
+          ),
+        );
+    expect(_csvColumnCount(skipRow), 19);
+  });
+
+  test('mixed live value keeps its static suffix strictly audited', () async {
+    final reference = _blankImage();
+    _fillRect(reference, 10, 12, 10, 10, 0, 0, 0);
+    _fillRect(reference, 30, 12, 10, 10, 0, 0, 0);
+    const valueSearch = ReferencePixelRect(8, 8, 16, 24);
+    const suffixSearch = ReferencePixelRect(26, 8, 20, 24);
+    final referenceCase = _fixtureCase(
+      staticTextRegions: const [
+        StaticTextRegion(
+          name: 'live-number',
+          referenceRect: valueSearch,
+          candidateRect: valueSearch,
+          ink: referencePrimaryInk,
+          auditMode: StaticTextAuditMode.dynamicOnly,
+        ),
+        StaticTextRegion(
+          name: 'currency-suffix',
+          referenceRect: suffixSearch,
+          candidateRect: suffixSearch,
+          ink: referencePrimaryInk,
+        ),
+      ],
+      dynamicMaskRegions: const [
+        ReferenceDynamicMask(
+          kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+          rect: ReferencePixelRect(10, 12, 10, 10),
+          reason: 'Synthetic P/L numeric value changes with live quotes.',
+        ),
+      ],
+    );
+
+    final exact = await _runFixture(
+      reference: reference,
+      candidate: image.Image.from(reference),
+      referenceCase: referenceCase,
+    );
+    expect(exact.exitCode, 0, reason: exact.diagnostics);
+    expect(exact.diagnostics, contains('live-number'));
+    expect(exact.diagnostics, contains(',SKIP,'));
+    expect(exact.diagnostics, contains('currency-suffix'));
+    expect(exact.diagnostics, contains(',PASS,'));
+
+    final recoloredSuffix = image.Image.from(reference);
+    _fillRect(recoloredSuffix, 30, 12, 10, 10, 8, 8, 8);
+    final recolored = await _runFixture(
+      reference: reference,
+      candidate: recoloredSuffix,
+      referenceCase: referenceCase,
+    );
+    expect(recolored.exitCode, 1, reason: recolored.diagnostics);
+    expect(recolored.diagnostics, contains('currency-suffix'));
+    expect(recolored.diagnostics, contains('semantic RGB delta 8 exceeds 4'));
+
+    final shiftedSuffix = image.Image.from(reference);
+    _fillRect(shiftedSuffix, 30, 12, 10, 10, 255, 255, 255);
+    _fillRect(shiftedSuffix, 32, 12, 10, 10, 0, 0, 0);
+    final shifted = await _runFixture(
+      reference: reference,
+      candidate: shiftedSuffix,
+      referenceCase: referenceCase,
+    );
+    expect(shifted.exitCode, 1, reason: shifted.diagnostics);
+    expect(shifted.diagnostics, contains('currency-suffix'));
+    expect(shifted.diagnostics, contains('edge delta 2 exceeds 1'));
+  });
 
   test('rejects unsafe or empty manifest paths before input IO', () async {
     final cases = <(TabReferenceCase, String)>[
@@ -628,6 +831,53 @@ void main() {
     expect(exitCode, 1, reason: '$output$errors');
     expect('$output$errors', contains('Reference parity failed'));
   });
+
+  test(
+    'actual seven-case reference copies have no mask-caused measurement error',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'mt5-reference-copy-candidates-',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      for (final referenceCase in tabReferenceCases) {
+        final decoded = image.decodeImage(
+          File(referenceCase.referencePath).readAsBytesSync(),
+        )!;
+        File(
+          '${root.path}/${referenceCase.id}-590x1280.png',
+        ).writeAsBytesSync(image.encodePng(decoded));
+      }
+      final output = StringBuffer();
+      final errors = StringBuffer();
+
+      final exitCode = comparator.runTabTypographyComparison(
+        ['--candidate-dir', root.path],
+        standardOutput: output,
+        errorOutput: errors,
+      );
+      final diagnostics = '$output$errors';
+
+      expect(exitCode, 0, reason: diagnostics);
+      expect(
+        diagnostics,
+        isNot(contains('measurement failed')),
+        reason: diagnostics,
+      );
+      for (final referenceCase in tabReferenceCases) {
+        for (final region in referenceCase.staticTextRegions.where(
+          (region) => region.auditMode == StaticTextAuditMode.dynamicOnly,
+        )) {
+          expect(
+            diagnostics,
+            contains(
+              'text,deterministic,${referenceCase.id},dynamicText,'
+              '${region.name}',
+            ),
+          );
+        }
+      }
+    },
+  );
 }
 
 TabReferenceCase _fixtureCase({
@@ -663,6 +913,12 @@ TabReferenceCase _fixtureCase({
 image.Image _blankImage() {
   final result = image.Image(width: 64, height: 64, numChannels: 4);
   _fillRect(result, 0, 0, 64, 64, 255, 255, 255);
+  return result;
+}
+
+image.Image _solidImage(int channel) {
+  final result = image.Image(width: 64, height: 64, numChannels: 4);
+  _fillRect(result, 0, 0, 64, 64, channel, channel, channel);
   return result;
 }
 
@@ -808,6 +1064,24 @@ _RunResult _runArguments(List<String> arguments) {
 
 (int, int, int, int) _rgba(image.Pixel pixel) =>
     (pixel.r.toInt(), pixel.g.toInt(), pixel.b.toInt(), pixel.a.toInt());
+
+int _csvColumnCount(String row) {
+  var columns = 1;
+  var inQuotes = false;
+  for (var index = 0; index < row.length; index++) {
+    final character = row[index];
+    if (character == '"') {
+      if (inQuotes && index + 1 < row.length && row[index + 1] == '"') {
+        index++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (character == ',' && !inQuotes) {
+      columns++;
+    }
+  }
+  return columns;
+}
 
 class _RunResult {
   const _RunResult(this.exitCode, this.diagnostics);

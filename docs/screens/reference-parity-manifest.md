@@ -47,11 +47,34 @@ selected segment, and every visible scrollbar indicator. The manifest test
 enforces those independent expected bounds, mask non-overlap, and canvas
 bounds.
 
-`StaticTextRegion` remains unchanged for the existing typography comparator.
+`StaticTextRegion.auditMode` defaults to `StaticTextAuditMode.static`.
+Static text is always measured against the decoded reference with edge
+`<= 1` physical pixel, RGB `<= 4` per channel, and optical-density delta
+`<= 5%`. A genuinely changing value must opt into `dynamicOnly` and intersect
+a typed, reasoned dynamic mask. The comparator emits a machine-readable
+`SKIP` row containing that reason; it never silently treats excluded text as a
+pass. The legacy `allowsDynamicMask` flag remains compatibility-only and does
+not confer `SKIP` semantics.
+
+Mixed strings are split into independent audit regions. Prices keep the four
+`L:`/`H:` labels static while their numeric values are dynamic-only. Trade
+keeps the `USD` suffix static while only the numeric header P/L is
+dynamic-only. Static controls independently protect those labels and suffixes
+from mask overlap.
+
+Each full-canvas, typed visual-region, and static-control row derives its
+dominant surface color and foreground bounds independently from the decoded
+reference and candidate rasters. Required acceptance is measured surface RGB
+delta `<= 4` per channel and foreground edge delta `<= 1` physical pixel;
+one-sided foreground fails. The `12`-per-channel threshold is used only to
+absorb JPEG residuals when counting residual pixels and separating foreground
+from a measured local surface. It is not a semantic surface-color tolerance.
+Candidate tokens are never used as reference truth.
+
 `dynamicMaskRegions` is the typed, reasoned mask API; the legacy
-`dynamicMasks` getter continues to expose its pixel rectangles to the existing
-comparator. This separation keeps the manifest useful to Task 2 without
-embedding candidate-image expectations in the reference data.
+`dynamicMasks` getter continues to expose its pixel rectangles for compatible
+consumers. This separation keeps the manifest useful to the comparator
+without embedding candidate-image expectations in the reference data.
 
 ## Dynamic-mask policy
 

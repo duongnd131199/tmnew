@@ -101,7 +101,6 @@ int runTabTypographyComparison(
         recordType: 'static-canvas',
         regionType: 'fullCanvas',
         regionName: 'static-audit',
-        rect: referenceCase.staticAuditRegion,
         result: canvasResult,
       );
 
@@ -113,7 +112,6 @@ int runTabTypographyComparison(
           recordType: 'static-region',
           regionType: region.type.name,
           regionName: region.name,
-          rect: region.rect,
           result: staticAudit.resultFor(region.rect),
         );
       }
@@ -125,12 +123,35 @@ int runTabTypographyComparison(
           recordType: 'static-control',
           regionType: 'control',
           regionName: control.name,
-          rect: control.rect,
           result: staticAudit.resultFor(control.rect),
         );
       }
 
       for (final region in referenceCase.staticTextRegions) {
+        if (region.auditMode == StaticTextAuditMode.dynamicOnly) {
+          final reasons = referenceCase.dynamicMaskRegions
+              .where(
+                (mask) =>
+                    _rectsIntersect(mask.rect, region.referenceRect) ||
+                    _rectsIntersect(mask.rect, region.candidateRect),
+              )
+              .map((mask) => mask.reason)
+              .toSet()
+              .join(' | ');
+          report.add(
+            recordType: 'text',
+            renderer: configuration.renderer.name,
+            caseId: referenceCase.id,
+            regionType: 'dynamicText',
+            regionName: region.name,
+            referenceBounds: region.referenceRect.toString(),
+            candidateBounds: region.candidateRect.toString(),
+            manifestInkHint: _MeasuredInk.fromReference(region.ink).toString(),
+            status: 'SKIP',
+            details: 'dynamic-only text excluded by reasoned mask: $reasons',
+          );
+          continue;
+        }
         final geometryInk = geometryInkFor(region.geometryInk ?? region.ink);
         try {
           final referenceSample = _measureText(
@@ -253,7 +274,9 @@ int runTabTypographyComparison(
       'semantic RGB <= $_maximumSemanticColorDelta/channel against measured '
       'reference ink, optical density delta <= '
       '${_maximumInkDensityDeltaPercent.toStringAsFixed(1)}%. Required static '
-      'regions: differing pixel ratio <= '
+      'regions: measured surface RGB <= '
+      '$_maximumSemanticColorDelta/channel, feature edge <= '
+      '$_maximumEdgeDelta physical px, and differing pixel ratio <= '
       '${(_maximumStaticDifferenceRatio * 100).toStringAsFixed(1)}% after '
       'a measured-reference JPEG tolerance of '
       '$_staticPixelChannelTolerance/channel. See FAIL rows for actions.',
@@ -270,32 +293,55 @@ bool _writeStaticResult(
   required String recordType,
   required String regionType,
   required String regionName,
-  required ReferencePixelRect rect,
   required _StaticRegionResult result,
 }) {
+  final surfaceFailed = result.surfaceColorDelta > _maximumSemanticColorDelta;
+  final edgeFailed =
+      result.hasOneSidedForeground ||
+      result.featureEdgeDelta > _maximumEdgeDelta;
+  final residualFailed =
+      result.differingPixelRatio > _maximumStaticDifferenceRatio;
   final regionFailed =
       result.auditedPixelCount == 0 ||
-      result.differingPixelRatio > _maximumStaticDifferenceRatio;
+      surfaceFailed ||
+      edgeFailed ||
+      residualFailed;
+  final details = <String>[
+    if (result.auditedPixelCount == 0)
+      'no unmasked static pixels remain to audit',
+    if (surfaceFailed)
+      'surface RGB delta ${result.surfaceColorDelta} exceeds '
+          '$_maximumSemanticColorDelta/channel',
+    if (result.hasOneSidedForeground) 'foreground exists on only one side',
+    if (!result.hasOneSidedForeground &&
+        result.featureEdgeDelta > _maximumEdgeDelta)
+      'feature edge delta ${result.featureEdgeDelta} exceeds '
+          '$_maximumEdgeDelta physical px',
+    if (residualFailed)
+      '${result.differingPixelCount} pixels differ beyond '
+          '$_staticPixelChannelTolerance RGB/channel; ratio '
+          '${(result.differingPixelRatio * 100).toStringAsFixed(3)}% '
+          'exceeds ${(_maximumStaticDifferenceRatio * 100).toStringAsFixed(1)}%',
+  ];
   report.add(
     recordType: recordType,
     renderer: configuration.renderer.name,
     caseId: referenceCase.id,
     regionType: regionType,
     regionName: regionName,
-    referenceBounds: rect.toString(),
-    candidateBounds: rect.toString(),
+    referenceBounds: result.referenceFeatureBounds?.toString() ?? 'none',
+    candidateBounds: result.candidateFeatureBounds?.toString() ?? 'none',
+    edgeDelta: result.hasOneSidedForeground
+        ? 'one-sided'
+        : '${result.featureEdgeDelta}',
+    measuredReferenceInk: result.referenceSurface.toString(),
+    candidateInk: result.candidateSurface.toString(),
+    semanticInkDelta: '${result.surfaceColorDelta}',
     differingPixelCount: '${result.differingPixelCount}',
     auditedPixelCount: '${result.auditedPixelCount}',
     differingPixelRatio: result.differingPixelRatio.toStringAsFixed(6),
     status: regionFailed ? 'FAIL' : 'PASS',
-    details: result.auditedPixelCount == 0
-        ? 'no unmasked static pixels remain to audit'
-        : regionFailed
-        ? '${result.differingPixelCount} pixels differ beyond '
-              '$_staticPixelChannelTolerance RGB/channel; ratio '
-              '${(result.differingPixelRatio * 100).toStringAsFixed(3)}% '
-              'exceeds ${(_maximumStaticDifferenceRatio * 100).toStringAsFixed(1)}%'
-        : '',
+    details: details.join('; '),
   );
   return regionFailed;
 }
@@ -387,7 +433,8 @@ List<String> _validateManifest(List<TabReferenceCase> cases) {
           mask.rect,
           text.candidateRect,
         );
-        if (!text.allowsDynamicMask &&
+        if (text.auditMode == StaticTextAuditMode.static &&
+            !text.allowsDynamicMask &&
             (intersectsReference || intersectsCandidate)) {
           errors.add(
             '$label ${mask.rect} intersects static text ${text.name} '
@@ -396,6 +443,21 @@ List<String> _validateManifest(List<TabReferenceCase> cases) {
             'genuinely dynamic legacy text region.',
           );
         }
+      }
+    }
+    for (final text in item.staticTextRegions.where(
+      (text) => text.auditMode == StaticTextAuditMode.dynamicOnly,
+    )) {
+      final hasReasonedMask = item.dynamicMaskRegions.any(
+        (mask) =>
+            _rectsIntersect(mask.rect, text.referenceRect) ||
+            _rectsIntersect(mask.rect, text.candidateRect),
+      );
+      if (!hasReasonedMask) {
+        errors.add(
+          '${item.id}: dynamic-only text ${text.name} must intersect a '
+          'reasoned dynamic mask.',
+        );
       }
     }
   }
@@ -644,6 +706,9 @@ bool _hasInkNeighbour(
 class _StaticPixelAudit {
   const _StaticPixelAudit({
     required this.width,
+    required this.reference,
+    required this.candidate,
+    required this.masks,
     required this.differencePrefix,
     required this.auditedPrefix,
     this.overlay,
@@ -708,6 +773,9 @@ class _StaticPixelAudit {
     }
     return _StaticPixelAudit(
       width: width,
+      reference: reference,
+      candidate: candidate,
+      masks: masks,
       differencePrefix: differencePrefix,
       auditedPrefix: auditedPrefix,
       overlay: overlay,
@@ -716,6 +784,9 @@ class _StaticPixelAudit {
   }
 
   final int width;
+  final image.Image reference;
+  final image.Image candidate;
+  final _MaskMap masks;
   final Uint32List differencePrefix;
   final Uint32List auditedPrefix;
   final image.Image? overlay;
@@ -730,10 +801,74 @@ class _StaticPixelAudit {
         values[rect.top * stride + rect.left];
     final differing = sum(differencePrefix);
     final audited = sum(auditedPrefix);
+    final referenceSurface = _measureSurface(reference, rect);
+    final candidateSurface = _measureSurface(candidate, rect);
     return _StaticRegionResult(
       differingPixelCount: differing,
       auditedPixelCount: audited,
+      referenceSurface: referenceSurface,
+      candidateSurface: candidateSurface,
+      referenceFeatureBounds: _measureFeatureBounds(
+        reference,
+        rect,
+        referenceSurface,
+      ),
+      candidateFeatureBounds: _measureFeatureBounds(
+        candidate,
+        rect,
+        candidateSurface,
+      ),
     );
+  }
+
+  _MeasuredInk _measureSurface(image.Image source, ReferencePixelRect rect) {
+    final counts = <int, int>{};
+    var modeKey = 0;
+    var modeCount = 0;
+    for (var y = rect.top; y < rect.bottom; y++) {
+      for (var x = rect.left; x < rect.right; x++) {
+        if (masks.contains(x, y)) continue;
+        final pixel = source.getPixel(x, y);
+        final key =
+            (pixel.r.toInt() << 16) | (pixel.g.toInt() << 8) | pixel.b.toInt();
+        final count = (counts[key] ?? 0) + 1;
+        counts[key] = count;
+        if (count > modeCount) {
+          modeKey = key;
+          modeCount = count;
+        }
+      }
+    }
+    return _MeasuredInk.fromRgbKey(modeKey);
+  }
+
+  _InkBounds? _measureFeatureBounds(
+    image.Image source,
+    ReferencePixelRect rect,
+    _MeasuredInk surface,
+  ) {
+    int? left;
+    int? top;
+    int? right;
+    int? bottom;
+    for (var y = rect.top; y < rect.bottom; y++) {
+      for (var x = rect.left; x < rect.right; x++) {
+        if (masks.contains(x, y)) continue;
+        final pixel = source.getPixel(x, y);
+        final value = _MeasuredInk(
+          pixel.r.toInt(),
+          pixel.g.toInt(),
+          pixel.b.toInt(),
+        );
+        if (value.edgeDelta(surface) <= _staticPixelChannelTolerance) continue;
+        if (left == null || x < left) left = x;
+        if (top == null || y < top) top = y;
+        if (right == null || x > right) right = x;
+        if (bottom == null || y > bottom) bottom = y;
+      }
+    }
+    if (left == null) return null;
+    return _InkBounds(left, top!, right!, bottom!);
   }
 }
 
@@ -741,10 +876,28 @@ class _StaticRegionResult {
   const _StaticRegionResult({
     required this.differingPixelCount,
     required this.auditedPixelCount,
+    required this.referenceSurface,
+    required this.candidateSurface,
+    required this.referenceFeatureBounds,
+    required this.candidateFeatureBounds,
   });
 
   final int differingPixelCount;
   final int auditedPixelCount;
+  final _MeasuredInk referenceSurface;
+  final _MeasuredInk candidateSurface;
+  final _InkBounds? referenceFeatureBounds;
+  final _InkBounds? candidateFeatureBounds;
+
+  int get surfaceColorDelta => referenceSurface.edgeDelta(candidateSurface);
+
+  bool get hasOneSidedForeground =>
+      (referenceFeatureBounds == null) != (candidateFeatureBounds == null);
+
+  int get featureEdgeDelta =>
+      referenceFeatureBounds == null || candidateFeatureBounds == null
+      ? 0
+      : referenceFeatureBounds!.edgeDelta(candidateFeatureBounds!);
 
   double get differingPixelRatio =>
       auditedPixelCount == 0 ? 1 : differingPixelCount / auditedPixelCount;
@@ -858,6 +1011,9 @@ class _MeasuredInk {
 
   factory _MeasuredInk.fromReference(ReferenceInk ink) =>
       _MeasuredInk(ink.red, ink.green, ink.blue);
+
+  factory _MeasuredInk.fromRgbKey(int key) =>
+      _MeasuredInk((key >> 16) & 0xff, (key >> 8) & 0xff, key & 0xff);
 
   factory _MeasuredInk.modeFromPixels(List<_InkPixel> pixels) {
     final counts = <int, int>{};

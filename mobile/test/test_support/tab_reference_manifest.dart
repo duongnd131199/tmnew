@@ -107,6 +107,8 @@ class ReferenceInk {
   final int blue;
 }
 
+enum StaticTextAuditMode { static, dynamicOnly }
+
 class StaticTextRegion {
   const StaticTextRegion({
     required this.name,
@@ -119,6 +121,7 @@ class StaticTextRegion {
     this.measureLargestGeometryComponent = false,
     this.measureInkDensity = true,
     this.inkDensityTolerancePercent,
+    this.auditMode = StaticTextAuditMode.static,
     this.allowsDynamicMask = false,
   });
 
@@ -136,8 +139,12 @@ class StaticTextRegion {
   final bool measureInkDensity;
   final double? inkDensityTolerancePercent;
 
+  /// Static text is measured strictly. Dynamic-only text emits a reasoned
+  /// SKIP row and must intersect a typed dynamic mask.
+  final StaticTextAuditMode auditMode;
+
   /// Allows a reasoned dynamic mask to overlap this legacy text search area.
-  /// Keep false for every fully static label or control.
+  /// Compatibility-only: use [auditMode] for new dynamic-only declarations.
   final bool allowsDynamicMask;
 }
 
@@ -396,7 +403,7 @@ const _chartStaticControls = <ReferenceStaticControlRegion>[
   ),
   ReferenceStaticControlRegion(
     name: 'ticket-sell-label',
-    rect: ReferencePixelRect(0, 144, 62, 22),
+    rect: ReferencePixelRect(0, 144, 62, 18),
   ),
   ReferenceStaticControlRegion(
     name: 'ticket-buy-label',
@@ -574,70 +581,94 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(345, 180, 130, 45),
         candidateRect: ReferencePixelRect(345, 180, 130, 45),
         ink: referenceBlueInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       StaticTextRegion(
         name: 'first-quote-ask',
         referenceRect: ReferencePixelRect(470, 180, 120, 45),
         candidateRect: ReferencePixelRect(470, 180, 120, 45),
         ink: referenceBlueInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       StaticTextRegion(
         name: 'second-quote-bid',
         referenceRect: ReferencePixelRect(365, 278, 110, 45),
         candidateRect: ReferencePixelRect(365, 278, 110, 45),
         ink: referenceRedInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       StaticTextRegion(
         name: 'second-quote-ask',
         referenceRect: ReferencePixelRect(485, 278, 105, 45),
         candidateRect: ReferencePixelRect(485, 278, 105, 45),
         ink: referenceRedInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       StaticTextRegion(
         name: 'first-quote-time',
         referenceRect: ReferencePixelRect(4, 220, 101, 38),
         candidateRect: ReferencePixelRect(4, 220, 101, 38),
         ink: referenceSecondaryInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       StaticTextRegion(
-        name: 'first-quote-low',
-        referenceRect: ReferencePixelRect(345, 220, 135, 38),
-        candidateRect: ReferencePixelRect(345, 220, 135, 38),
+        name: 'first-quote-low-label',
+        referenceRect: ReferencePixelRect(372, 220, 13, 38),
+        candidateRect: ReferencePixelRect(372, 220, 13, 38),
         ink: referenceSecondaryInk,
-        allowsDynamicMask: true,
       ),
       StaticTextRegion(
-        name: 'first-quote-high',
-        referenceRect: ReferencePixelRect(470, 220, 120, 38),
-        candidateRect: ReferencePixelRect(470, 220, 120, 38),
+        name: 'first-quote-low-value',
+        referenceRect: ReferencePixelRect(390, 220, 70, 38),
+        candidateRect: ReferencePixelRect(390, 220, 70, 38),
         ink: referenceSecondaryInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
+      ),
+      StaticTextRegion(
+        name: 'first-quote-high-label',
+        referenceRect: ReferencePixelRect(487, 220, 15, 38),
+        candidateRect: ReferencePixelRect(487, 220, 15, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'first-quote-high-value',
+        referenceRect: ReferencePixelRect(508, 220, 72, 38),
+        candidateRect: ReferencePixelRect(508, 220, 72, 38),
+        ink: referenceSecondaryInk,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       StaticTextRegion(
         name: 'second-quote-time',
         referenceRect: ReferencePixelRect(4, 320, 120, 38),
         candidateRect: ReferencePixelRect(4, 320, 120, 38),
         ink: referenceSecondaryInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       StaticTextRegion(
-        name: 'second-quote-low',
-        referenceRect: ReferencePixelRect(365, 320, 110, 38),
-        candidateRect: ReferencePixelRect(365, 320, 110, 38),
+        name: 'second-quote-low-label',
+        referenceRect: ReferencePixelRect(392, 320, 13, 38),
+        candidateRect: ReferencePixelRect(392, 320, 13, 38),
         ink: referenceSecondaryInk,
-        allowsDynamicMask: true,
       ),
       StaticTextRegion(
-        name: 'second-quote-high',
-        referenceRect: ReferencePixelRect(485, 320, 105, 38),
-        candidateRect: ReferencePixelRect(485, 320, 105, 38),
+        name: 'second-quote-low-value',
+        referenceRect: ReferencePixelRect(410, 320, 50, 38),
+        candidateRect: ReferencePixelRect(410, 320, 50, 38),
         ink: referenceSecondaryInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
+      ),
+      StaticTextRegion(
+        name: 'second-quote-high-label',
+        referenceRect: ReferencePixelRect(515, 320, 15, 38),
+        candidateRect: ReferencePixelRect(515, 320, 15, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'second-quote-high-value',
+        referenceRect: ReferencePixelRect(536, 320, 43, 38),
+        candidateRect: ReferencePixelRect(536, 320, 43, 38),
+        ink: referenceSecondaryInk,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       ..._pricesNavigationRegions,
     ],
@@ -645,12 +676,12 @@ const tabReferenceCases = <TabReferenceCase>[
       ..._systemStatusMasks,
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(365, 180, 105, 37),
+        rect: ReferencePixelRect(361, 180, 109, 37),
         reason: 'The first quote bid is supplied by the live market feed.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(485, 180, 105, 37),
+        rect: ReferencePixelRect(481, 180, 100, 37),
         reason: 'The first quote ask is supplied by the live market feed.',
       ),
       ReferenceDynamicMask(
@@ -660,7 +691,7 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(505, 278, 85, 40),
+        rect: ReferencePixelRect(505, 278, 74, 40),
         reason: 'The second quote ask is supplied by the live market feed.',
       ),
       ReferenceDynamicMask(
@@ -686,12 +717,12 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.liveTimes,
-        rect: ReferencePixelRect(15, 223, 80, 35),
+        rect: ReferencePixelRect(11, 226, 74, 16),
         reason: 'The first quote timestamp advances with the live market feed.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.liveTimes,
-        rect: ReferencePixelRect(15, 323, 90, 35),
+        rect: ReferencePixelRect(31, 327, 75, 17),
         reason:
             'The second quote timestamp advances with the live market feed.',
       ),
@@ -720,8 +751,8 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       StaticTextRegion(
         name: 'ticket-sell-label',
-        referenceRect: ReferencePixelRect(0, 144, 62, 22),
-        candidateRect: ReferencePixelRect(0, 144, 62, 22),
+        referenceRect: ReferencePixelRect(0, 144, 62, 18),
+        candidateRect: ReferencePixelRect(0, 144, 62, 18),
         ink: referenceWhiteInk,
       ),
       StaticTextRegion(
@@ -735,14 +766,14 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(35, 164, 120, 31),
         candidateRect: ReferencePixelRect(35, 164, 120, 31),
         ink: referenceWhiteInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       StaticTextRegion(
         name: 'ticket-buy-price',
         referenceRect: ReferencePixelRect(445, 164, 135, 31),
         candidateRect: ReferencePixelRect(445, 164, 135, 31),
         ink: referenceWhiteInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       StaticTextRegion(
         name: 'plot-symbol',
@@ -765,12 +796,12 @@ const tabReferenceCases = <TabReferenceCase>[
       ..._systemStatusMasks,
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(35, 167, 120, 28),
+        rect: ReferencePixelRect(35, 162, 120, 33),
         reason: 'The sell quote in the order ticket is a live market value.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(445, 164, 135, 31),
+        rect: ReferencePixelRect(445, 162, 135, 33),
         reason: 'The buy quote in the order ticket is a live market value.',
       ),
       ReferenceDynamicMask(
@@ -816,11 +847,17 @@ const tabReferenceCases = <TabReferenceCase>[
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
-        name: 'header-profit',
-        referenceRect: ReferencePixelRect(190, 85, 210, 50),
-        candidateRect: ReferencePixelRect(190, 85, 210, 50),
+        name: 'header-profit-value',
+        referenceRect: ReferencePixelRect(225, 97, 85, 27),
+        candidateRect: ReferencePixelRect(225, 97, 85, 27),
         ink: referenceBlueInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
+      ),
+      StaticTextRegion(
+        name: 'header-profit-currency',
+        referenceRect: ReferencePixelRect(315, 97, 49, 27),
+        candidateRect: ReferencePixelRect(315, 97, 49, 27),
+        ink: referenceBlueInk,
       ),
       StaticTextRegion(
         name: 'metric-value',
@@ -839,7 +876,7 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(475, 375, 115, 45),
         candidateRect: ReferencePixelRect(475, 375, 115, 45),
         ink: referenceBlueInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       ..._tradeNavigationRegions,
     ],
@@ -997,7 +1034,7 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(505, 238, 85, 38),
         candidateRect: ReferencePixelRect(505, 238, 85, 38),
         ink: referenceBlueInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       StaticTextRegion(
         name: 'position-timestamp',
@@ -1010,7 +1047,7 @@ const tabReferenceCases = <TabReferenceCase>[
         referenceRect: ReferencePixelRect(455, 552, 135, 40),
         candidateRect: ReferencePixelRect(455, 552, 135, 40),
         ink: referencePrimaryInk,
-        allowsDynamicMask: true,
+        auditMode: StaticTextAuditMode.dynamicOnly,
       ),
       ..._historyNavigationRegions,
     ],
