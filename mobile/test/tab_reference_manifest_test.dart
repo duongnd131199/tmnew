@@ -155,4 +155,79 @@ void main() {
       expect(surface.measureLargestGeometryComponent, isTrue, reason: item.id);
     }
   });
+
+  test('every reference case declares a bounded seven-state visual audit', () {
+    const canvasWidth = 590;
+    const canvasHeight = 1280;
+    for (final item in tabReferenceCases) {
+      final referenceCase = item;
+      expect(referenceCase.route, isNotEmpty, reason: '${item.id} route');
+      expect(referenceCase.selectedTab, isNotNull, reason: '${item.id} tab');
+      expect(
+        referenceCase.captureState.description,
+        isNotEmpty,
+        reason: '${item.id} capture state',
+      );
+
+      final auditRect = referenceCase.staticAuditRegion;
+      expect(auditRect.left, 0, reason: '${item.id} audit left');
+      expect(auditRect.top, 0, reason: '${item.id} audit top');
+      expect(auditRect.width, canvasWidth, reason: '${item.id} audit width');
+      expect(auditRect.height, canvasHeight, reason: '${item.id} audit height');
+
+      final visualRegionTypes = referenceCase.visualRegions
+          .map((ReferenceVisualRegion region) => region.type)
+          .toSet();
+      expect(
+        visualRegionTypes,
+        containsAll(const <ReferenceVisualRegionType>{
+          ReferenceVisualRegionType.system,
+          ReferenceVisualRegionType.content,
+          ReferenceVisualRegionType.header,
+          ReferenceVisualRegionType.body,
+          ReferenceVisualRegionType.bottomNavigation,
+        }),
+        reason: '${item.id} visual regions',
+      );
+      if (referenceCase.captureState.hasVisibleScrollbar) {
+        expect(
+          visualRegionTypes,
+          contains(ReferenceVisualRegionType.scrollbar),
+          reason: '${item.id} visible scrollbar',
+        );
+      }
+
+      for (final mask in referenceCase.dynamicMaskRegions) {
+        expect(mask.reason, isNotEmpty, reason: '${item.id} mask reason');
+        final rect = mask.rect;
+        expect(rect.left, greaterThanOrEqualTo(0), reason: '${item.id} mask');
+        expect(rect.top, greaterThanOrEqualTo(0), reason: '${item.id} mask');
+        expect(
+          rect.right,
+          lessThanOrEqualTo(canvasWidth),
+          reason: '${item.id} mask',
+        );
+        expect(
+          rect.bottom,
+          lessThanOrEqualTo(canvasHeight),
+          reason: '${item.id} mask',
+        );
+        for (final staticControl in referenceCase.staticControlRegions) {
+          final controlRect = staticControl.rect;
+          final overlaps =
+              rect.left < controlRect.right &&
+              rect.right > controlRect.left &&
+              rect.top < controlRect.bottom &&
+              rect.bottom > controlRect.top;
+          expect(
+            overlaps,
+            isFalse,
+            reason:
+                '${item.id} dynamic mask ${mask.reason} overlaps '
+                '${staticControl.name}',
+          );
+        }
+      }
+    }
+  });
 }

@@ -33,6 +33,72 @@ class ReferencePixelRect {
   String toString() => '[$left:$top:$right:$bottom]';
 }
 
+enum ReferenceSelectedTab { prices, chart, trade, history }
+
+enum ReferenceScrollState { atTop, offset, atEnd }
+
+enum ReferenceVisualRegionType {
+  system,
+  content,
+  header,
+  body,
+  bottomNavigation,
+  scrollbar,
+}
+
+enum ReferenceDynamicMaskKind {
+  systemStatusValues,
+  livePrices,
+  liveTimes,
+  liveProfitAndLoss,
+  liveChartContent,
+}
+
+class ReferenceCaptureState {
+  const ReferenceCaptureState({
+    required this.description,
+    required this.scrollState,
+    this.scrollOffset = 0,
+    this.hasVisibleScrollbar = false,
+  });
+
+  final String description;
+  final ReferenceScrollState scrollState;
+  final int scrollOffset;
+  final bool hasVisibleScrollbar;
+}
+
+class ReferenceVisualRegion {
+  const ReferenceVisualRegion({
+    required this.name,
+    required this.type,
+    required this.rect,
+  });
+
+  final String name;
+  final ReferenceVisualRegionType type;
+  final ReferencePixelRect rect;
+}
+
+class ReferenceStaticControlRegion {
+  const ReferenceStaticControlRegion({required this.name, required this.rect});
+
+  final String name;
+  final ReferencePixelRect rect;
+}
+
+class ReferenceDynamicMask {
+  const ReferenceDynamicMask({
+    required this.kind,
+    required this.rect,
+    required this.reason,
+  });
+
+  final ReferenceDynamicMaskKind kind;
+  final ReferencePixelRect rect;
+  final String reason;
+}
+
 class ReferenceInk {
   const ReferenceInk(this.red, this.green, this.blue);
 
@@ -186,20 +252,175 @@ const _historyNavigationRegions = <StaticTextRegion>[
   _navigationSettings,
 ];
 
+const _referenceCanvas = ReferencePixelRect(0, 0, 590, 1280);
+
+const _baseVisualRegions = <ReferenceVisualRegion>[
+  ReferenceVisualRegion(
+    name: 'system',
+    type: ReferenceVisualRegionType.system,
+    rect: ReferencePixelRect(0, 0, 590, 75),
+  ),
+  ReferenceVisualRegion(
+    name: 'content',
+    type: ReferenceVisualRegionType.content,
+    rect: ReferencePixelRect(0, 75, 590, 1093),
+  ),
+  ReferenceVisualRegion(
+    name: 'header',
+    type: ReferenceVisualRegionType.header,
+    rect: ReferencePixelRect(0, 75, 590, 70),
+  ),
+  ReferenceVisualRegion(
+    name: 'body',
+    type: ReferenceVisualRegionType.body,
+    rect: ReferencePixelRect(0, 145, 590, 1023),
+  ),
+  ReferenceVisualRegion(
+    name: 'bottom-navigation',
+    type: ReferenceVisualRegionType.bottomNavigation,
+    rect: ReferencePixelRect(0, 1168, 590, 112),
+  ),
+];
+
+const _historyScrollbarRegion = ReferenceVisualRegion(
+  name: 'history-scrollbar',
+  type: ReferenceVisualRegionType.scrollbar,
+  rect: ReferencePixelRect(581, 143, 5, 1000),
+);
+
+const _baseStaticControls = <ReferenceStaticControlRegion>[
+  ReferenceStaticControlRegion(
+    name: 'navigation-prices-label',
+    rect: ReferencePixelRect(60, 1223, 60, 21),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'navigation-chart-label',
+    rect: ReferencePixelRect(150, 1223, 110, 21),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'navigation-trade-label',
+    rect: ReferencePixelRect(255, 1223, 100, 21),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'navigation-history-label',
+    rect: ReferencePixelRect(350, 1223, 100, 21),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'navigation-settings-label',
+    rect: ReferencePixelRect(470, 1223, 60, 12),
+  ),
+];
+
+const _systemStatusMasks = <ReferenceDynamicMask>[
+  ReferenceDynamicMask(
+    kind: ReferenceDynamicMaskKind.systemStatusValues,
+    rect: ReferencePixelRect(0, 15, 82, 40),
+    reason:
+        'The operating-system clock and silent indicator are capture-time values.',
+  ),
+  ReferenceDynamicMask(
+    kind: ReferenceDynamicMaskKind.systemStatusValues,
+    rect: ReferencePixelRect(406, 15, 184, 40),
+    reason:
+        'Carrier, signal, and battery status are supplied by the device at capture time.',
+  ),
+];
+
+const _pricesStaticControls = <ReferenceStaticControlRegion>[
+  ..._baseStaticControls,
+  ReferenceStaticControlRegion(
+    name: 'toolbar-title',
+    rect: ReferencePixelRect(250, 88, 90, 50),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'quote-symbol',
+    rect: ReferencePixelRect(4, 184, 120, 38),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'second-quote-symbol',
+    rect: ReferencePixelRect(4, 297, 120, 25),
+  ),
+];
+
+const _chartStaticControls = <ReferenceStaticControlRegion>[
+  ..._baseStaticControls,
+  ReferenceStaticControlRegion(
+    name: 'toolbar-timeframe',
+    rect: ReferencePixelRect(12, 92, 52, 42),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'ticket-sell-label',
+    rect: ReferencePixelRect(0, 144, 62, 22),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'ticket-buy-label',
+    rect: ReferencePixelRect(418, 146, 34, 16),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'plot-symbol',
+    rect: ReferencePixelRect(0, 200, 105, 20),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'plot-subtitle',
+    rect: ReferencePixelRect(0, 225, 180, 35),
+  ),
+];
+
+const _tradeStaticControls = <ReferenceStaticControlRegion>[
+  ..._baseStaticControls,
+  ReferenceStaticControlRegion(
+    name: 'metric-label',
+    rect: ReferencePixelRect(4, 157, 110, 38),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'section-label',
+    rect: ReferencePixelRect(4, 327, 190, 38),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'position-symbol',
+    rect: ReferencePixelRect(4, 369, 100, 40),
+  ),
+];
+
+const _historyStaticControls = <ReferenceStaticControlRegion>[
+  ..._baseStaticControls,
+  ReferenceStaticControlRegion(
+    name: 'history-segment-control',
+    rect: ReferencePixelRect(105, 90, 385, 49),
+  ),
+];
+
 class TabReferenceCase {
   const TabReferenceCase({
     required this.id,
     required this.fileName,
     required this.state,
+    required this.route,
+    required this.selectedTab,
+    required this.captureState,
+    required this.staticAuditRegion,
+    required this.visualRegions,
+    required this.staticControlRegions,
     this.staticTextRegions = const <StaticTextRegion>[],
-    this.dynamicMasks = const <ReferencePixelRect>[],
+    this.dynamicMaskRegions = const <ReferenceDynamicMask>[],
   });
 
   final String id;
   final String fileName;
   final TabReferenceState state;
+  final String route;
+  final ReferenceSelectedTab selectedTab;
+  final ReferenceCaptureState captureState;
+  final ReferencePixelRect staticAuditRegion;
+  final List<ReferenceVisualRegion> visualRegions;
+  final List<ReferenceStaticControlRegion> staticControlRegions;
   final List<StaticTextRegion> staticTextRegions;
-  final List<ReferencePixelRect> dynamicMasks;
+  final List<ReferenceDynamicMask> dynamicMaskRegions;
+
+  /// Compatibility view consumed by the existing typography comparator.
+  List<ReferencePixelRect> get dynamicMasks => dynamicMaskRegions
+      .map((ReferenceDynamicMask mask) => mask.rect)
+      .toList(growable: false);
 
   String get referencePath => '../iconMau/anhmau/$fileName';
 }
@@ -212,6 +433,15 @@ const tabReferenceCases = <TabReferenceCase>[
     id: 'prices',
     fileName: 'photo_2026-08-25_22-30-10.jpg',
     state: TabReferenceState.prices,
+    route: '/prices',
+    selectedTab: ReferenceSelectedTab.prices,
+    captureState: ReferenceCaptureState(
+      description: 'Market Watch at the initial, top-of-list position.',
+      scrollState: ReferenceScrollState.atTop,
+    ),
+    staticAuditRegion: _referenceCanvas,
+    visualRegions: _baseVisualRegions,
+    staticControlRegions: _pricesStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'toolbar-title',
@@ -299,12 +529,75 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ..._pricesNavigationRegions,
     ],
-    dynamicMasks: [ReferencePixelRect(0, 0, 590, 70)],
+    dynamicMaskRegions: [
+      ..._systemStatusMasks,
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.livePrices,
+        rect: ReferencePixelRect(365, 180, 105, 45),
+        reason: 'The first quote bid is supplied by the live market feed.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.livePrices,
+        rect: ReferencePixelRect(485, 180, 105, 45),
+        reason: 'The first quote ask is supplied by the live market feed.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.livePrices,
+        rect: ReferencePixelRect(385, 278, 90, 45),
+        reason: 'The second quote bid is supplied by the live market feed.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.livePrices,
+        rect: ReferencePixelRect(505, 278, 85, 45),
+        reason: 'The second quote ask is supplied by the live market feed.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.livePrices,
+        rect: ReferencePixelRect(375, 220, 100, 38),
+        reason: 'The first quote low is derived from the live market session.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.livePrices,
+        rect: ReferencePixelRect(500, 220, 90, 38),
+        reason: 'The first quote high is derived from the live market session.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.livePrices,
+        rect: ReferencePixelRect(395, 320, 80, 38),
+        reason: 'The second quote low is derived from the live market session.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.livePrices,
+        rect: ReferencePixelRect(515, 320, 75, 38),
+        reason:
+            'The second quote high is derived from the live market session.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveTimes,
+        rect: ReferencePixelRect(15, 223, 80, 35),
+        reason: 'The first quote timestamp advances with the live market feed.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveTimes,
+        rect: ReferencePixelRect(15, 323, 90, 35),
+        reason:
+            'The second quote timestamp advances with the live market feed.',
+      ),
+    ],
   ),
   TabReferenceCase(
     id: 'chart',
     fileName: 'photo_2026-08-25_22-30-17.jpg',
     state: TabReferenceState.chart,
+    route: '/chart',
+    selectedTab: ReferenceSelectedTab.chart,
+    captureState: ReferenceCaptureState(
+      description: 'One-click chart with the initial visible candle range.',
+      scrollState: ReferenceScrollState.atTop,
+    ),
+    staticAuditRegion: _referenceCanvas,
+    visualRegions: _baseVisualRegions,
+    staticControlRegions: _chartStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'toolbar-timeframe',
@@ -354,15 +647,39 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ..._chartNavigationRegions,
     ],
-    dynamicMasks: [
-      ReferencePixelRect(0, 0, 590, 68),
-      ReferencePixelRect(177, 140, 235, 60),
+    dynamicMaskRegions: [
+      ..._systemStatusMasks,
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.livePrices,
+        rect: ReferencePixelRect(35, 167, 120, 28),
+        reason: 'The sell quote in the order ticket is a live market value.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.livePrices,
+        rect: ReferencePixelRect(445, 164, 135, 31),
+        reason: 'The buy quote in the order ticket is a live market value.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveChartContent,
+        rect: ReferencePixelRect(0, 267, 472, 891),
+        reason:
+            'Only the drawable candle plot changes as new market candles arrive.',
+      ),
     ],
   ),
   TabReferenceCase(
     id: 'trade',
     fileName: 'photo_2026-08-25_22-30-20.jpg',
     state: TabReferenceState.trade,
+    route: '/trade',
+    selectedTab: ReferenceSelectedTab.trade,
+    captureState: ReferenceCaptureState(
+      description: 'Open Positions at the initial, top-of-list position.',
+      scrollState: ReferenceScrollState.atTop,
+    ),
+    staticAuditRegion: _referenceCanvas,
+    visualRegions: _baseVisualRegions,
+    staticControlRegions: _tradeStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'metric-label',
@@ -408,12 +725,34 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ..._tradeNavigationRegions,
     ],
-    dynamicMasks: [ReferencePixelRect(0, 0, 590, 75)],
+    dynamicMaskRegions: [
+      ..._systemStatusMasks,
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(190, 85, 210, 50),
+        reason: 'The header floating profit and loss changes with live quotes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(475, 375, 115, 730),
+        reason: 'Open-position profit and loss values change with live quotes.',
+      ),
+    ],
   ),
   TabReferenceCase(
     id: 'history-positions',
     fileName: 'photo_2026-08-25_22-30-23.jpg',
     state: TabReferenceState.historyPositions,
+    route: '/history/positions',
+    selectedTab: ReferenceSelectedTab.history,
+    captureState: ReferenceCaptureState(
+      description:
+          'History Positions tab at the initial, top-of-list position.',
+      scrollState: ReferenceScrollState.atTop,
+    ),
+    staticAuditRegion: _referenceCanvas,
+    visualRegions: _baseVisualRegions,
+    staticControlRegions: _historyStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',
@@ -499,12 +838,37 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ..._historyNavigationRegions,
     ],
-    dynamicMasks: [ReferencePixelRect(0, 0, 590, 70)],
+    dynamicMaskRegions: [
+      ..._systemStatusMasks,
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(505, 238, 85, 38),
+        reason:
+            'The open-position profit value changes until the position closes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(455, 552, 135, 40),
+        reason:
+            'The history profit summary is recalculated from position outcomes.',
+      ),
+    ],
   ),
   TabReferenceCase(
     id: 'history-orders',
     fileName: 'photo_2026-08-25_22-30-26.jpg',
     state: TabReferenceState.historyOrders,
+    route: '/history/orders',
+    selectedTab: ReferenceSelectedTab.history,
+    captureState: ReferenceCaptureState(
+      description: 'History Orders tab after a 32 physical-pixel list offset.',
+      scrollState: ReferenceScrollState.offset,
+      scrollOffset: 32,
+      hasVisibleScrollbar: true,
+    ),
+    staticAuditRegion: _referenceCanvas,
+    visualRegions: [..._baseVisualRegions, _historyScrollbarRegion],
+    staticControlRegions: _historyStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',
@@ -566,12 +930,22 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ..._historyNavigationRegions,
     ],
-    dynamicMasks: [ReferencePixelRect(0, 0, 590, 70)],
+    dynamicMaskRegions: _systemStatusMasks,
   ),
   TabReferenceCase(
     id: 'history-orders-summary',
     fileName: 'photo_2026-08-25_22-30-29.jpg',
     state: TabReferenceState.historyOrdersSummary,
+    route: '/history/orders',
+    selectedTab: ReferenceSelectedTab.history,
+    captureState: ReferenceCaptureState(
+      description: 'History Orders tab scrolled to the end summary.',
+      scrollState: ReferenceScrollState.atEnd,
+      hasVisibleScrollbar: true,
+    ),
+    staticAuditRegion: _referenceCanvas,
+    visualRegions: [..._baseVisualRegions, _historyScrollbarRegion],
+    staticControlRegions: _historyStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',
@@ -639,12 +1013,22 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ..._historyNavigationRegions,
     ],
-    dynamicMasks: [ReferencePixelRect(0, 0, 590, 70)],
+    dynamicMaskRegions: _systemStatusMasks,
   ),
   TabReferenceCase(
     id: 'history-deals',
     fileName: 'photo_2026-08-25_22-30-34.jpg',
     state: TabReferenceState.historyDeals,
+    route: '/history/deals',
+    selectedTab: ReferenceSelectedTab.history,
+    captureState: ReferenceCaptureState(
+      description: 'History Deals tab scrolled to the end summary.',
+      scrollState: ReferenceScrollState.atEnd,
+      hasVisibleScrollbar: true,
+    ),
+    staticAuditRegion: _referenceCanvas,
+    visualRegions: [..._baseVisualRegions, _historyScrollbarRegion],
+    staticControlRegions: _historyStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',
@@ -712,6 +1096,6 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ..._historyNavigationRegions,
     ],
-    dynamicMasks: [ReferencePixelRect(0, 0, 590, 70)],
+    dynamicMaskRegions: _systemStatusMasks,
   ),
 ];
