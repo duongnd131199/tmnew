@@ -881,6 +881,9 @@ void main() {
             (ref, request) => const Stream<MarketCandle>.empty(),
           ),
           demoQuoteProvider.overrideWith((ref, symbol) => Stream.value(quote)),
+          marketClockProvider.overrideWithValue(
+            () => history.last.time.toUtc(),
+          ),
         ],
         child: const MaterialApp(
           home: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'H4'),
