@@ -184,6 +184,22 @@ void main() {
       expect(rect, referenceRect);
     }
   });
+
+  testWidgets('unselected History label keeps its measured reference width', (
+    tester,
+  ) async {
+    await _pumpNavigation(tester, selectedIndex: 0);
+    final unselected = tester.widget<Text>(
+      find.byKey(const ValueKey('bottom-nav-label-history')),
+    );
+    expect(unselected.style?.letterSpacing, .4);
+
+    await _pumpNavigation(tester, selectedIndex: 3);
+    final selected = tester.widget<Text>(
+      find.byKey(const ValueKey('bottom-nav-label-history')),
+    );
+    expect(selected.style?.letterSpacing, isNull);
+  });
 }
 
 Future<void> _pumpNavigation(

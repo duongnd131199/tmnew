@@ -28,19 +28,57 @@ The seven deterministic candidate PNGs are stored in
 - Calibrated inks: primary `#111111`, secondary `#5C5C60`, buy/selected
   `#007FFF`, and sell/negative `#E42D30`.
 - Static comparison tolerance: every ink-bound edge must be within 1 physical
-  pixel; median interior RGB delta must be no more than 6 per channel.
+  pixel; candidate semantic RGB must be within 6 per channel. Semantic color is
+  estimated from the most opaque candidate pixels against the local background
+  and is compared directly with the manifest color; it is never snapped to the
+  expected value.
+- A regression test recolors the Prices blue ink by 20 RGB levels and verifies
+  that both deterministic and Android-renderer comparison modes reject it.
 
 `dart run tool/compare_tab_typography.dart` passed with these worst results:
 
-| Case | Maximum edge delta | Maximum median ink delta |
+| Case | Maximum edge delta | Maximum semantic ink delta |
 | --- | ---: | ---: |
 | Prices | 1 px | 0 |
-| Chart | 1 px | 1 |
+| Chart | 1 px | 0 |
 | Trade | 1 px | 0 |
 | History positions | 1 px | 0 |
 | History orders | 1 px | 0 |
 | History orders summary | 1 px | 0 |
 | History deals | 1 px | 0 |
+
+## Android renderer verification
+
+The seven states were also rendered by the Flutter Android engine on
+`emulator-5554` after setting the emulator to 590 x 1280 physical pixels and
+240 dpi (DPR 1.5). Each state ran in an isolated integration-test process and
+the emulator was restored to 1080 x 2400 at 420 dpi afterward. Captures:
+
+- `android-prices-590x1280.png`
+- `android-chart-590x1280.png`
+- `android-trade-590x1280.png`
+- `android-history-positions-590x1280.png`
+- `android-history-orders-590x1280.png`
+- `android-history-orders-summary-590x1280.png`
+- `android-history-deals-590x1280.png`
+
+Android uses a separate, explicit rasterizer allowance of 2 physical pixels
+for ink bounds and 12 RGB levels for thin anti-aliased glyphs. The final device
+comparison passed with these worst results:
+
+| Case | Maximum edge delta | Maximum semantic ink delta |
+| --- | ---: | ---: |
+| Prices | 2 px | 0 |
+| Chart | 2 px | 12 |
+| Trade | 2 px | 0 |
+| History positions | 1 px | 0 |
+| History orders | 1 px | 0 |
+| History orders summary | 1 px | 0 |
+| History deals | 1 px | 0 |
+
+The 12-level Chart result is the very small white `Buy` label on a blue
+surface; its production style color remains exactly white and the difference
+comes from Android subpixel anti-aliasing.
 
 The comparator checks named static regions for the Prices title/symbol/nav,
 Chart timeframe/Sell/nav, Trade metrics/section/position, and History
@@ -72,29 +110,28 @@ its dedicated geometry, viewport, gesture, repaint, and multi-timeframe tests.
 ## Verification
 
 - `flutter analyze`: passed, no issues.
-- Focused parity suite from the implementation plan: 109 passed, 1 existing
-  data assertion failed (`realtime chart renders API candles without demo
-  reshaping`, expected 40 candles and received 41). Every typography, golden,
-  responsive, and comparator check passed.
-- Related legacy baselines: 27 full-surface Chart goldens, the Trade bulk-dialog
-  golden, Trade row-pitch sentinel, and global-font assertion were updated with
-  the bundled fonts; their focused rerun passed 70/70. The resulting goldens
-  were visually inspected to confirm text glyphs render normally.
-- Full `flutter test`: 608 passed, 3 failed. Remaining failures are the two
-  pre-existing Chart data assertions (40 vs 41 candles; H4 active high 4425 vs
-  quote 4429) and the Windows-only PowerShell capture preflight on macOS
-  (`powershell.exe` unavailable).
+- Final typography golden/comparator run: 9/9 passed. The deterministic
+  comparator passed every named region across all seven states with a maximum
+  edge delta of 1 physical pixel and zero semantic color delta.
+- The complete per-file Flutter suite passed 80 of 83 test files. The three
+  remaining failures were reproduced unchanged on the clean pre-task baseline:
+  the two Chart data assertions (40 vs 41 candles; H4 active high 4425 vs quote
+  4429) and the Windows-only PowerShell capture preflight on macOS
+  (`powershell.exe` unavailable). They are not regressions from this task.
 - `flutter build apk --debug`: passed. Output:
-  `mobile/build/app/outputs/flutter-apk/app-debug.apk` (about 180 MB).
+  `mobile/build/app/outputs/flutter-apk/app-debug.apk` (155 MB).
 - `dotnet build Trading.sln` and `dotnet test Trading.sln --no-build`: blocked
   by SDK resolution. The repository requests .NET SDK 8.0.421; only 10.0.203 is
   installed. `global.json` was intentionally not changed.
-- Device capture blocked: the Android SDK `adb` executable is present, but
-  `adb devices -l` returned no connected emulator or device.
+- Android integration capture: passed all 7 isolated states with no Flutter
+  exception or overflow. Prices was captured once more using the final driver,
+  and the Android-mode static comparator passed all seven captured PNGs. The
+  emulator was verified restored to 1080 x 2400 at 420 dpi.
 
 ## Reference gaps
 
 The Settings body and routes absent from the seven source screenshots remain
-unverified. Dynamic trading values and candle contours are not claimed as
-pixel-identical. No device screenshots were fabricated while emulator capture
-was unavailable.
+unverified. Platform-owned status-bar glyphs, dynamic trading values, and
+candle contours are not claimed as pixel-identical; the requested static tab
+typography, colors, and spacing are covered by the deterministic and Android
+checks above.

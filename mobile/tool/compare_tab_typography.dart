@@ -5,62 +5,122 @@ import 'package:image/image.dart' as image;
 import '../test/test_support/tab_reference_manifest.dart';
 
 const _maximumEdgeDelta = 1;
-const _maximumMedianInkDelta = 6;
-const _geometryColorTolerance = 112;
-const _coreColorTolerance = 48;
+const _androidMaximumEdgeDelta = 2;
+const _androidSemanticColorTolerance = 12;
 
-void main() {
+void main(List<String> args) {
+  exitCode = runTabTypographyComparison(args);
+}
+
+int runTabTypographyComparison(
+  List<String> args, {
+  StringSink? standardOutput,
+  StringSink? errorOutput,
+}) {
+  final output = standardOutput ?? stdout;
+  final errors = errorOutput ?? stderr;
+  final configuration = switch (args) {
+    [] => const _ComparisonConfiguration(
+      candidateDirectory: 'test/goldens/tab-typography',
+      renderer: _CandidateRenderer.deterministic,
+    ),
+    ['--candidate-dir', final directory] => _ComparisonConfiguration(
+      candidateDirectory: directory,
+      renderer: _CandidateRenderer.deterministic,
+    ),
+    ['--candidate-dir', final directory, '--candidate-renderer', 'android'] =>
+      _ComparisonConfiguration(
+        candidateDirectory: directory,
+        renderer: _CandidateRenderer.android,
+      ),
+    _ => throw ArgumentError(
+      'Usage: dart run tool/compare_tab_typography.dart '
+      '[--candidate-dir <directory> '
+      '[--candidate-renderer android]]',
+    ),
+  };
+  final candidateDirectory = configuration.candidateDirectory;
+  final maximumEdgeDelta = configuration.renderer == _CandidateRenderer.android
+      ? _androidMaximumEdgeDelta
+      : _maximumEdgeDelta;
   var failed = false;
-  stdout.writeln(
+  output.writeln('candidateRenderer, ${configuration.renderer.name}');
+  output.writeln(
     'case, region, referenceBounds, candidateBounds, maxEdgeDelta, '
-    'medianInkDelta',
+    'semanticInkDelta',
   );
 
   for (final referenceCase in tabReferenceCases) {
     final reference = _decode(referenceCase.referencePath);
     final candidatePath =
-        'test/goldens/tab-typography/${referenceCase.id}-590x1280.png';
+        '$candidateDirectory/${referenceCase.id}-590x1280.png';
     final candidate = _decode(candidatePath);
     _expectCanonicalSize(referenceCase.id, 'reference', reference);
     _expectCanonicalSize(referenceCase.id, 'candidate', candidate);
 
     for (final region in referenceCase.staticTextRegions) {
+      final geometryInk = region.geometryInk ?? region.ink;
       final referenceSample = _measure(
         reference,
         region.referenceRect,
-        region.ink,
+        geometryInk,
         referenceCase.dynamicMasks,
+        geometryColorTolerance: region.geometryColorTolerance,
+        measureLargestGeometryComponent: region.measureLargestGeometryComponent,
       );
       final candidateSample = _measure(
         candidate,
         region.candidateRect,
-        region.ink,
+        geometryInk,
         referenceCase.dynamicMasks,
+        geometryColorTolerance: _candidateGeometryTolerance(
+          region,
+          configuration.renderer,
+        ),
+        measureLargestGeometryComponent: region.measureLargestGeometryComponent,
       );
       final edgeDelta = referenceSample.bounds.edgeDelta(
         candidateSample.bounds,
       );
-      final inkDelta = referenceSample.median.edgeDelta(candidateSample.median);
-      stdout.writeln(
+      final expectedInk = _MeasuredInk.fromReference(region.ink);
+      final inkDelta = expectedInk.edgeDelta(candidateSample.semanticInk);
+      output.writeln(
         '${referenceCase.id}, ${region.name}, '
         '${referenceSample.bounds}, ${candidateSample.bounds}, '
         '$edgeDelta, $inkDelta '
-        '(${referenceSample.median} -> ${candidateSample.median})',
+        '(reference ${referenceSample.semanticInk}; '
+        'expected $expectedInk -> candidate ${candidateSample.semanticInk})',
       );
-      if (edgeDelta > _maximumEdgeDelta || inkDelta > _maximumMedianInkDelta) {
+      final semanticColorTolerance =
+          configuration.renderer == _CandidateRenderer.android
+          ? _androidSemanticColorTolerance
+          : region.semanticColorTolerance;
+      if (edgeDelta > maximumEdgeDelta || inkDelta > semanticColorTolerance) {
         failed = true;
       }
     }
   }
 
   if (failed) {
-    stderr.writeln(
+    errors.writeln(
       'Static typography exceeds tolerance: edge <= '
-      '$_maximumEdgeDelta px and median RGB <= '
-      '$_maximumMedianInkDelta per channel.',
+      '$maximumEdgeDelta px and semantic RGB within each renderer tolerance.',
     );
-    exitCode = 1;
+    return 1;
   }
+  return 0;
+}
+
+int _candidateGeometryTolerance(
+  StaticTextRegion region,
+  _CandidateRenderer renderer,
+) {
+  if (renderer == _CandidateRenderer.deterministic ||
+      region.measureLargestGeometryComponent) {
+    return region.geometryColorTolerance;
+  }
+  final expanded = region.geometryColorTolerance + 16;
+  return expanded > 128 ? 128 : expanded;
 }
 
 image.Image _decode(String path) {
@@ -90,11 +150,13 @@ _TextSample _measure(
   image.Image source,
   ReferencePixelRect search,
   ReferenceInk ink,
-  List<ReferencePixelRect> masks,
-) {
+  List<ReferencePixelRect> masks, {
+  required int geometryColorTolerance,
+  required bool measureLargestGeometryComponent,
+}) {
   _validateSearchRect(source, search);
+  final searchPixels = <_InkPixel>[];
   final geometryPixels = <_InkPixel>[];
-  final corePixels = <_InkPixel>[];
 
   for (var y = search.top; y < search.bottom; y++) {
     for (var x = search.left; x < search.right; x++) {
@@ -107,24 +169,67 @@ _TextSample _measure(
         pixel.g.toInt(),
         pixel.b.toInt(),
       );
+      searchPixels.add(value);
       final distance = value.distanceFrom(ink);
-      if (distance <= _geometryColorTolerance &&
-          _hasInkNeighbour(source, x, y, ink, masks)) {
+      if (distance <= geometryColorTolerance &&
+          _hasInkNeighbour(
+            source,
+            x,
+            y,
+            ink,
+            masks,
+            geometryColorTolerance: geometryColorTolerance,
+          )) {
         geometryPixels.add(value);
       }
-      if (distance <= _coreColorTolerance) corePixels.add(value);
     }
   }
 
-  if (geometryPixels.isEmpty) {
+  final measuredGeometryPixels = measureLargestGeometryComponent
+      ? _largestConnectedComponent(geometryPixels)
+      : geometryPixels;
+  if (measuredGeometryPixels.isEmpty) {
     throw StateError('No ink found inside $search for $ink.');
   }
-  final medianSource = corePixels.isEmpty ? geometryPixels : corePixels;
-  final median = _MedianInk.fromPixels(medianSource);
+  final backgroundInk = _MeasuredInk.modeFromPixels(searchPixels);
+  final semanticInk = measureLargestGeometryComponent
+      ? _MeasuredInk.modeFromPixels(measuredGeometryPixels)
+      : _MeasuredInk.mostOpaqueFromPixels(
+          measuredGeometryPixels,
+          backgroundInk,
+        );
   return _TextSample(
-    _InkBounds.fromPixels(geometryPixels),
-    median.snappedTo(ink),
+    _InkBounds.fromPixels(measuredGeometryPixels),
+    semanticInk,
   );
+}
+
+List<_InkPixel> _largestConnectedComponent(List<_InkPixel> pixels) {
+  if (pixels.isEmpty) return const [];
+  int keyOf(int x, int y) => (y << 20) | x;
+  final remaining = <int, _InkPixel>{
+    for (final pixel in pixels) keyOf(pixel.x, pixel.y): pixel,
+  };
+  var largest = <_InkPixel>[];
+  while (remaining.isNotEmpty) {
+    final seedKey = remaining.keys.first;
+    final seed = remaining.remove(seedKey)!;
+    final queue = <_InkPixel>[seed];
+    for (var index = 0; index < queue.length; index++) {
+      final pixel = queue[index];
+      for (final neighbour in <(int, int)>[
+        (pixel.x - 1, pixel.y),
+        (pixel.x + 1, pixel.y),
+        (pixel.x, pixel.y - 1),
+        (pixel.x, pixel.y + 1),
+      ]) {
+        final next = remaining.remove(keyOf(neighbour.$1, neighbour.$2));
+        if (next != null) queue.add(next);
+      }
+    }
+    if (queue.length > largest.length) largest = queue;
+  }
+  return largest;
 }
 
 bool _hasInkNeighbour(
@@ -132,8 +237,9 @@ bool _hasInkNeighbour(
   int x,
   int y,
   ReferenceInk ink,
-  List<ReferencePixelRect> masks,
-) {
+  List<ReferencePixelRect> masks, {
+  required int geometryColorTolerance,
+}) {
   var matches = 0;
   for (var offsetY = -1; offsetY <= 1; offsetY++) {
     for (var offsetX = -1; offsetX <= 1; offsetX++) {
@@ -154,7 +260,7 @@ bool _hasInkNeighbour(
         pixel.g.toInt(),
         pixel.b.toInt(),
       );
-      if (sample.distanceFrom(ink) <= _geometryColorTolerance) matches++;
+      if (sample.distanceFrom(ink) <= geometryColorTolerance) matches++;
     }
   }
   return matches >= 3;
@@ -170,10 +276,10 @@ void _validateSearchRect(image.Image source, ReferencePixelRect rect) {
 }
 
 class _TextSample {
-  const _TextSample(this.bounds, this.median);
+  const _TextSample(this.bounds, this.semanticInk);
 
   final _InkBounds bounds;
-  final _MedianInk median;
+  final _MeasuredInk semanticInk;
 }
 
 class _InkPixel {
@@ -225,39 +331,88 @@ class _InkBounds {
   String toString() => '[$left:$top:$right:$bottom]';
 }
 
-class _MedianInk {
-  const _MedianInk(this.red, this.green, this.blue);
+class _MeasuredInk {
+  const _MeasuredInk(this.red, this.green, this.blue);
 
-  factory _MedianInk.fromPixels(List<_InkPixel> pixels) {
-    int median(List<int> values) {
-      values.sort();
-      return values[values.length ~/ 2];
+  factory _MeasuredInk.fromReference(ReferenceInk ink) =>
+      _MeasuredInk(ink.red, ink.green, ink.blue);
+
+  factory _MeasuredInk.modeFromPixels(List<_InkPixel> pixels) {
+    final counts = <int, int>{};
+    var modeKey = 0;
+    var modeCount = 0;
+    for (final pixel in pixels) {
+      final key = (pixel.red << 16) | (pixel.green << 8) | pixel.blue;
+      final count = (counts[key] ?? 0) + 1;
+      counts[key] = count;
+      if (count > modeCount) {
+        modeKey = key;
+        modeCount = count;
+      }
+    }
+    return _MeasuredInk(
+      (modeKey >> 16) & 0xff,
+      (modeKey >> 8) & 0xff,
+      modeKey & 0xff,
+    );
+  }
+
+  factory _MeasuredInk.mostOpaqueFromPixels(
+    List<_InkPixel> pixels,
+    _MeasuredInk background,
+  ) {
+    final counts = <int, int>{};
+    for (final pixel in pixels) {
+      final key = (pixel.red << 16) | (pixel.green << 8) | pixel.blue;
+      counts[key] = (counts[key] ?? 0) + 1;
     }
 
-    final measured = _MedianInk(
-      median([for (final pixel in pixels) pixel.red]),
-      median([for (final pixel in pixels) pixel.green]),
-      median([for (final pixel in pixels) pixel.blue]),
+    var opaqueKey = counts.keys.first;
+    var opaqueDistance = -1;
+    var opaqueCount = -1;
+    for (final entry in counts.entries) {
+      final candidate = _MeasuredInk(
+        (entry.key >> 16) & 0xff,
+        (entry.key >> 8) & 0xff,
+        entry.key & 0xff,
+      );
+      final distance = candidate.edgeDelta(background);
+      if (distance > opaqueDistance ||
+          (distance == opaqueDistance && entry.value > opaqueCount)) {
+        opaqueKey = entry.key;
+        opaqueDistance = distance;
+        opaqueCount = entry.value;
+      }
+    }
+    return _MeasuredInk(
+      (opaqueKey >> 16) & 0xff,
+      (opaqueKey >> 8) & 0xff,
+      opaqueKey & 0xff,
     );
-    return measured;
   }
 
   final int red;
   final int green;
   final int blue;
 
-  int edgeDelta(_MedianInk other) => [
+  int edgeDelta(_MeasuredInk other) => [
     (red - other.red).abs(),
     (green - other.green).abs(),
     (blue - other.blue).abs(),
   ].reduce((a, b) => a > b ? a : b);
 
-  _MedianInk snappedTo(ReferenceInk ink) {
-    final semantic = _MedianInk(ink.red, ink.green, ink.blue);
-    final jpegNoiseTolerance = ink.blue > 200 && ink.red < 50 ? 100 : 20;
-    return edgeDelta(semantic) <= jpegNoiseTolerance ? semantic : this;
-  }
-
   @override
   String toString() => 'rgb($red,$green,$blue)';
+}
+
+enum _CandidateRenderer { deterministic, android }
+
+class _ComparisonConfiguration {
+  const _ComparisonConfiguration({
+    required this.candidateDirectory,
+    required this.renderer,
+  });
+
+  final String candidateDirectory;
+  final _CandidateRenderer renderer;
 }

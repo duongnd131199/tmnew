@@ -13,6 +13,7 @@ import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.
 import 'package:trading_mobile/features/history/presentation/screens/history_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
 
 import 'test_support/load_test_fonts.dart';
 import 'test_support/video_reference_fixtures.dart';
@@ -42,18 +43,40 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(testApp());
+
+    expect(find.text('Cac giao d...'), findsOneWidget);
     await pumpBottomAnchor(tester);
 
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('history-segment-label-0')))
+          .data,
+      'Lenh co tr...',
+    );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('history-segment-label-0')))
           .style,
       AppTypography.historySegment,
     );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('history-segment-label-2')))
+          .style,
+      AppTypography.historyDealsSegment,
+    );
     final summary = tester.widget<Text>(
       find.byKey(const ValueKey('history-summary-label-Tien nap')),
     );
     expect(summary.style, AppTypography.historySummary);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('history-summary-value-Tien nap')),
+          )
+          .style,
+      AppTypography.historySummaryValue,
+    );
 
     final positionsList = tester.widget<ListView>(
       find.byKey(const PageStorageKey('history-positions-list')),
@@ -71,14 +94,20 @@ void main() {
       );
       expect(
         tester.widget<Text>(secondaryFinder).style,
-        AppTypography.historySecondary,
+        tab == 'positions'
+            ? AppTypography.historyPriceRange
+            : AppTypography.historySecondary,
         reason: tab,
       );
       expect(
         tester.getTopLeft(secondaryFinder).dy,
         closeTo(
           tester.getTopLeft(primaryFinder).dy +
-              TabReferenceMetrics.historySecondaryTop -
+              (tab == 'positions'
+                  ? TabReferenceMetrics.historyPriceRangeTop
+                  : tab == 'deals'
+                  ? TabReferenceMetrics.historyDealSecondaryTop
+                  : TabReferenceMetrics.historySecondaryTop) -
               TabReferenceMetrics.historyPrimaryTop,
           .1,
         ),
@@ -87,12 +116,145 @@ void main() {
     }
 
     expectRowTypography('positions');
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('history-positions-action-0')),
+          )
+          .style
+          ?.letterSpacing,
+      AppTypography.historyAction.letterSpacing,
+    );
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('history-positions-trailing-primary-0')),
+          )
+          .style
+          ?.letterSpacing,
+      -.2,
+    );
+    expect(AppTypography.historySecondary.letterSpacing, closeTo(.1, .01));
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(
+              const ValueKey('history-positions-trailing-secondary-0'),
+            ),
+          )
+          .style,
+      AppTypography.historyTrailingSecondary,
+    );
     await tester.tap(find.byKey(const Key('history-tab-1')));
     await tester.pump();
     expectRowTypography('orders');
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('history-orders-trailing-primary-0')),
+          )
+          .style
+          ?.color,
+      AppColors.historyOrderStatus,
+    );
     await tester.tap(find.byKey(const Key('history-tab-2')));
     await tester.pump();
     expectRowTypography('deals');
+  });
+
+  testWidgets('history rows use the compact precision from the references', (
+    tester,
+  ) async {
+    const position = DemoHistoryPosition(
+      id: 'reference-format-position',
+      title: 'XAUUSD+',
+      side: 'BUY',
+      volume: 1,
+      openPrice: 4622.83,
+      closePrice: 4631.37,
+      profit: 854,
+      time: '2026.08.24 10:45:11',
+    );
+    const fractionalPosition = DemoHistoryPosition(
+      id: 'production-format-position',
+      title: 'EURUSD',
+      side: 'SELL',
+      volume: 1.5,
+      openPrice: 1.23456,
+      closePrice: 1.23457,
+      profit: 1,
+      time: '2026.08.24 10:46:11',
+    );
+    const order = DemoOrder(
+      id: 'reference-format-order',
+      symbol: 'XAUUSD+',
+      side: 'BUY',
+      type: 'Market',
+      volume: 1,
+      requestedPrice: 4637.05,
+      executedPrice: 4637.05,
+      status: 'filled',
+      time: '2026.08.24 11:58:13',
+    );
+    const fractionalOrder = DemoOrder(
+      id: 'production-format-order',
+      symbol: 'EURUSD',
+      side: 'SELL',
+      type: 'Sell Limit',
+      volume: 1.5,
+      requestedPrice: 1.23456,
+      executedPrice: 1.23456,
+      status: 'filled',
+      time: '2026.08.24 11:59:13',
+    );
+    const deal = DemoDeal(
+      id: 'reference-format-deal',
+      orderId: 'reference-format-order',
+      symbol: 'XAUUSD+',
+      side: 'BUY',
+      volume: 1,
+      price: 4637.05,
+      profit: 0,
+      time: '2026.08.24 11:58:13',
+    );
+    const fractionalDeal = DemoDeal(
+      id: 'production-format-deal',
+      orderId: 'production-format-order',
+      symbol: 'EURUSD',
+      side: 'SELL',
+      volume: 1.5,
+      price: 1.23456,
+      profit: 1,
+      time: '2026.08.24 11:59:13',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          demoHistoryPositionsProvider.overrideWithValue(const [
+            position,
+            fractionalPosition,
+          ]),
+          demoOrdersProvider.overrideWithValue(const [order, fractionalOrder]),
+          demoDealsProvider.overrideWithValue(const [deal, fractionalDeal]),
+        ],
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+    await pumpBottomAnchor(tester);
+
+    expect(_priceRange('4622.83', '4631.37'), findsOneWidget);
+    expect(_priceRange('1.23456', '1.23457'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('history-tab-1')));
+    await tester.pump();
+    expect(find.text('1 / 1 at market'), findsOneWidget);
+    expect(find.text('1.5 / 1.5 at 1.23456'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('history-tab-2')));
+    await tester.pump();
+    expect(find.text('1 at 4637.05'), findsOneWidget);
+    expect(find.text('1.5 at 1.23456'), findsOneWidget);
   });
 
   testWidgets('History toolbar icon ink matches the measured references', (
@@ -163,7 +325,7 @@ void main() {
     await pumpBottomAnchor(tester);
 
     expect(tester.takeException(), isNull);
-    expect(find.text('4325.409 → —'), findsOneWidget);
+    expect(_priceRange('4325.41', '—'), findsOneWidget);
     expect(
       find.byKey(
         const ValueKey(
@@ -256,7 +418,7 @@ void main() {
       ),
     );
     expect(summaryLabel.style?.fontSize, 14.5);
-    expect(summaryLabel.style?.fontWeight, FontWeight.w500);
+    expect(summaryLabel.style?.fontWeight, FontWeight.w400);
 
     final listFinder = find.byKey(
       const PageStorageKey('history-positions-list'),
@@ -270,13 +432,11 @@ void main() {
         .toList();
     String labelOf(Text text) =>
         text.data ?? text.textSpan?.toPlainText() ?? '';
-    final title = texts.firstWhere(
-      (text) => labelOf(text).startsWith('XAUUSD sell'),
+    final title = tester.widget<Text>(
+      find.byKey(const ValueKey('history-positions-primary-0')),
     );
     final profit = texts.firstWhere((text) => labelOf(text) == '-2.05');
-    final price = texts.firstWhere(
-      (text) => labelOf(text).contains('4061.390'),
-    );
+    final price = texts.firstWhere((text) => labelOf(text).contains('4061.39'));
     final time = texts.firstWhere((text) => labelOf(text).startsWith('2026.'));
 
     expect(title.style?.fontSize, 16);
@@ -286,7 +446,11 @@ void main() {
     expect(
       tester.getTopLeft(find.byWidget(price)).dy -
           tester.getTopLeft(find.byWidget(title)).dy,
-      closeTo(22, .1),
+      closeTo(
+        TabReferenceMetrics.historyPriceRangeTop -
+            TabReferenceMetrics.historyPrimaryTop,
+        .1,
+      ),
     );
   });
 
@@ -605,7 +769,10 @@ void main() {
       );
       expect(title.textSpan!.toPlainText(), 'XAUUSD sell 0.01');
       expect(
-        find.descendant(of: detail, matching: find.text('4061.390 → 4063.440')),
+        find.descendant(
+          of: detail,
+          matching: _priceRange('4061.39', '4063.44'),
+        ),
         findsOneWidget,
       );
       expect(
@@ -677,15 +844,24 @@ void main() {
       final selectedTab = tester.getRect(
         find.byKey(const Key('history-tab-0')),
       );
+      final firstLabel = tester.getRect(
+        find.byKey(const ValueKey('history-segment-label-0')),
+      );
       expect(selectedTab.top, closeTo(31.9333333333, .01));
       expect(selectedTab.width, closeTo(80, .01));
       expect(selectedTab.height, closeTo(39.4666666667, .01));
+      expect(
+        firstLabel.center.dx,
+        closeTo(111.7666666667, .01),
+        reason: 'The first label is optically left-aligned in the reference.',
+      );
       expect(find.byKey(const Key('history-header-overlay')), findsOneWidget);
 
       final listFinder = find.byKey(
         const PageStorageKey('history-positions-list'),
       );
       final list = tester.widget<ListView>(listFinder);
+      expect((list.padding! as EdgeInsets).right, 5.3333333333);
       expect(list.physics, isA<BouncingScrollPhysics>());
       expect(
         (list.physics! as BouncingScrollPhysics).parent,
@@ -773,7 +949,7 @@ void main() {
       expect(find.text('#57016800413'), findsOneWidget);
       expect(find.text('57360798130'), findsOneWidget);
       expect(find.text('filled'), findsOneWidget);
-      expect(find.text('0.25 at 4105.050'), findsWidgets);
+      expect(find.text('0.25 at 4105.05'), findsWidgets);
 
       await tester.tap(find.byKey(const Key('history-detail-chart')));
       await tester.pump();
@@ -875,6 +1051,14 @@ void main() {
     expect(find.byKey(const Key('history-order-57360798130')), findsOneWidget);
   });
 }
+
+Finder _priceRange(String openPrice, String closePrice) =>
+    find.byWidgetPredicate(
+      (widget) =>
+          widget is MtPriceRangeText &&
+          widget.openPrice == openPrice &&
+          widget.closePrice == closePrice,
+    );
 
 Future<({Rect bounds, int pixels})> _historyButtonInkMetrics(
   WidgetTester tester,

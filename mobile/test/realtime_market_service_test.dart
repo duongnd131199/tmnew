@@ -129,6 +129,54 @@ void main() {
     },
   );
 
+  test(
+    'daily quote statistics survive REST and opposite realtime tick moves',
+    () async {
+      final hub = _RecordingHubConnection();
+      final service = RealtimeMarketService(
+        baseUrl: 'https://market.example.com',
+        dio: Dio()..httpClientAdapter = _QuoteAdapter(),
+        connectionFactory: () => hub,
+      );
+      addTearDown(service.dispose);
+      const fallback = DemoQuote(
+        symbol: 'XAUUSD+',
+        name: 'Gold US Dollar',
+        bid: 4000,
+        ask: 4000.2,
+        changePercent: -1.24,
+        previousClose: 4050.22,
+        dailyLow: 3975.5,
+        dailyHigh: 4070.25,
+      );
+      final quotes = <DemoQuote>[];
+      final subscription = service
+          .watchQuote('XAUUSD+', fallback)
+          .listen(quotes.add);
+      addTearDown(subscription.cancel);
+
+      await _waitUntil(() => quotes.isNotEmpty, 'initial REST quote');
+      await _waitUntil(
+        () => hub.hasSymbolSubscription('XAUUSD+'),
+        'SignalR symbol subscription',
+      );
+      final realtimeStart = quotes.length;
+      hub.emitQuote(bid: 4001, timestamp: '2026-08-01T00:00:00.050Z');
+      hub.emitQuote(bid: 3999, timestamp: '2026-08-01T00:00:00.100Z');
+      await _waitUntil(
+        () => quotes.length == realtimeStart + 2,
+        'opposite realtime tick moves',
+      );
+
+      for (final quote in quotes) {
+        expect(quote.changePercent, -1.24);
+        expect(quote.previousClose, 4050.22);
+        expect(quote.dailyLow, 3975.5);
+        expect(quote.dailyHigh, 4070.25);
+      }
+    },
+  );
+
   test('candle events retain UTC feed boundaries', () async {
     final hub = _RecordingHubConnection();
     final service = RealtimeMarketService(

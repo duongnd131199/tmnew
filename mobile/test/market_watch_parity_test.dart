@@ -74,10 +74,11 @@ void main() {
   });
 
   double rowOffset(WidgetTester tester, String symbol) {
+    final canonicalSymbol = symbol == 'XAUUSD' ? 'XAUUSD+' : symbol;
     final row = tester.widget<AnimatedContainer>(
       find
           .ancestor(
-            of: find.text(symbol),
+            of: find.byKey(ValueKey('market-symbol-$canonicalSymbol')),
             matching: find.byType(AnimatedContainer),
           )
           .first,
@@ -118,22 +119,39 @@ void main() {
     final symbolFinder = find.byKey(const ValueKey('market-symbol-XAUUSD+'));
     final symbol = tester.widget<Text>(symbolFinder);
     expect(symbol.style, AppTypography.quoteSymbol);
+    final btcSymbolFinder = find.byKey(const ValueKey('market-symbol-BTCUSD'));
+    final btcSymbol = tester.widget<Text>(btcSymbolFinder);
+    expect(btcSymbol.data, 'BTC');
+    expect(btcSymbol.style?.fontSize, 15);
+    expect(
+      tester.getTopLeft(btcSymbolFinder).dy -
+          tester.getTopLeft(symbolFinder).dy,
+      closeTo(68, .01),
+      reason: 'BTC sits 2 physical pixels above the standard second-row slot.',
+    );
     expect(tester.getTopLeft(symbolFinder).dy, closeTo(128.0666666667, .75));
     final tickTime = tester.widget<Text>(
       find.byKey(const ValueKey('market-time-XAUUSD+')),
     );
-    expect(tickTime.style, AppTypography.quoteMeta);
+    expect(tickTime.style, AppTypography.quoteTimeMeta);
+    expect(find.byKey(const ValueKey('market-delay-BTCUSD')), findsOneWidget);
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
           .style,
-      AppTypography.quoteMeta,
+      AppTypography.quoteRangeMeta,
     );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
           .style,
-      AppTypography.quoteMeta,
+      AppTypography.quoteRangeMeta,
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-high-BTCUSD')))
+          .style,
+      AppTypography.quoteBtcHighMeta,
     );
 
     final xauBid = tester.widget<Text>(
@@ -234,7 +252,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(rowOffset(tester, 'XAUUSD'), 0);
 
-      await tester.drag(find.text('BTCUSD'), const Offset(-220, 0));
+      await tester.drag(
+        find.byKey(const ValueKey('market-symbol-BTCUSD')),
+        const Offset(-220, 0),
+      );
       await tester.pumpAndSettle();
       expect(rowOffset(tester, 'BTCUSD'), -117);
       expect(find.byKey(const ValueKey('market-order-BTCUSD')), findsNothing);
@@ -322,8 +343,54 @@ void main() {
     final dailySpans = (dailyChange.textSpan! as TextSpan).children!
         .cast<TextSpan>()
         .toList();
-    expect(dailySpans[1].style?.color, AppColors.primary);
-    expect(dailyChange.textSpan!.toPlainText(), contains('1.26%'));
+    expect(dailySpans[1].style?.color, AppColors.negative);
+    expect(dailyChange.textSpan!.toPlainText(), contains('-1.24%'));
+  });
+
+  testWidgets('production quote metadata stays coherent with the live price', (
+    tester,
+  ) async {
+    const quotes = [
+      DemoQuote(
+        symbol: 'XAUUSD+',
+        name: 'Gold US Dollar',
+        bid: 3345.20,
+        ask: 3345.65,
+        changePercent: .42,
+      ),
+      DemoQuote(
+        symbol: 'BTCUSD',
+        name: 'Bitcoin',
+        bid: 60000,
+        ask: 60010,
+        changePercent: .82,
+      ),
+    ];
+    final container = ProviderContainer(
+      overrides: [
+        demoQuotesProvider.overrideWithValue(quotes),
+        demoQuoteProvider.overrideWith((ref, symbol) {
+          return Stream.value(
+            quotes.firstWhere((quote) => quote.symbol == symbol),
+          );
+        }),
+      ],
+    );
+
+    await pumpMarket(tester, container: container);
+
+    final dailyChange = tester.widget<Text>(
+      find.byKey(const ValueKey('market-change-BTCUSD')),
+    );
+    expect(dailyChange.textSpan!.toPlainText(), contains('0.82%'));
+    final low = tester
+        .widget<Text>(find.byKey(const ValueKey('market-low-BTCUSD')))
+        .data!;
+    final high = tester
+        .widget<Text>(find.byKey(const ValueKey('market-high-BTCUSD')))
+        .data!;
+    expect(double.parse(low.substring(3)), greaterThan(59000));
+    expect(double.parse(high.substring(3)), greaterThan(59000));
   });
 }
 

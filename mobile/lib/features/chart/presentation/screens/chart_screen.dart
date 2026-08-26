@@ -313,8 +313,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
   @override
   void initState() {
     super.initState();
-    _sellQuoteColor = widget.theme.bearish;
-    _buyQuoteColor = widget.theme.bearish;
+    _sellQuoteColor = widget.theme.tradeBlue;
+    _buyQuoteColor = widget.theme.tradeBlue;
     timeframe = widget.initialTimeframe;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -1428,11 +1428,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     final tickTime =
         liveCandleState.lastTickAt ?? ref.read(marketClockProvider)();
     _latestMarketPrice = marketPrice;
-    if (_previousBid == null && candles.length > 1) {
-      _sellQuoteColor = candles.last.close >= candles[candles.length - 2].close
-          ? _theme.tradeBlue
-          : _theme.bearish;
-    } else if (_previousBid != null && quote.bid != _previousBid) {
+    if (_previousBid != null && quote.bid != _previousBid) {
       _sellQuoteColor = quote.bid > _previousBid!
           ? _theme.tradeBlue
           : _theme.bearish;
@@ -1585,7 +1581,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                 child: Row(
                   children: [
                     SizedBox(
-                      width: 115.3333333333,
+                      width: 118,
                       child: _TradeQuote(
                         theme: _theme,
                         label: 'SELL',
@@ -1659,7 +1655,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       ),
                     ),
                     SizedBox(
-                      width: 113.3333333333,
+                      width: 118,
                       child: _TradeQuote(
                         theme: _theme,
                         label: 'Buy',
@@ -1847,9 +1843,17 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
+                            TextSpan(text: ' '),
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: _ChartSymbolChevron(
+                                key: const Key('chart-symbol-chevron'),
+                                theme: _theme,
+                              ),
+                            ),
                             TextSpan(
                               text:
-                                  ' ▾ $chartTimeframeLabel, '
+                                  ' $chartTimeframeLabel, '
                                   '${_crosshairOhlc(candles)}\n'
                                   'Di chuyển con trỏ hoặc nhấn vào biểu đồ '
                                   'để chuyển sang một\nloại thước',
@@ -1888,12 +1892,12 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                                     : null,
                               ),
                             ),
-                            TextSpan(
-                              text: ' \u2009▾\u200A',
-                              style: TextStyle(
-                                color: _theme.tradeBlue,
-                                fontWeight: FontWeight.w600,
-                                fontSize: _usesVideo2ChartLayout ? 13 : null,
+                            const TextSpan(text: ' '),
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: _ChartSymbolChevron(
+                                key: const Key('chart-symbol-chevron'),
+                                theme: _theme,
                               ),
                             ),
                             TextSpan(
@@ -1917,9 +1921,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       ),
                     ),
                     Positioned(
-                      left: 4,
+                      left: 3.3333333333,
                       top:
-                          21.3333333333 +
+                          16 +
                           (showOneClickTrading && !showTimeframes
                               ? _oneClickPanelHeight
                               : 0),
@@ -1928,7 +1932,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                         key: const Key('chart-plot-subtitle'),
                         style: AppTypography.chartAnnotation.copyWith(
                           color: _theme.foreground,
-                          fontSize: _usesVideo2ChartLayout ? 14 : 10.5,
+                          fontSize: _usesVideo2ChartLayout ? 12.5 : 10.5,
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: _usesVideo2ChartLayout ? .4 : null,
                         ),
                       ),
                     ),
@@ -4051,13 +4057,19 @@ class _TradeQuote extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             Positioned(
-              left: 6.6666666667,
-              top: 5,
+              left: label == 'Buy' ? 5.3333333333 : 6.6666666667,
+              top: label == 'Buy' ? 4.3333333333 : 5,
               child: Text(
                 label,
-                style: AppTypography.chartTicketLabel.copyWith(
-                  color: theme.background,
-                ),
+                style:
+                    (label == 'Buy'
+                            ? AppTypography.chartTicketLabel.copyWith(
+                                fontFamily: AppTypography.plainFamily,
+                                fontSize: 7,
+                                letterSpacing: 1.35,
+                              )
+                            : AppTypography.chartTicketLabel)
+                        .copyWith(color: theme.background),
               ),
             ),
             Positioned(
@@ -4093,6 +4105,25 @@ class _TradeQuote extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ChartSymbolChevron extends StatelessWidget {
+  const _ChartSymbolChevron({required this.theme, super.key});
+
+  final ChartReferenceTheme theme;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 8,
+    height: 12,
+    child: Center(
+      child: Icon(
+        CupertinoIcons.chevron_down,
+        color: theme.foreground,
+        size: 6.5,
+      ),
+    ),
+  );
 }
 
 class _ChartModeIcon extends StatelessWidget {

@@ -8,6 +8,7 @@ import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.
 import 'package:trading_mobile/features/trade/presentation/widgets/position_bulk_actions_dialog.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
 
 import 'test_support/load_test_fonts.dart';
 
@@ -125,6 +126,10 @@ void main() {
       find.byKey(const Key('trade-header-profit')),
     );
     expect(
+      tester.getTopLeft(find.byKey(const Key('trade-header-profit'))).dy,
+      closeTo(40, .1),
+    );
+    expect(
       header.style,
       AppTypography.tradeHeaderProfit.copyWith(color: AppColors.negative),
     );
@@ -132,6 +137,10 @@ void main() {
       find.byKey(const ValueKey('trade-metric-label-Số dư:')),
     );
     expect(metric.style, AppTypography.tradeMetric);
+    final metricValue = tester.widget<Text>(
+      find.byKey(const ValueKey('trade-metric-value-Số dư:')),
+    );
+    expect(metricValue.style, AppTypography.tradeMetricValue);
     expect(
       tester.getSize(find.byKey(const Key('trade-account-metrics'))).height,
       closeTo(
@@ -193,14 +202,17 @@ void main() {
       of: row,
       matching: find.byWidgetPredicate(
         (widget) =>
-            widget is Text &&
-            (widget.data?.contains('4622.83') ?? false) &&
-            (widget.data?.contains('4623.10') ?? false),
+            widget is MtPriceRangeText &&
+            widget.openPrice == '4622.830' &&
+            widget.closePrice == '4623.100',
       ),
     );
 
     expect(priceRange, findsOneWidget);
-    expect(tester.widget<Text>(priceRange).style?.color, AppColors.textPrimary);
+    expect(
+      tester.widget<MtPriceRangeText>(priceRange).style.color,
+      AppColors.textSecondary,
+    );
   });
 
   testWidgets('trade virtualizes a 30-position batch', (tester) async {

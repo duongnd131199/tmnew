@@ -177,7 +177,21 @@ void main() {
       tester.widget<Text>(find.byKey(const Key('chart-plot-subtitle'))).style,
       AppTypography.chartAnnotation.copyWith(
         color: ChartReferenceTheme.light.foreground,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w400,
+        letterSpacing: .4,
       ),
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find.descendant(
+              of: find.byKey(const Key('chart-symbol-chevron')),
+              matching: find.byType(Icon),
+            ),
+          )
+          .color,
+      ChartReferenceTheme.light.foreground,
     );
   });
 
@@ -1146,9 +1160,15 @@ void main() {
       tester.widget<Text>(find.text('4104.09')).style?.color,
       AppColors.textPrimary,
     );
+    final unchangedPercentLabels = tester.widgetList<Text>(
+      find.text('0.00%'),
+    );
+    expect(unchangedPercentLabels, isNotEmpty);
     expect(
-      tester.widget<Text>(find.text('1.26%')).style?.color,
-      AppColors.primary,
+      unchangedPercentLabels.every(
+        (label) => label.style?.color == AppColors.primary,
+      ),
+      isTrue,
     );
 
     await tester.tap(find.byKey(const Key('market-toggle-view')));
@@ -1208,11 +1228,18 @@ void main() {
     await tester.pump();
     expect(find.byKey(const Key('chart-one-click-panel')), findsOneWidget);
     expect(find.text('0.25'), findsOneWidget);
+    final oneClickPanel = find.byKey(const Key('chart-one-click-panel'));
     final downChevron = tester.widget<Icon>(
-      find.byIcon(CupertinoIcons.chevron_down),
+      find.descendant(
+        of: oneClickPanel,
+        matching: find.byIcon(CupertinoIcons.chevron_down),
+      ),
     );
     final upChevron = tester.widget<Icon>(
-      find.byIcon(CupertinoIcons.chevron_up),
+      find.descendant(
+        of: oneClickPanel,
+        matching: find.byIcon(CupertinoIcons.chevron_up),
+      ),
     );
     expect(downChevron.color, ChartReferenceTheme.light.foreground);
     expect(upChevron.color, ChartReferenceTheme.light.foreground);
@@ -3273,6 +3300,17 @@ void main() {
     expect(painter.hitTargets.priceHeight, originalPriceHeight);
 
     final panel = find.byKey(const Key('chart-one-click-panel'));
+    final buyLabel = find.descendant(of: panel, matching: find.text('Buy'));
+    final buyLabelWidget = tester.widget<Text>(buyLabel);
+    expect(buyLabelWidget.style?.fontFamily, AppTypography.plainFamily);
+    expect(buyLabelWidget.style?.fontSize, 7);
+    expect(buyLabelWidget.style?.letterSpacing, 1.35);
+    expect(
+      physical(tester.getRect(buyLabel)).left,
+      closeTo(407, .01),
+      reason: 'The 177px Buy ticket uses the measured 8px label inset.',
+    );
+    expect(physical(tester.getRect(buyLabel)).top, closeTo(148.5, .01));
     final volumeUp = find.descendant(
       of: panel,
       matching: find.byIcon(CupertinoIcons.chevron_up),

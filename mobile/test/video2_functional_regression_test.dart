@@ -21,9 +21,10 @@ import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/widgets/app_shell.dart';
+import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
 
 import 'test_support/video_reference_fixtures.dart';
-import 'package:trading_mobile/shared/widgets/app_shell.dart';
 
 void main() {
   void useVideoViewport(WidgetTester tester) {
@@ -537,11 +538,16 @@ void main() {
             .whereType<String>()
             .toList();
         expect(
-          rowText,
-          contains(
-            '${position.openPrice.toStringAsFixed(2)} → '
-            '${position.currentPrice.toStringAsFixed(2)}',
+          find.descendant(
+            of: row,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is MtPriceRangeText &&
+                  widget.openPrice == position.openPrice.toStringAsFixed(2) &&
+                  widget.closePrice == position.currentPrice.toStringAsFixed(2),
+            ),
           ),
+          findsOneWidget,
         );
         expect(rowText, contains(position.profit.toStringAsFixed(2)));
       }
@@ -598,7 +604,10 @@ void main() {
     await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
     await tester.pump();
     final downChevron = tester.widget<Icon>(
-      find.byIcon(CupertinoIcons.chevron_down),
+      find.descendant(
+        of: find.byKey(const Key('chart-one-click-panel')),
+        matching: find.byIcon(CupertinoIcons.chevron_down),
+      ),
     );
     expect(downChevron.color, ChartReferenceTheme.light.foreground);
     expect(downChevron.size, 12);

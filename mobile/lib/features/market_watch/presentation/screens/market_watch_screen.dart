@@ -570,7 +570,7 @@ class _CompactQuoteRow extends ConsumerWidget {
               const Positioned(
                 left: 0,
                 top: 0,
-                child: _QuoteCorner(color: AppColors.negative),
+                child: _QuoteCorner(color: AppColors.primary),
               ),
             Row(
               children: [
@@ -581,7 +581,7 @@ class _CompactQuoteRow extends ConsumerWidget {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        displayTradingSymbol(live.symbol),
+                        _marketWatchDisplaySymbol(live.symbol),
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 12.2,
@@ -952,9 +952,6 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
       live,
       receivedAt: ref.read(marketClockProvider)(),
     );
-    final fallbackTickColor = live.changePercent >= 0
-        ? AppColors.primary
-        : AppColors.negative;
     final previous = _previousTick?.symbol == live.symbol
         ? _previousTick
         : null;
@@ -962,13 +959,11 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
       current: live.bid,
       previous: previous?.bid,
       retained: _lastBidColor,
-      fallback: fallbackTickColor,
     );
     final askColor = _tickColor(
       current: live.ask,
       previous: previous?.ask,
       retained: _lastAskColor,
-      fallback: fallbackTickColor,
     );
     _previousTick = live;
     _lastBidColor = bidColor;
@@ -988,7 +983,7 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
               const Positioned(
                 left: 0,
                 top: 0,
-                child: _QuoteCorner(color: AppColors.negative),
+                child: _QuoteCorner(color: AppColors.primary),
               ),
             Positioned(
               left: 8,
@@ -1014,76 +1009,120 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
             ),
             Positioned(
               left: 8,
-              top: 25.4,
+              top: isBtcUsd ? 24.0666666667 : 25.4,
               child: Text(
-                displayTradingSymbol(live.symbol),
+                _marketWatchDisplaySymbol(live.symbol),
                 key: ValueKey('market-symbol-${live.symbol}'),
-                style: AppTypography.quoteSymbol,
+                style: isBtcUsd
+                    ? AppTypography.quoteSymbol.copyWith(fontSize: 15)
+                    : AppTypography.quoteSymbol,
               ),
             ),
             Positioned(
               left: 7.3333333333,
-              top: 47.3333333333,
-              child: Row(
-                children: [
-                  Text(
-                    meta.time,
-                    key: ValueKey('market-time-${live.symbol}'),
-                    style: AppTypography.quoteMeta,
-                  ),
-                  SizedBox(width: isBtcUsd ? 6.3333333333 : 5.6666666667),
-                  const _SpreadGlyph(),
-                  const SizedBox(width: 4),
-                  Text(
-                    meta.spread,
-                    key: ValueKey('market-spread-${live.symbol}'),
-                    style: AppTypography.quoteMeta,
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              right: 94.6333333333,
-              top: 17,
-              width: 76,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: _QuotePrice(
-                  value: _formatPrice(live.bid),
-                  color: bidColor,
-                  textKey: ValueKey('market-bid-${live.symbol}'),
+              top: isBtcUsd
+                  ? TabReferenceMetrics.quoteBtcMetaTop
+                  : 47.3333333333,
+              child: Transform.scale(
+                scaleY: .86,
+                alignment: Alignment.topLeft,
+                child: Row(
+                  children: [
+                    if (isBtcUsd)
+                      const SizedBox(
+                        key: ValueKey('market-delay-BTCUSD'),
+                        width: 11.3333333333,
+                        child: Icon(
+                          CupertinoIcons.clock,
+                          color: AppColors.textSecondary,
+                          size: 11.3333333333,
+                        ),
+                      ),
+                    Text(
+                      meta.time,
+                      key: ValueKey('market-time-${live.symbol}'),
+                      style: AppTypography.quoteTimeMeta,
+                    ),
+                    SizedBox(width: isBtcUsd ? 1.3333333333 : 5.6666666667),
+                    const _SpreadGlyph(),
+                    const SizedBox(width: 4),
+                    Text(
+                      meta.spread,
+                      key: ValueKey('market-spread-${live.symbol}'),
+                      style: AppTypography.quoteTimeMeta,
+                    ),
+                  ],
                 ),
               ),
             ),
             Positioned(
-              right: 7.9666666667,
-              top: 17,
+              right: 86.6333333333,
+              top: 15.6666666667,
               width: 76,
               child: Align(
                 alignment: Alignment.centerRight,
-                child: _QuotePrice(
-                  value: _formatPrice(live.ask),
-                  color: askColor,
-                  textKey: ValueKey('market-ask-${live.symbol}'),
+                child: _quotePriceInk(
+                  isBtcUsd: isBtcUsd,
+                  child: _QuotePrice(
+                    value: _formatPrice(live.bid),
+                    color: bidColor,
+                    textKey: ValueKey('market-bid-${live.symbol}'),
+                  ),
                 ),
               ),
             ),
             Positioned(
-              right: isBtcUsd ? 94.1 : 94.1333333333,
-              top: 47.3333333333,
-              child: Text(
-                'L: ${meta.low}',
-                key: ValueKey('market-low-${live.symbol}'),
-                style: AppTypography.quoteMeta,
+              right: 7.3,
+              top: 15.6666666667,
+              width: 76,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: _quotePriceInk(
+                  isBtcUsd: isBtcUsd,
+                  child: _QuotePrice(
+                    value: _formatPrice(live.ask),
+                    color: askColor,
+                    textKey: ValueKey('market-ask-${live.symbol}'),
+                  ),
+                ),
               ),
             ),
             Positioned(
-              right: isBtcUsd ? 6 : 4.6666666667,
-              top: 47.3333333333,
-              child: Text(
-                'H: ${meta.high}',
-                key: ValueKey('market-high-${live.symbol}'),
-                style: AppTypography.quoteMeta,
+              right: 86.8,
+              top: isBtcUsd
+                  ? TabReferenceMetrics.quoteBtcMetaTop + 2
+                  : 49.3333333333,
+              child: Transform.scale(
+                scaleY: .86,
+                alignment: Alignment.topRight,
+                child: Text(
+                  'L: ${meta.low}',
+                  key: ValueKey('market-low-${live.symbol}'),
+                  style: AppTypography.quoteRangeMeta,
+                ),
+              ),
+            ),
+            Positioned(
+              right: 7.3333333333,
+              top: isBtcUsd
+                  ? TabReferenceMetrics.quoteBtcMetaTop + 2
+                  : 49.3333333333,
+              child: Transform.translate(
+                offset: Offset(
+                  isBtcUsd ? TabReferenceMetrics.quoteBtcHighOffsetX : 0,
+                  0,
+                ),
+                child: Transform.scale(
+                  scaleY: .86,
+                  alignment: Alignment.topRight,
+                  child: Text(
+                    'H: ${meta.high}',
+                    key: ValueKey('market-high-${live.symbol}'),
+                    style: isBtcUsd
+                        ? AppTypography.quoteBtcHighMeta
+                        : AppTypography.quoteRangeMeta,
+                  ),
+                ),
               ),
             ),
           ],
@@ -1096,15 +1135,26 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
     required double current,
     required double? previous,
     required Color retained,
-    required Color fallback,
   }) {
-    if (previous == null) return fallback;
+    if (previous == null) return retained;
     if (current > previous) return AppColors.primary;
     if (current < previous) return AppColors.negative;
     return retained;
   }
 
   String _formatPrice(double value) => value.toStringAsFixed(2);
+}
+
+Widget _quotePriceInk({required bool isBtcUsd, required Widget child}) {
+  if (!isBtcUsd) return child;
+  return Transform.translate(
+    offset: const Offset(0, TabReferenceMetrics.quoteBtcPriceOffsetY),
+    child: Transform.scale(
+      scaleY: TabReferenceMetrics.quoteBtcPriceScaleY,
+      alignment: Alignment.bottomRight,
+      child: child,
+    ),
+  );
 }
 
 class _QuotePrice extends StatelessWidget {
@@ -1142,6 +1192,9 @@ class _QuotePrice extends StatelessWidget {
   }
 }
 
+String _marketWatchDisplaySymbol(String symbol) =>
+    symbol == 'BTCUSD' ? 'BTC' : displayTradingSymbol(symbol);
+
 class _QuoteMeta {
   const _QuoteMeta({
     required this.points,
@@ -1153,30 +1206,28 @@ class _QuoteMeta {
   });
 
   factory _QuoteMeta.fromTick(DemoQuote quote, {DateTime? receivedAt}) {
-    final symbol = quote.symbol;
-    final (referenceClose, digits, low, high) = switch (symbol) {
-      'XAUUSD' || 'XAUUSD+' => (4052.94, 2, '4083.70', '4116.21'),
-      'BTCUSD' => (64643.79, 2, '64643.19', '65569.74'),
-      'XAUEUR' => (3557.62, 2, '3534.06', '3584.79'),
-      'XAUAUD' => (5809.43, 2, '5764.16', '5834.91'),
-      _ => (
-        quote.bid,
-        _priceDigits(quote),
-        _fixed(quote.bid, _priceDigits(quote)),
-        _fixed(quote.ask, _priceDigits(quote)),
-      ),
-    };
+    final digits = _priceDigits(quote);
     final factor = switch (digits) {
       2 => 100.0,
       3 => 1000.0,
       4 => 10000.0,
       _ => 100000.0,
     };
+    final percentFactor = 1 + quote.changePercent / 100;
+    final inferredPreviousClose = percentFactor.abs() < .0000001
+        ? quote.bid
+        : quote.bid / percentFactor;
+    final referenceClose = quote.previousClose ?? inferredPreviousClose;
     final points = ((quote.bid - referenceClose) * factor).round();
-    final percent = referenceClose == 0
-        ? '0.00%'
-        : '${((quote.bid - referenceClose) / referenceClose * 100).toStringAsFixed(2)}%';
+    final percent = '${quote.changePercent.toStringAsFixed(2)}%';
     final spread = ((quote.ask - quote.bid).abs() * factor).round().toString();
+    final rangeValues = [referenceClose, quote.bid, quote.ask];
+    final dailyLow =
+        quote.dailyLow ??
+        rangeValues.reduce((value, next) => value < next ? value : next);
+    final dailyHigh =
+        quote.dailyHigh ??
+        rangeValues.reduce((value, next) => value > next ? value : next);
     final tickTime = (receivedAt ?? DateTime.now()).subtract(
       const Duration(hours: 4),
     );
@@ -1189,8 +1240,8 @@ class _QuoteMeta {
           '${_twoDigits(tickTime.minute)}:'
           '${_twoDigits(tickTime.second)}',
       spread: spread,
-      low: low,
-      high: high,
+      low: _fixed(dailyLow, digits),
+      high: _fixed(dailyHigh, digits),
     );
   }
 
@@ -1219,9 +1270,15 @@ class _QuoteCorner extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => CustomPaint(
-    size: const Size(9.3333333333, 10.3333333333),
-    painter: _QuoteCornerPainter(color),
+  Widget build(BuildContext context) => Transform.translate(
+    offset: const Offset(0, TabReferenceMetrics.quoteCornerOffsetY),
+    child: CustomPaint(
+      size: const Size(
+        TabReferenceMetrics.quoteCornerWidth,
+        TabReferenceMetrics.quoteCornerHeight,
+      ),
+      painter: _QuoteCornerPainter(color),
+    ),
   );
 }
 

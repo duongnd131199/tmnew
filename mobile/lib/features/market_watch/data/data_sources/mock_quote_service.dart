@@ -41,6 +41,9 @@ class MockQuoteService {
         ask: correctedBid + (initialQuote.ask - initialQuote.bid),
         changePercent: candidate.changePercent,
         sourceTimestamp: DateTime.now().toUtc(),
+        previousClose: candidate.previousClose,
+        dailyLow: candidate.dailyLow,
+        dailyHigh: candidate.dailyHigh,
       );
       return current;
     });
@@ -58,10 +61,11 @@ class MockQuoteService {
       name: current.name,
       bid: nextBid,
       ask: nextBid + spread,
-      // The magnitude is the recorded daily change. Its sign doubles as the
-      // latest-tick direction so quote digits can flash blue/red like MT5.
-      changePercent: current.changePercent.abs() * direction,
+      changePercent: current.changePercent,
       sourceTimestamp: DateTime.now().toUtc(),
+      previousClose: current.previousClose,
+      dailyLow: current.dailyLow,
+      dailyHigh: current.dailyHigh,
     );
   }
 }

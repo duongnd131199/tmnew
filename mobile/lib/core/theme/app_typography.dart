@@ -110,20 +110,45 @@ abstract final class AppTypography {
   static const quoteMeta = TextStyle(
     color: AppColors.textSecondary,
     fontFamily: condensedFamily,
-    fontSize: 14,
+    fontSize: 13.2,
+    letterSpacing: .2,
+    height: 1,
+  );
+  static const quoteTimeMeta = TextStyle(
+    color: AppColors.textSecondary,
+    fontFamily: condensedFamily,
+    fontSize: 13.2,
+    letterSpacing: -.15,
+    height: 1,
+  );
+  static const quoteRangeMeta = TextStyle(
+    color: AppColors.textSecondary,
+    fontFamily: condensedFamily,
+    fontSize: 13.2,
+    letterSpacing: .55,
     height: 1,
   );
   static const quotePriceMajor = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 15,
+    fontSize: 16.5,
     fontWeight: FontWeight.w500,
+    letterSpacing: .2,
+    height: 1,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+  static const quoteBtcHighMeta = TextStyle(
+    color: AppColors.textSecondary,
+    fontFamily: condensedFamily,
+    fontSize: 13.2,
+    letterSpacing: .15,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
   static const quotePriceMinor = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: FontWeight.w700,
+    letterSpacing: .2,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
@@ -141,15 +166,17 @@ abstract final class AppTypography {
   );
   static const chartTicketPriceMajor = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: FontWeight.w700,
+    letterSpacing: -.8,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
   static const chartTicketPriceMinor = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: FontWeight.w700,
+    letterSpacing: -.8,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
@@ -175,6 +202,7 @@ abstract final class AppTypography {
     fontFamily: condensedFamily,
     fontSize: 20,
     fontWeight: FontWeight.w500,
+    letterSpacing: -.3,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
@@ -182,6 +210,14 @@ abstract final class AppTypography {
     color: AppColors.textPrimary,
     fontFamily: condensedFamily,
     fontSize: 16,
+    height: 1.15,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+  static const tradeMetricValue = TextStyle(
+    color: AppColors.textPrimary,
+    fontFamily: condensedFamily,
+    fontSize: 16,
+    letterSpacing: .5,
     height: 1.15,
     fontFeatures: [FontFeature.tabularFigures()],
   );
@@ -199,16 +235,18 @@ abstract final class AppTypography {
     height: 1,
   );
   static const tradePositionSecondary = TextStyle(
-    color: AppColors.textPrimary,
+    color: AppColors.textSecondary,
     fontFamily: condensedFamily,
-    fontSize: 15,
+    fontSize: 16,
+    letterSpacing: .78,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
   static const tradePositionProfit = TextStyle(
     fontFamily: condensedFamily,
-    fontSize: 20.5,
+    fontSize: 21,
     fontWeight: FontWeight.w500,
+    letterSpacing: -.1,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
@@ -219,17 +257,52 @@ abstract final class AppTypography {
     letterSpacing: -.15,
     height: 1,
   );
+  static const historyDealsSegment = TextStyle(
+    color: AppColors.textPrimary,
+    fontFamily: plainFamily,
+    fontSize: 14,
+    letterSpacing: .15,
+    height: 1,
+  );
   static const historyPrimary = TextStyle(
     fontFamily: condensedFamily,
     fontSize: 16,
     letterSpacing: -1,
     height: 1,
   );
+  static const historyAction = TextStyle(
+    fontFamily: condensedFamily,
+    fontSize: 16,
+    letterSpacing: -.1,
+    height: 1,
+  );
+  static const historyTrailingPrimary = TextStyle(
+    fontFamily: condensedFamily,
+    fontSize: 16,
+    letterSpacing: -.2,
+    height: 1,
+  );
   static const historySecondary = TextStyle(
     color: AppColors.textSecondary,
     fontFamily: condensedFamily,
     fontSize: 14,
-    letterSpacing: -.4,
+    letterSpacing: .1,
+    height: 1,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+  static const historyPriceRange = TextStyle(
+    color: AppColors.textSecondary,
+    fontFamily: condensedFamily,
+    fontSize: 14,
+    letterSpacing: 0,
+    height: 1,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+  static const historyTrailingSecondary = TextStyle(
+    color: AppColors.textSecondary,
+    fontFamily: condensedFamily,
+    fontSize: 14,
+    letterSpacing: .2,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
@@ -237,8 +310,26 @@ abstract final class AppTypography {
     color: AppColors.textPrimary,
     fontFamily: plainFamily,
     fontSize: 14.5,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w400,
     letterSpacing: .05,
+    height: 1,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+  static const historyOrderSummaryTotal = TextStyle(
+    color: AppColors.textPrimary,
+    fontFamily: plainFamily,
+    fontSize: 14.5,
+    fontWeight: FontWeight.w400,
+    letterSpacing: .22,
+    height: 1,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+  static const historySummaryValue = TextStyle(
+    color: AppColors.textPrimary,
+    fontFamily: plainFamily,
+    fontSize: 14.5,
+    fontWeight: FontWeight.w400,
+    letterSpacing: .55,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );

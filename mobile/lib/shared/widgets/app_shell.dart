@@ -282,16 +282,26 @@ class _NavItem extends StatelessWidget {
           left: 0,
           right: 0,
           top: TabReferenceMetrics.bottomNavigationLabelTop,
-          child: Text(
-            label,
-            key: ValueKey('bottom-nav-label-${kind.name}'),
-            maxLines: 1,
-            textAlign: TextAlign.center,
-            style:
-                (selected
-                        ? AppTypography.navigationLabelSelected
-                        : AppTypography.navigationLabel)
-                    .copyWith(color: color),
+          child: Transform.translate(
+            offset: !selected && kind == _MtNavKind.history
+                ? const Offset(-.6666666667, 0)
+                : Offset.zero,
+            child: Text(
+              label,
+              key: ValueKey('bottom-nav-label-${kind.name}'),
+              maxLines: 1,
+              textAlign: TextAlign.center,
+              style:
+                  (selected
+                          ? AppTypography.navigationLabelSelected
+                          : AppTypography.navigationLabel)
+                      .copyWith(
+                        color: color,
+                        letterSpacing: !selected && kind == _MtNavKind.history
+                            ? .4
+                            : null,
+                      ),
+            ),
           ),
         ),
       ],

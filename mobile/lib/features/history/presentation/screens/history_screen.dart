@@ -10,19 +10,21 @@ import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
+import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
 
 final RegExp _historyTimestampPattern = RegExp(
   r'^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})',
 );
 
-int _historyPriceDigitsForSymbol(String symbol) =>
-    symbol.toUpperCase().startsWith('XAUUSD') ? 3 : 2;
-
-String _historyPriceRange(DemoHistoryPosition entry, int digits) {
-  final openPrice = entry.openPrice?.toStringAsFixed(digits) ?? '—';
-  final closePrice = entry.closePrice?.toStringAsFixed(digits) ?? '—';
-  return '$openPrice → $closePrice';
+int _historyPriceDigitsForSymbol(String symbol) {
+  final normalized = symbol.toUpperCase();
+  if (normalized == 'XAUUSD+' || normalized == 'BTCUSD') return 2;
+  if (normalized == 'XAUUSD' || normalized.endsWith('JPY')) return 3;
+  return 5;
 }
+
+String _historyVolumeLabel(double volume) =>
+    volume.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -737,7 +739,7 @@ class _HistoryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const labels = ['Lenh co...', 'Cac lenh', 'Cac giao...'];
+    const labels = ['Lenh co tr...', 'Cac lenh', 'Cac giao d...'];
     return SizedBox(
       height: TabReferenceMetrics.historyHeaderExtent,
       child: Stack(
@@ -776,29 +778,57 @@ class _HistoryHeader extends StatelessWidget {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(20),
                         onTap: () => onTabChanged(index),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? AppColors.surfaceSelected
-                                : AppColors.transparent,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Align(
-                            alignment: index == 2
-                                ? const Alignment(0, -.1)
-                                : Alignment.center,
-                            child: Text(
-                              labels[index],
-                              key: ValueKey('history-segment-label-$index'),
-                              maxLines: 1,
-                              style: index == 2
-                                  ? AppTypography.historySegment.copyWith(
-                                      fontSize: 14,
-                                      letterSpacing: 1.15,
-                                    )
-                                  : AppTypography.historySegment,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Positioned(
+                              left: !selected
+                                  ? 0
+                                  : index == 0
+                                  ? TabReferenceMetrics
+                                        .historyFirstSelectedLeftOffset
+                                  : TabReferenceMetrics
+                                        .historySelectedSideInset,
+                              right: !selected
+                                  ? 0
+                                  : index == 0
+                                  ? TabReferenceMetrics
+                                        .historyFirstSelectedRightInset
+                                  : index == 2
+                                  ? TabReferenceMetrics
+                                        .historyDealsSelectedRightInset
+                                  : TabReferenceMetrics
+                                        .historySelectedSideInset,
+                              top: 0,
+                              bottom: 0,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? AppColors.historySegmentSelected
+                                      : AppColors.transparent,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
                             ),
-                          ),
+                            Align(
+                              alignment: index == 2
+                                  ? const Alignment(0, -.1)
+                                  : Alignment.center,
+                              child: Transform.translate(
+                                offset: index == 0
+                                    ? const Offset(-2.3333333333, .6666666667)
+                                    : Offset.zero,
+                                child: Text(
+                                  labels[index],
+                                  key: ValueKey('history-segment-label-$index'),
+                                  maxLines: 1,
+                                  style: index == 2
+                                      ? AppTypography.historyDealsSegment
+                                      : AppTypography.historySegment,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -992,7 +1022,7 @@ class _DealsHistory extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(
           6,
           _historyListTopPadding(context),
-          4,
+          5.3333333333,
           81.3333333333,
         ),
         itemCount: deals.length + 2,
@@ -1026,19 +1056,18 @@ class _DealsHistory extends StatelessWidget {
                             TextSpan(
                               children: [
                                 TextSpan(
-                                  text: '${displayTradingSymbol(deal.symbol)} ',
+                                  text: displayTradingSymbol(deal.symbol),
                                   style: const TextStyle(
                                     color: AppColors.textPrimary,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                TextSpan(
+                                _historyActionSpan(
                                   text:
-                                      '${deal.side.toLowerCase()}, '
+                                      ' ${deal.side.toLowerCase()}, '
                                       '${deal.entry}',
-                                  style: TextStyle(
-                                    color: _sideColor(deal.side),
-                                  ),
+                                  color: _sideColor(deal.side),
+                                  key: ValueKey('history-deals-action-$index'),
                                 ),
                               ],
                             ),
@@ -1047,23 +1076,28 @@ class _DealsHistory extends StatelessWidget {
                         ),
                         Positioned(
                           left: 0,
-                          top: TabReferenceMetrics.historySecondaryTop,
-                          child: Text(
-                            '${deal.volume.toStringAsFixed(2)} at '
-                            '${deal.price.toStringAsFixed(_historyPriceDigitsForSymbol(deal.symbol))}',
-                            key: ValueKey('history-deals-secondary-$index'),
-                            style: AppTypography.historySecondary,
+                          top: TabReferenceMetrics.historyDealSecondaryTop,
+                          child: _HistoryDealSecondaryInk(
+                            child: Text(
+                              '${_historyVolumeLabel(deal.volume)} at '
+                              '${deal.price.toStringAsFixed(_historyPriceDigitsForSymbol(deal.symbol))}',
+                              key: ValueKey('history-deals-secondary-$index'),
+                              style: AppTypography.historySecondary,
+                            ),
                           ),
                         ),
                         Positioned(
                           right: 0,
-                          top: TabReferenceMetrics.historySecondaryTop,
-                          child: Text(
-                            deal.time,
-                            key: ValueKey(
-                              'history-deals-trailing-secondary-$index',
+                          top: TabReferenceMetrics.historyDealSecondaryTop,
+                          child: _HistoryDealSecondaryInk(
+                            trailing: true,
+                            child: Text(
+                              deal.time,
+                              key: ValueKey(
+                                'history-deals-trailing-secondary-$index',
+                              ),
+                              style: AppTypography.historyTrailingSecondary,
                             ),
-                            style: AppTypography.historySecondary,
                           ),
                         ),
                       ],
@@ -1120,7 +1154,7 @@ class _OrdersHistory extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(
           6,
           _historyListTopPadding(context),
-          4,
+          5.3333333333,
           81.3333333333,
         ),
         itemCount: orders.length + 2,
@@ -1154,18 +1188,16 @@ class _OrdersHistory extends StatelessWidget {
                             TextSpan(
                               children: [
                                 TextSpan(
-                                  text:
-                                      '${displayTradingSymbol(order.symbol)} ',
+                                  text: displayTradingSymbol(order.symbol),
                                   style: const TextStyle(
                                     color: AppColors.textPrimary,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                TextSpan(
-                                  text: _orderTypeLabel(order),
-                                  style: TextStyle(
-                                    color: _sideColor(order.side),
-                                  ),
+                                _historyActionSpan(
+                                  text: ' ${_orderTypeLabel(order)}',
+                                  color: _sideColor(order.side),
+                                  key: ValueKey('history-orders-action-$index'),
                                 ),
                               ],
                             ),
@@ -1175,13 +1207,25 @@ class _OrdersHistory extends StatelessWidget {
                         Positioned(
                           right: 0,
                           top: TabReferenceMetrics.historyPrimaryTop,
-                          child: Text(
-                            order.status,
-                            key: ValueKey(
-                              'history-orders-trailing-primary-$index',
+                          child: Transform.translate(
+                            offset: const Offset(
+                              TabReferenceMetrics.historyOrderStatusOffsetX,
+                              TabReferenceMetrics.historyOrderStatusOffsetY,
                             ),
-                            style: AppTypography.historyPrimary.copyWith(
-                              color: AppColors.primary,
+                            child: Transform.scale(
+                              scaleY:
+                                  TabReferenceMetrics.historyOrderStatusScaleY,
+                              alignment: Alignment.bottomRight,
+                              child: Text(
+                                order.status,
+                                key: ValueKey(
+                                  'history-orders-trailing-primary-$index',
+                                ),
+                                style: AppTypography.historyTrailingPrimary
+                                    .copyWith(
+                                      color: AppColors.historyOrderStatus,
+                                    ),
+                              ),
                             ),
                           ),
                         ),
@@ -1202,7 +1246,7 @@ class _OrdersHistory extends StatelessWidget {
                             key: ValueKey(
                               'history-orders-trailing-secondary-$index',
                             ),
-                            style: AppTypography.historySecondary,
+                            style: AppTypography.historyTrailingSecondary,
                           ),
                         ),
                       ],
@@ -1217,13 +1261,13 @@ class _OrdersHistory extends StatelessWidget {
           }
           return _SummaryRows(
             rows: [
-              ('Tổng cộng', '${orders.length}'),
+              ('Tong cong', '${orders.length}'),
               (
                 'Filled',
                 '${orders.where((item) => item.status == 'filled').length}',
               ),
               (
-                'Bị hủy',
+                'Bi huy',
                 '${orders.where((item) => item.status == 'canceled').length}',
               ),
             ],
@@ -1271,7 +1315,7 @@ class _PositionsHistory extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(
           6,
           _historyListTopPadding(context),
-          4,
+          5.3333333333,
           81.3333333333,
         ),
         itemCount: entries.length + 1,
@@ -1332,11 +1376,7 @@ class _HistoryPositionRow extends StatelessWidget {
         ? AppColors.negative
         : AppColors.primary;
     final volume = entry.volume;
-    final volumeLabel = volume == null
-        ? ''
-        : volume >= 1
-        ? volume.toStringAsFixed(0)
-        : volume.toStringAsFixed(2);
+    final volumeLabel = volume == null ? '' : _historyVolumeLabel(volume);
     final priceDigits = _historyPriceDigitsForSymbol(entry.title);
     return Semantics(
       button: onTap != null,
@@ -1364,10 +1404,13 @@ class _HistoryPositionRow extends StatelessWidget {
                           ),
                         ),
                         if (!entry.isBalance)
-                          TextSpan(
+                          _historyActionSpan(
                             text:
                                 ' ${entry.side?.toLowerCase() ?? ''} $volumeLabel',
-                            style: TextStyle(color: sideColor),
+                            color: sideColor,
+                            key: ValueKey(
+                              'history-positions-action-$roleIndex',
+                            ),
                           ),
                       ],
                     ),
@@ -1386,7 +1429,7 @@ class _HistoryPositionRow extends StatelessWidget {
                     key: ValueKey(
                       'history-positions-trailing-primary-$roleIndex',
                     ),
-                    style: AppTypography.historyPrimary.copyWith(
+                    style: AppTypography.historyTrailingPrimary.copyWith(
                       color: profitColor,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
@@ -1394,14 +1437,29 @@ class _HistoryPositionRow extends StatelessWidget {
                 ),
                 Positioned(
                   left: 0,
-                  top: TabReferenceMetrics.historySecondaryTop,
-                  child: Text(
-                    entry.isBalance
-                        ? entry.subtitle ?? ''
-                        : _historyPriceRange(entry, priceDigits),
-                    key: ValueKey('history-positions-secondary-$roleIndex'),
-                    style: AppTypography.historySecondary,
-                  ),
+                  top: entry.isBalance
+                      ? TabReferenceMetrics.historySecondaryTop
+                      : TabReferenceMetrics.historyPriceRangeTop,
+                  child: entry.isBalance
+                      ? Text(
+                          entry.subtitle ?? '',
+                          key: ValueKey(
+                            'history-positions-secondary-$roleIndex',
+                          ),
+                          style: AppTypography.historySecondary,
+                        )
+                      : MtPriceRangeText(
+                          openPrice:
+                              entry.openPrice?.toStringAsFixed(priceDigits) ??
+                              '—',
+                          closePrice:
+                              entry.closePrice?.toStringAsFixed(priceDigits) ??
+                              '—',
+                          textKey: ValueKey(
+                            'history-positions-secondary-$roleIndex',
+                          ),
+                          style: AppTypography.historyPriceRange,
+                        ),
                 ),
                 Positioned(
                   right: 0,
@@ -1411,7 +1469,7 @@ class _HistoryPositionRow extends StatelessWidget {
                     key: ValueKey(
                       'history-positions-trailing-secondary-$roleIndex',
                     ),
-                    style: AppTypography.historySecondary,
+                    style: AppTypography.historyTrailingSecondary,
                   ),
                 ),
               ],
@@ -1421,6 +1479,37 @@ class _HistoryPositionRow extends StatelessWidget {
       ),
     );
   }
+}
+
+WidgetSpan _historyActionSpan({
+  required String text,
+  required Color color,
+  required Key key,
+}) => WidgetSpan(
+  alignment: PlaceholderAlignment.baseline,
+  baseline: TextBaseline.alphabetic,
+  child: Transform.translate(
+    offset: const Offset(0, TabReferenceMetrics.historyActionOffsetY),
+    child: Text(
+      text,
+      key: key,
+      style: AppTypography.historyAction.copyWith(color: color),
+    ),
+  ),
+);
+
+class _HistoryDealSecondaryInk extends StatelessWidget {
+  const _HistoryDealSecondaryInk({required this.child, this.trailing = false});
+
+  final Widget child;
+  final bool trailing;
+
+  @override
+  Widget build(BuildContext context) => Transform.scale(
+    scaleY: TabReferenceMetrics.historyDealSecondaryScaleY,
+    alignment: trailing ? Alignment.topRight : Alignment.topLeft,
+    child: child,
+  );
 }
 
 String _formatMoney(double value) {
@@ -1451,23 +1540,14 @@ class _SummaryRows extends StatelessWidget {
               height: TabReferenceMetrics.historySummaryRowHeight,
               child: Row(
                 children: [
-                  Text(
-                    row.$1,
-                    key: ValueKey('history-summary-label-${row.$1}'),
-                    style: row.$1 == 'Tổng cộng'
-                        ? AppTypography.historySummary.copyWith(
-                            fontSize: 13.5,
-                            letterSpacing: .7,
-                          )
-                        : AppTypography.historySummary,
-                  ),
+                  _historySummaryLabel(row.$1),
                   const Spacer(),
                   Text(
                     row.$2,
                     key: row.$1 == 'Loi nhuan'
                         ? const Key('history-report-profit-value')
                         : ValueKey('history-summary-value-${row.$1}'),
-                    style: AppTypography.historySummary,
+                    style: AppTypography.historySummaryValue,
                   ),
                 ],
               ),
@@ -1476,6 +1556,24 @@ class _SummaryRows extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _historySummaryLabel(String label) {
+  final text = Text(
+    label,
+    key: ValueKey('history-summary-label-$label'),
+    style: label == 'Tong cong'
+        ? AppTypography.historyOrderSummaryTotal
+        : AppTypography.historySummary,
+  );
+  if (label != 'Tong cong') return text;
+  return Transform.translate(
+    offset: const Offset(
+      0,
+      TabReferenceMetrics.historyOrderSummaryTotalOffsetY,
+    ),
+    child: text,
+  );
 }
 
 class _DealDetailSheet extends StatelessWidget {
@@ -1516,7 +1614,7 @@ class _DealDetailSheet extends StatelessWidget {
                       left: 4,
                       top: 9,
                       child: Text(
-                        '${deal.volume.toStringAsFixed(2)} at '
+                        '${_historyVolumeLabel(deal.volume)} at '
                         '${deal.price.toStringAsFixed(_historyPriceDigitsForSymbol(deal.symbol))}',
                         style: _HistoryDetailStyles.value,
                       ),
@@ -1679,9 +1777,7 @@ class _PositionHistoryDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final volume = entry.volume ?? 0;
-    final volumeLabel = volume >= 1
-        ? volume.toStringAsFixed(0)
-        : volume.toStringAsFixed(2);
+    final volumeLabel = _historyVolumeLabel(volume);
     final priceDigits = _historyPriceDigitsForSymbol(entry.title);
     final side = entry.side?.toLowerCase() ?? '';
     return SafeArea(
@@ -1715,8 +1811,15 @@ class _PositionHistoryDetailSheet extends StatelessWidget {
                       top: 9,
                       child: Row(
                         children: [
-                          Text(
-                            _historyPriceRange(entry, priceDigits),
+                          MtPriceRangeText(
+                            openPrice:
+                                entry.openPrice?.toStringAsFixed(priceDigits) ??
+                                '—',
+                            closePrice:
+                                entry.closePrice?.toStringAsFixed(
+                                  priceDigits,
+                                ) ??
+                                '—',
                             style: _HistoryDetailStyles.value,
                           ),
                           const Spacer(),
@@ -1997,9 +2100,9 @@ String _orderTypeLabel(DemoOrder order) => order.type == 'Market'
     : order.type.toLowerCase();
 
 String _orderVolumeLabel(DemoOrder order) =>
-    '${order.volume.toStringAsFixed(2)} / '
-    '${order.status == 'filled' ? order.volume.toStringAsFixed(2) : '0.00'} '
-    'at ${order.type == 'Market' ? 'market' : order.requestedPrice.toStringAsFixed(2)}';
+    '${_historyVolumeLabel(order.volume)} / '
+    '${_historyVolumeLabel(order.status == 'filled' ? order.volume : 0)} '
+    'at ${order.type == 'Market' ? 'market' : order.requestedPrice.toStringAsFixed(_historyPriceDigitsForSymbol(order.symbol))}';
 
 String _symbolDescription(String symbol) => switch (symbol) {
   'XAUUSD' || 'XAUUSD+' => 'Gold US Dollar',

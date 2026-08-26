@@ -15,6 +15,8 @@ abstract final class AppColors {
   static const navigationUnselected = Color(0xFF303030);
   static const dimBarrier = Color(0x39000000);
   static const primary = Color(0xFF007FFF);
+  static const historyOrderStatus = Color(0xFF294675);
+  static const historySegmentSelected = Color(0xFFEDEDED);
   static const primaryMuted = Color(0xFFDCEBFF);
   static const positive = Color(0xFF007FFF);
   static const negative = Color(0xFFE42D30);

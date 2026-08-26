@@ -20,7 +20,7 @@ import 'test_support/reference_font_loader.dart';
 import 'test_support/tab_reference_manifest.dart';
 import 'test_support/video_reference_fixtures.dart';
 
-final _referenceNow = DateTime.utc(2026, 8, 25, 18, 25);
+final _referenceNow = DateTime.utc(2026, 8, 25, 22, 24, 35);
 const _referenceFlutterSize = Size(393.3333333333, 853.3333333333);
 
 void main() {
@@ -86,10 +86,18 @@ Future<void> pumpTabReference(
   WidgetTester tester,
   TabReferenceState state,
 ) async {
+  final referenceQuotes = _referenceQuotesFor(state);
+  final seedQuotes = _referenceSeedQuotesFor(state, referenceQuotes);
   await tester.pumpWidget(
     ProviderScope(
+      key: ValueKey('tab-reference-${state.name}'),
       overrides: [
-        ...videoReferenceOverrides,
+        demoAccountCatalogProvider.overrideWithValue(videoDemoAccountProfiles),
+        demoTradingSeedProvider.overrideWithValue(_referenceTradingSeed),
+        demoMarginCalculatorProvider.overrideWithValue(
+          (_, positionCount) => positionCount == 0 ? 0 : 51043.86,
+        ),
+        demoQuotesProvider.overrideWithValue(seedQuotes),
         activeDemoAccountProvider.overrideWithValue(_referenceHistoryProfile),
         demoHistoryPositionsProvider.overrideWithValue(
           _referenceHistoryPositions,
@@ -105,9 +113,9 @@ Future<void> pumpTabReference(
         marketClockProvider.overrideWithValue(() => _referenceNow),
         demoQuoteProvider.overrideWith((ref, symbol) {
           final normalized = symbol.replaceAll('+', '');
-          final quote = videoDemoQuotes.firstWhere(
+          final quote = referenceQuotes.firstWhere(
             (item) => item.symbol.replaceAll('+', '') == normalized,
-            orElse: () => videoDemoQuotes.first,
+            orElse: () => referenceQuotes.first,
           );
           return Stream.value(
             DemoQuote(
@@ -117,6 +125,9 @@ Future<void> pumpTabReference(
               ask: quote.ask,
               changePercent: quote.changePercent,
               sourceTimestamp: _referenceNow,
+              previousClose: quote.previousClose,
+              dailyLow: quote.dailyLow,
+              dailyHigh: quote.dailyHigh,
             ),
           );
         }),
@@ -158,7 +169,7 @@ Future<void> pumpTabReference(
     case TabReferenceState.historyOrders:
       await tester.tap(find.byKey(const Key('history-tab-1')));
       await tester.pump();
-      await _jumpHistoryBy(tester, 'history-orders-list', 22);
+      await _jumpHistoryBy(tester, 'history-orders-list', 21.3333333333);
     case TabReferenceState.historyOrdersSummary:
       await tester.tap(find.byKey(const Key('history-tab-1')));
       await tester.pump();
@@ -176,6 +187,196 @@ Future<void> pumpTabReference(
       break;
   }
 }
+
+List<DemoQuote> _referenceQuotesFor(TabReferenceState state) => switch (state) {
+  TabReferenceState.prices => const [
+    DemoQuote(
+      symbol: 'XAUUSD+',
+      name: 'Gold US Dollar',
+      bid: 4640.91,
+      ask: 4641.24,
+      changePercent: -.23,
+      previousClose: 4651.65,
+      dailyLow: 4601.08,
+      dailyHigh: 4696.73,
+    ),
+    DemoQuote(
+      symbol: 'BTCUSD',
+      name: 'Bitcoin',
+      bid: 35.04,
+      ask: 35.05,
+      changePercent: .66,
+      previousClose: 34.81,
+      dailyLow: 34.54,
+      dailyHigh: 35.11,
+    ),
+  ],
+  TabReferenceState.chart => const [
+    DemoQuote(
+      symbol: 'XAUUSD+',
+      name: 'Gold US Dollar',
+      bid: 4640.75,
+      ask: 4641.03,
+      changePercent: -.23,
+    ),
+  ],
+  TabReferenceState.trade => const [
+    DemoQuote(
+      symbol: 'XAUUSD+',
+      name: 'Gold US Dollar',
+      bid: 4640.81,
+      ask: 4641.04,
+      changePercent: 0,
+    ),
+  ],
+  _ => videoDemoQuotes,
+};
+
+List<DemoQuote> _referenceSeedQuotesFor(
+  TabReferenceState state,
+  List<DemoQuote> liveQuotes,
+) => switch (state) {
+  TabReferenceState.prices => const [
+    DemoQuote(
+      symbol: 'XAUUSD+',
+      name: 'Gold US Dollar',
+      bid: 4640.90,
+      ask: 4641.23,
+      changePercent: -.23,
+      previousClose: 4651.65,
+      dailyLow: 4601.08,
+      dailyHigh: 4696.73,
+    ),
+    DemoQuote(
+      symbol: 'BTCUSD',
+      name: 'Bitcoin',
+      bid: 35.05,
+      ask: 35.06,
+      changePercent: .66,
+      previousClose: 34.81,
+      dailyLow: 34.54,
+      dailyHigh: 35.11,
+    ),
+  ],
+  _ => liveQuotes,
+};
+
+DemoTradingState _referenceTradingSeed(String accountId) => DemoTradingState(
+  positions: _referenceOpenPositions,
+  deals: const [],
+  balance: 103310,
+);
+
+const _referenceOpenPositions = <DemoPosition>[
+  DemoPosition(
+    id: 'reference-open-1',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4637.05,
+    currentPrice: 4640.81,
+    profit: 376,
+  ),
+  DemoPosition(
+    id: 'reference-open-2',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4637.05,
+    currentPrice: 4640.81,
+    profit: 376,
+  ),
+  DemoPosition(
+    id: 'reference-open-3',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4637.06,
+    currentPrice: 4640.81,
+    profit: 375,
+  ),
+  DemoPosition(
+    id: 'reference-open-4',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4637.08,
+    currentPrice: 4640.81,
+    profit: 373,
+  ),
+  DemoPosition(
+    id: 'reference-open-5',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4637.08,
+    currentPrice: 4640.81,
+    profit: 373,
+  ),
+  DemoPosition(
+    id: 'reference-open-6',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4637.47,
+    currentPrice: 4640.81,
+    profit: 334,
+  ),
+  DemoPosition(
+    id: 'reference-open-7',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4644.22,
+    currentPrice: 4640.81,
+    profit: -341,
+  ),
+  DemoPosition(
+    id: 'reference-open-8',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4644.22,
+    currentPrice: 4640.81,
+    profit: -341,
+  ),
+  DemoPosition(
+    id: 'reference-open-9',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4644.21,
+    currentPrice: 4640.81,
+    profit: -340,
+  ),
+  DemoPosition(
+    id: 'reference-open-10',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4644.21,
+    currentPrice: 4640.81,
+    profit: -340,
+  ),
+  DemoPosition(
+    id: 'reference-open-11',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4644.21,
+    currentPrice: 4640.81,
+    profit: -340,
+  ),
+  DemoPosition(
+    id: 'reference-open-12',
+    symbol: 'XAUUSD+',
+    side: 'BUY',
+    volume: 1,
+    openPrice: 4641.566,
+    currentPrice: 4640.81,
+    profit: -75.6,
+  ),
+];
 
 Widget _screenFor(TabReferenceState state) => switch (state) {
   TabReferenceState.prices => const MarketWatchScreen(),

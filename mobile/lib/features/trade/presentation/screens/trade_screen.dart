@@ -13,6 +13,7 @@ import 'package:trading_mobile/features/trade/presentation/widgets/position_bulk
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
+import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
 
 const _tradeSecondaryPrice = Color(0xFFB8B8BD);
 
@@ -109,7 +110,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                         padding: const EdgeInsets.fromLTRB(
                           6,
                           9.3333333333,
-                          4.6333333333,
+                          6,
                           1.3333333333,
                         ),
                         child: Column(
@@ -846,7 +847,7 @@ class _TradeHeader extends StatelessWidget {
         children: [
           Positioned(
             left: 15.3333333333,
-            top: 37,
+            top: 30.3333333333,
             child: _TradeCircleButton(
               key: const Key('trade-balance-button'),
               semanticLabel: 'Số dư',
@@ -860,7 +861,7 @@ class _TradeHeader extends StatelessWidget {
           Positioned(
             left: 0,
             right: 0,
-            top: 46.6333333333,
+            top: 40,
             child: IgnorePointer(
               child: Text(
                 empty ? 'USD' : '${_formatTradeNumber(totalProfit)} USD',
@@ -885,7 +886,7 @@ class _TradeHeader extends StatelessWidget {
           ),
           Positioned(
             right: 13.3333333333,
-            top: 37,
+            top: 30.3333333333,
             child: _TradeCircleButton(
               key: const Key('trade-add-button'),
               semanticLabel: 'Lệnh mới',
@@ -1103,14 +1104,17 @@ class _AccountMetric extends StatelessWidget {
           Expanded(
             child: Align(
               alignment: Alignment.centerRight,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  value,
-                  key: ValueKey('trade-metric-value-$label'),
-                  maxLines: 1,
-                  style: AppTypography.tradeMetric,
+              child: Transform.translate(
+                offset: const Offset(0, .6666666667),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    value,
+                    key: ValueKey('trade-metric-value-$label'),
+                    maxLines: 1,
+                    style: AppTypography.tradeMetricValue,
+                  ),
                 ),
               ),
             ),
@@ -1328,7 +1332,7 @@ class _PositionRowState extends State<_PositionRow> {
                     padding: const EdgeInsets.fromLTRB(
                       6,
                       8.6666666667,
-                      4.6333333333,
+                      6.6333333333,
                       2,
                     ),
                     child: Row(
@@ -1375,10 +1379,12 @@ class _PositionRowState extends State<_PositionRow> {
                                   left: 0,
                                   top: TabReferenceMetrics
                                       .tradePositionSecondaryTop,
-                                  child: Text(
-                                    '${position.openPrice.toStringAsFixed(priceDigits)} → '
-                                    '${position.currentPrice.toStringAsFixed(priceDigits)}',
-                                    key: ValueKey(
+                                  child: MtPriceRangeText(
+                                    openPrice: position.openPrice
+                                        .toStringAsFixed(priceDigits),
+                                    closePrice: position.currentPrice
+                                        .toStringAsFixed(priceDigits),
+                                    textKey: ValueKey(
                                       'trade-position-secondary-${position.id}',
                                     ),
                                     style: AppTypography.tradePositionSecondary,
@@ -1391,7 +1397,7 @@ class _PositionRowState extends State<_PositionRow> {
                         Padding(
                           padding: const EdgeInsets.only(top: 5),
                           child: Transform.translate(
-                            offset: const Offset(.6666666667, 0),
+                            offset: const Offset(.6666666667, 1.3333333333),
                             child: Text(
                               _formatTradeNumber(position.profit),
                               key: ValueKey(

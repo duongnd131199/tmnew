@@ -47,18 +47,117 @@ class StaticTextRegion {
     required this.referenceRect,
     required this.candidateRect,
     required this.ink,
+    this.geometryInk,
+    this.geometryColorTolerance = 112,
+    this.semanticColorTolerance = 6,
+    this.measureLargestGeometryComponent = false,
   });
 
   final String name;
   final ReferencePixelRect referenceRect;
   final ReferencePixelRect candidateRect;
   final ReferenceInk ink;
+  final ReferenceInk? geometryInk;
+  final int geometryColorTolerance;
+  final int semanticColorTolerance;
+  final bool measureLargestGeometryComponent;
 }
 
 const referencePrimaryInk = ReferenceInk(17, 17, 17);
 const referenceSecondaryInk = ReferenceInk(92, 92, 96);
 const referenceBlueInk = ReferenceInk(0, 127, 255);
+const referenceRedInk = ReferenceInk(228, 45, 48);
 const referenceWhiteInk = ReferenceInk(255, 255, 255);
+const referenceNavigationInk = ReferenceInk(48, 48, 48);
+const referenceHistoryStatusInk = ReferenceInk(41, 70, 117);
+const referenceHistorySegmentSelectedInk = ReferenceInk(237, 237, 237);
+const referenceChartToolbarInk = ReferenceInk(64, 64, 64);
+const referenceChartBlueInk = ReferenceInk(49, 131, 255);
+const referenceBlackInk = ReferenceInk(0, 0, 0);
+
+const _navigationPrices = StaticTextRegion(
+  name: 'navigation-prices-label',
+  referenceRect: ReferencePixelRect(60, 1223, 60, 21),
+  candidateRect: ReferencePixelRect(60, 1223, 60, 21),
+  ink: referenceNavigationInk,
+);
+const _navigationPricesSelected = StaticTextRegion(
+  name: 'navigation-prices-label',
+  referenceRect: ReferencePixelRect(60, 1223, 60, 21),
+  candidateRect: ReferencePixelRect(60, 1223, 60, 21),
+  ink: referenceBlueInk,
+);
+const _navigationChart = StaticTextRegion(
+  name: 'navigation-chart-label',
+  referenceRect: ReferencePixelRect(150, 1223, 110, 21),
+  candidateRect: ReferencePixelRect(150, 1223, 110, 21),
+  ink: referenceNavigationInk,
+);
+const _navigationChartSelected = StaticTextRegion(
+  name: 'navigation-chart-label',
+  referenceRect: ReferencePixelRect(150, 1223, 110, 21),
+  candidateRect: ReferencePixelRect(150, 1223, 110, 21),
+  ink: referenceBlueInk,
+);
+const _navigationTrade = StaticTextRegion(
+  name: 'navigation-trade-label',
+  referenceRect: ReferencePixelRect(255, 1223, 100, 21),
+  candidateRect: ReferencePixelRect(255, 1223, 100, 21),
+  ink: referenceNavigationInk,
+);
+const _navigationTradeSelected = StaticTextRegion(
+  name: 'navigation-trade-label',
+  referenceRect: ReferencePixelRect(255, 1223, 100, 21),
+  candidateRect: ReferencePixelRect(255, 1223, 100, 21),
+  ink: referenceBlueInk,
+);
+const _navigationHistory = StaticTextRegion(
+  name: 'navigation-history-label',
+  referenceRect: ReferencePixelRect(350, 1223, 100, 21),
+  candidateRect: ReferencePixelRect(350, 1223, 100, 21),
+  ink: referenceNavigationInk,
+);
+const _navigationHistorySelected = StaticTextRegion(
+  name: 'navigation-history-label',
+  referenceRect: ReferencePixelRect(350, 1223, 100, 21),
+  candidateRect: ReferencePixelRect(350, 1223, 100, 21),
+  ink: referenceBlueInk,
+);
+const _navigationSettings = StaticTextRegion(
+  name: 'navigation-settings-label',
+  referenceRect: ReferencePixelRect(470, 1223, 60, 12),
+  candidateRect: ReferencePixelRect(470, 1223, 60, 12),
+  ink: referenceNavigationInk,
+);
+
+const _pricesNavigationRegions = <StaticTextRegion>[
+  _navigationPricesSelected,
+  _navigationChart,
+  _navigationTrade,
+  _navigationHistory,
+  _navigationSettings,
+];
+const _chartNavigationRegions = <StaticTextRegion>[
+  _navigationPrices,
+  _navigationChartSelected,
+  _navigationTrade,
+  _navigationHistory,
+  _navigationSettings,
+];
+const _tradeNavigationRegions = <StaticTextRegion>[
+  _navigationPrices,
+  _navigationChart,
+  _navigationTradeSelected,
+  _navigationHistory,
+  _navigationSettings,
+];
+const _historyNavigationRegions = <StaticTextRegion>[
+  _navigationPrices,
+  _navigationChart,
+  _navigationTrade,
+  _navigationHistorySelected,
+  _navigationSettings,
+];
 
 class TabReferenceCase {
   const TabReferenceCase({
@@ -94,23 +193,86 @@ const tabReferenceCases = <TabReferenceCase>[
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
+        name: 'quote-corner',
+        referenceRect: ReferencePixelRect(0, 150, 20, 28),
+        candidateRect: ReferencePixelRect(0, 150, 20, 28),
+        ink: referenceBlueInk,
+      ),
+      StaticTextRegion(
         name: 'quote-symbol',
         referenceRect: ReferencePixelRect(4, 184, 105, 38),
         candidateRect: ReferencePixelRect(4, 188, 120, 34),
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
-        name: 'navigation-selected-label',
-        referenceRect: ReferencePixelRect(60, 1219, 55, 25),
-        candidateRect: ReferencePixelRect(60, 1219, 55, 25),
+        name: 'second-quote-symbol',
+        referenceRect: ReferencePixelRect(4, 297, 120, 25),
+        candidateRect: ReferencePixelRect(4, 297, 120, 25),
+        ink: referencePrimaryInk,
+      ),
+      StaticTextRegion(
+        name: 'first-quote-bid',
+        referenceRect: ReferencePixelRect(345, 180, 130, 45),
+        candidateRect: ReferencePixelRect(345, 180, 130, 45),
         ink: referenceBlueInk,
       ),
+      StaticTextRegion(
+        name: 'first-quote-ask',
+        referenceRect: ReferencePixelRect(470, 180, 120, 45),
+        candidateRect: ReferencePixelRect(470, 180, 120, 45),
+        ink: referenceBlueInk,
+      ),
+      StaticTextRegion(
+        name: 'second-quote-bid',
+        referenceRect: ReferencePixelRect(365, 278, 110, 45),
+        candidateRect: ReferencePixelRect(365, 278, 110, 45),
+        ink: referenceRedInk,
+      ),
+      StaticTextRegion(
+        name: 'second-quote-ask',
+        referenceRect: ReferencePixelRect(485, 278, 105, 45),
+        candidateRect: ReferencePixelRect(485, 278, 105, 45),
+        ink: referenceRedInk,
+      ),
+      StaticTextRegion(
+        name: 'first-quote-time',
+        referenceRect: ReferencePixelRect(4, 220, 101, 38),
+        candidateRect: ReferencePixelRect(4, 220, 101, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'first-quote-low',
+        referenceRect: ReferencePixelRect(345, 220, 135, 38),
+        candidateRect: ReferencePixelRect(345, 220, 135, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'first-quote-high',
+        referenceRect: ReferencePixelRect(470, 220, 120, 38),
+        candidateRect: ReferencePixelRect(470, 220, 120, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'second-quote-time',
+        referenceRect: ReferencePixelRect(4, 320, 120, 38),
+        candidateRect: ReferencePixelRect(4, 320, 120, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'second-quote-low',
+        referenceRect: ReferencePixelRect(365, 320, 110, 38),
+        candidateRect: ReferencePixelRect(365, 320, 110, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'second-quote-high',
+        referenceRect: ReferencePixelRect(485, 320, 105, 38),
+        candidateRect: ReferencePixelRect(485, 320, 105, 38),
+        ink: referenceSecondaryInk,
+      ),
+      ..._pricesNavigationRegions,
     ],
-    dynamicMasks: [
-      ReferencePixelRect(0, 0, 590, 70),
-      ReferencePixelRect(0, 150, 590, 34),
-      ReferencePixelRect(330, 178, 260, 180),
-    ],
+    dynamicMasks: [ReferencePixelRect(0, 0, 590, 70)],
   ),
   TabReferenceCase(
     id: 'chart',
@@ -121,7 +283,8 @@ const tabReferenceCases = <TabReferenceCase>[
         name: 'toolbar-timeframe',
         referenceRect: ReferencePixelRect(12, 92, 52, 42),
         candidateRect: ReferencePixelRect(12, 90, 52, 42),
-        ink: referencePrimaryInk,
+        ink: referenceChartToolbarInk,
+        geometryInk: referencePrimaryInk,
       ),
       StaticTextRegion(
         name: 'ticket-sell-label',
@@ -130,16 +293,42 @@ const tabReferenceCases = <TabReferenceCase>[
         ink: referenceWhiteInk,
       ),
       StaticTextRegion(
-        name: 'navigation-selected-label',
-        referenceRect: ReferencePixelRect(150, 1219, 105, 25),
-        candidateRect: ReferencePixelRect(150, 1219, 105, 25),
-        ink: referenceBlueInk,
+        name: 'ticket-buy-label',
+        referenceRect: ReferencePixelRect(418, 146, 34, 16),
+        candidateRect: ReferencePixelRect(418, 146, 34, 16),
+        ink: referenceWhiteInk,
       ),
+      StaticTextRegion(
+        name: 'ticket-sell-price',
+        referenceRect: ReferencePixelRect(35, 164, 120, 31),
+        candidateRect: ReferencePixelRect(35, 164, 120, 31),
+        ink: referenceWhiteInk,
+      ),
+      StaticTextRegion(
+        name: 'ticket-buy-price',
+        referenceRect: ReferencePixelRect(445, 164, 135, 31),
+        candidateRect: ReferencePixelRect(445, 164, 135, 31),
+        ink: referenceWhiteInk,
+      ),
+      StaticTextRegion(
+        name: 'plot-symbol',
+        referenceRect: ReferencePixelRect(0, 200, 105, 20),
+        candidateRect: ReferencePixelRect(0, 200, 105, 20),
+        ink: referenceChartBlueInk,
+        geometryInk: referenceBlueInk,
+      ),
+      StaticTextRegion(
+        name: 'plot-subtitle',
+        referenceRect: ReferencePixelRect(0, 225, 180, 35),
+        candidateRect: ReferencePixelRect(0, 225, 180, 35),
+        ink: referenceBlackInk,
+        geometryInk: referencePrimaryInk,
+      ),
+      ..._chartNavigationRegions,
     ],
     dynamicMasks: [
       ReferencePixelRect(0, 0, 590, 68),
-      ReferencePixelRect(62, 140, 528, 60),
-      ReferencePixelRect(0, 200, 590, 950),
+      ReferencePixelRect(177, 140, 235, 60),
     ],
   ),
   TabReferenceCase(
@@ -165,12 +354,33 @@ const tabReferenceCases = <TabReferenceCase>[
         candidateRect: ReferencePixelRect(4, 360, 110, 48),
         ink: referencePrimaryInk,
       ),
+      StaticTextRegion(
+        name: 'header-profit',
+        referenceRect: ReferencePixelRect(190, 85, 210, 50),
+        candidateRect: ReferencePixelRect(190, 85, 210, 50),
+        ink: referenceBlueInk,
+      ),
+      StaticTextRegion(
+        name: 'metric-value',
+        referenceRect: ReferencePixelRect(445, 155, 145, 40),
+        candidateRect: ReferencePixelRect(445, 155, 145, 40),
+        ink: referencePrimaryInk,
+      ),
+      StaticTextRegion(
+        name: 'position-secondary',
+        referenceRect: ReferencePixelRect(4, 402, 225, 40),
+        candidateRect: ReferencePixelRect(4, 402, 225, 40),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'position-profit',
+        referenceRect: ReferencePixelRect(475, 375, 115, 45),
+        candidateRect: ReferencePixelRect(475, 375, 115, 45),
+        ink: referenceBlueInk,
+      ),
+      ..._tradeNavigationRegions,
     ],
-    dynamicMasks: [
-      ReferencePixelRect(0, 0, 590, 75),
-      ReferencePixelRect(190, 80, 400, 245),
-      ReferencePixelRect(450, 365, 140, 790),
-    ],
+    dynamicMasks: [ReferencePixelRect(0, 0, 590, 75)],
   ),
   TabReferenceCase(
     id: 'history-positions',
@@ -178,9 +388,30 @@ const tabReferenceCases = <TabReferenceCase>[
     state: TabReferenceState.historyPositions,
     staticTextRegions: [
       StaticTextRegion(
+        name: 'selected-segment-surface',
+        referenceRect: ReferencePixelRect(105, 97, 130, 6),
+        candidateRect: ReferencePixelRect(105, 97, 130, 6),
+        ink: referenceHistorySegmentSelectedInk,
+        geometryColorTolerance: 10,
+        semanticColorTolerance: 6,
+        measureLargestGeometryComponent: true,
+      ),
+      StaticTextRegion(
         name: 'segment-orders',
         referenceRect: ReferencePixelRect(235, 91, 120, 48),
         candidateRect: ReferencePixelRect(230, 103, 125, 50),
+        ink: referencePrimaryInk,
+      ),
+      StaticTextRegion(
+        name: 'segment-positions',
+        referenceRect: ReferencePixelRect(105, 90, 130, 48),
+        candidateRect: ReferencePixelRect(105, 90, 130, 48),
+        ink: referencePrimaryInk,
+      ),
+      StaticTextRegion(
+        name: 'segment-deals',
+        referenceRect: ReferencePixelRect(350, 90, 145, 48),
+        candidateRect: ReferencePixelRect(350, 90, 145, 48),
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
@@ -202,17 +433,44 @@ const tabReferenceCases = <TabReferenceCase>[
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
-        name: 'navigation-selected-label',
-        referenceRect: ReferencePixelRect(350, 1224, 100, 20),
-        candidateRect: ReferencePixelRect(350, 1224, 100, 20),
+        name: 'balance-value',
+        referenceRect: ReferencePixelRect(465, 160, 125, 40),
+        candidateRect: ReferencePixelRect(465, 160, 125, 40),
         ink: referenceBlueInk,
       ),
+      StaticTextRegion(
+        name: 'position-action',
+        referenceRect: ReferencePixelRect(75, 238, 85, 38),
+        candidateRect: ReferencePixelRect(75, 238, 85, 38),
+        ink: referenceBlueInk,
+      ),
+      StaticTextRegion(
+        name: 'position-secondary',
+        referenceRect: ReferencePixelRect(4, 275, 190, 38),
+        candidateRect: ReferencePixelRect(4, 275, 190, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'position-profit',
+        referenceRect: ReferencePixelRect(505, 238, 85, 38),
+        candidateRect: ReferencePixelRect(505, 238, 85, 38),
+        ink: referenceBlueInk,
+      ),
+      StaticTextRegion(
+        name: 'position-timestamp',
+        referenceRect: ReferencePixelRect(390, 275, 191, 38),
+        candidateRect: ReferencePixelRect(390, 275, 191, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'summary-value',
+        referenceRect: ReferencePixelRect(455, 552, 135, 40),
+        candidateRect: ReferencePixelRect(455, 552, 135, 40),
+        ink: referencePrimaryInk,
+      ),
+      ..._historyNavigationRegions,
     ],
-    dynamicMasks: [
-      ReferencePixelRect(0, 0, 590, 70),
-      ReferencePixelRect(185, 155, 405, 390),
-      ReferencePixelRect(185, 550, 405, 170),
-    ],
+    dynamicMasks: [ReferencePixelRect(0, 0, 590, 70)],
   ),
   TabReferenceCase(
     id: 'history-orders',
@@ -220,9 +478,30 @@ const tabReferenceCases = <TabReferenceCase>[
     state: TabReferenceState.historyOrders,
     staticTextRegions: [
       StaticTextRegion(
+        name: 'selected-segment-surface',
+        referenceRect: ReferencePixelRect(230, 97, 135, 6),
+        candidateRect: ReferencePixelRect(230, 97, 135, 6),
+        ink: referenceHistorySegmentSelectedInk,
+        geometryColorTolerance: 10,
+        semanticColorTolerance: 6,
+        measureLargestGeometryComponent: true,
+      ),
+      StaticTextRegion(
         name: 'segment-orders',
         referenceRect: ReferencePixelRect(235, 91, 120, 48),
         candidateRect: ReferencePixelRect(230, 103, 125, 50),
+        ink: referencePrimaryInk,
+      ),
+      StaticTextRegion(
+        name: 'segment-positions',
+        referenceRect: ReferencePixelRect(105, 90, 130, 48),
+        candidateRect: ReferencePixelRect(105, 90, 130, 48),
+        ink: referencePrimaryInk,
+      ),
+      StaticTextRegion(
+        name: 'segment-deals',
+        referenceRect: ReferencePixelRect(350, 90, 145, 48),
+        candidateRect: ReferencePixelRect(350, 90, 145, 48),
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
@@ -232,16 +511,32 @@ const tabReferenceCases = <TabReferenceCase>[
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
-        name: 'navigation-selected-label',
-        referenceRect: ReferencePixelRect(350, 1224, 100, 20),
-        candidateRect: ReferencePixelRect(350, 1224, 100, 20),
+        name: 'order-action',
+        referenceRect: ReferencePixelRect(75, 207, 85, 38),
+        candidateRect: ReferencePixelRect(75, 207, 85, 38),
         ink: referenceBlueInk,
       ),
+      StaticTextRegion(
+        name: 'order-secondary',
+        referenceRect: ReferencePixelRect(4, 244, 165, 38),
+        candidateRect: ReferencePixelRect(4, 244, 165, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'order-status',
+        referenceRect: ReferencePixelRect(530, 207, 51, 28),
+        candidateRect: ReferencePixelRect(530, 207, 51, 28),
+        ink: referenceHistoryStatusInk,
+      ),
+      StaticTextRegion(
+        name: 'order-timestamp',
+        referenceRect: ReferencePixelRect(390, 244, 191, 38),
+        candidateRect: ReferencePixelRect(390, 244, 191, 38),
+        ink: referenceSecondaryInk,
+      ),
+      ..._historyNavigationRegions,
     ],
-    dynamicMasks: [
-      ReferencePixelRect(0, 0, 590, 70),
-      ReferencePixelRect(150, 130, 440, 1025),
-    ],
+    dynamicMasks: [ReferencePixelRect(0, 0, 590, 70)],
   ),
   TabReferenceCase(
     id: 'history-orders-summary',
@@ -249,9 +544,30 @@ const tabReferenceCases = <TabReferenceCase>[
     state: TabReferenceState.historyOrdersSummary,
     staticTextRegions: [
       StaticTextRegion(
+        name: 'selected-segment-surface',
+        referenceRect: ReferencePixelRect(230, 97, 135, 6),
+        candidateRect: ReferencePixelRect(230, 97, 135, 6),
+        ink: referenceHistorySegmentSelectedInk,
+        geometryColorTolerance: 10,
+        semanticColorTolerance: 6,
+        measureLargestGeometryComponent: true,
+      ),
+      StaticTextRegion(
         name: 'segment-orders',
         referenceRect: ReferencePixelRect(235, 91, 120, 48),
         candidateRect: ReferencePixelRect(230, 103, 125, 50),
+        ink: referencePrimaryInk,
+      ),
+      StaticTextRegion(
+        name: 'segment-positions',
+        referenceRect: ReferencePixelRect(105, 90, 130, 48),
+        candidateRect: ReferencePixelRect(105, 90, 130, 48),
+        ink: referencePrimaryInk,
+      ),
+      StaticTextRegion(
+        name: 'segment-deals',
+        referenceRect: ReferencePixelRect(350, 90, 145, 48),
+        candidateRect: ReferencePixelRect(350, 90, 145, 48),
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
@@ -261,17 +577,38 @@ const tabReferenceCases = <TabReferenceCase>[
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
-        name: 'navigation-selected-label',
-        referenceRect: ReferencePixelRect(350, 1224, 100, 20),
-        candidateRect: ReferencePixelRect(350, 1224, 100, 20),
+        name: 'order-action',
+        referenceRect: ReferencePixelRect(75, 207, 85, 38),
+        candidateRect: ReferencePixelRect(75, 207, 85, 38),
         ink: referenceBlueInk,
       ),
+      StaticTextRegion(
+        name: 'order-secondary',
+        referenceRect: ReferencePixelRect(4, 244, 165, 38),
+        candidateRect: ReferencePixelRect(4, 244, 165, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'order-status',
+        referenceRect: ReferencePixelRect(530, 207, 51, 28),
+        candidateRect: ReferencePixelRect(530, 207, 51, 28),
+        ink: referenceHistoryStatusInk,
+      ),
+      StaticTextRegion(
+        name: 'order-timestamp',
+        referenceRect: ReferencePixelRect(390, 244, 191, 38),
+        candidateRect: ReferencePixelRect(390, 244, 191, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'summary-value',
+        referenceRect: ReferencePixelRect(450, 1060, 140, 38),
+        candidateRect: ReferencePixelRect(450, 1060, 140, 38),
+        ink: referencePrimaryInk,
+      ),
+      ..._historyNavigationRegions,
     ],
-    dynamicMasks: [
-      ReferencePixelRect(0, 0, 590, 70),
-      ReferencePixelRect(150, 130, 440, 930),
-      ReferencePixelRect(380, 1060, 210, 100),
-    ],
+    dynamicMasks: [ReferencePixelRect(0, 0, 590, 70)],
   ),
   TabReferenceCase(
     id: 'history-deals',
@@ -279,9 +616,30 @@ const tabReferenceCases = <TabReferenceCase>[
     state: TabReferenceState.historyDeals,
     staticTextRegions: [
       StaticTextRegion(
+        name: 'selected-segment-surface',
+        referenceRect: ReferencePixelRect(355, 97, 135, 6),
+        candidateRect: ReferencePixelRect(355, 97, 135, 6),
+        ink: referenceHistorySegmentSelectedInk,
+        geometryColorTolerance: 10,
+        semanticColorTolerance: 6,
+        measureLargestGeometryComponent: true,
+      ),
+      StaticTextRegion(
         name: 'segment-deals',
         referenceRect: ReferencePixelRect(350, 91, 140, 48),
         candidateRect: ReferencePixelRect(345, 103, 145, 50),
+        ink: referencePrimaryInk,
+      ),
+      StaticTextRegion(
+        name: 'segment-positions',
+        referenceRect: ReferencePixelRect(105, 90, 130, 48),
+        candidateRect: ReferencePixelRect(105, 90, 130, 48),
+        ink: referencePrimaryInk,
+      ),
+      StaticTextRegion(
+        name: 'segment-orders',
+        referenceRect: ReferencePixelRect(235, 91, 120, 48),
+        candidateRect: ReferencePixelRect(230, 103, 125, 50),
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
@@ -297,16 +655,31 @@ const tabReferenceCases = <TabReferenceCase>[
         ink: referencePrimaryInk,
       ),
       StaticTextRegion(
-        name: 'navigation-selected-label',
-        referenceRect: ReferencePixelRect(350, 1224, 100, 20),
-        candidateRect: ReferencePixelRect(350, 1224, 100, 20),
+        name: 'deal-action',
+        referenceRect: ReferencePixelRect(75, 214, 90, 38),
+        candidateRect: ReferencePixelRect(75, 214, 90, 38),
         ink: referenceBlueInk,
       ),
+      StaticTextRegion(
+        name: 'deal-secondary',
+        referenceRect: ReferencePixelRect(4, 250, 170, 38),
+        candidateRect: ReferencePixelRect(4, 250, 170, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'deal-timestamp',
+        referenceRect: ReferencePixelRect(390, 250, 191, 38),
+        candidateRect: ReferencePixelRect(390, 250, 191, 38),
+        ink: referenceSecondaryInk,
+      ),
+      StaticTextRegion(
+        name: 'summary-value',
+        referenceRect: ReferencePixelRect(455, 995, 135, 40),
+        candidateRect: ReferencePixelRect(455, 995, 135, 40),
+        ink: referencePrimaryInk,
+      ),
+      ..._historyNavigationRegions,
     ],
-    dynamicMasks: [
-      ReferencePixelRect(0, 0, 590, 70),
-      ReferencePixelRect(150, 130, 440, 830),
-      ReferencePixelRect(185, 995, 405, 170),
-    ],
+    dynamicMasks: [ReferencePixelRect(0, 0, 590, 70)],
   ),
 ];

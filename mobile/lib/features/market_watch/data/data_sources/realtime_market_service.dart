@@ -551,17 +551,21 @@ class RealtimeMarketService {
     final bid = _asDouble(data['bid']);
     final ask = _asDouble(data['ask']);
     final previous = _latestQuotes[symbol];
-    final magnitude = fallback.changePercent.abs();
-    final direction = previous == null || bid >= previous.bid ? 1.0 : -1.0;
+    final statistics = previous ?? fallback;
     return DemoQuote(
       symbol: symbol,
       name: fallback.name,
       bid: bid,
       ask: ask,
-      changePercent: magnitude * direction,
+      changePercent:
+          _asOptionalDouble(data['changePercent']) ?? statistics.changePercent,
       sourceTimestamp: DateTime.tryParse(
         data['timestamp']?.toString() ?? '',
       )?.toUtc(),
+      previousClose:
+          _asOptionalDouble(data['previousClose']) ?? statistics.previousClose,
+      dailyLow: _asOptionalDouble(data['dailyLow']) ?? statistics.dailyLow,
+      dailyHigh: _asOptionalDouble(data['dailyHigh']) ?? statistics.dailyHigh,
     );
   }
 
@@ -822,6 +826,12 @@ class RealtimeMarketService {
 
   static double _asDouble(Object? value) =>
       value is num ? value.toDouble() : double.parse(value.toString());
+
+  static double? _asOptionalDouble(Object? value) => value == null
+      ? null
+      : value is num
+      ? value.toDouble()
+      : double.tryParse(value.toString());
 
   static double _asDoubleOrZero(Object? value) =>
       value == null ? 0 : _asDouble(value);

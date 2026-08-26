@@ -6,6 +6,9 @@ class DemoQuote {
     required this.ask,
     required this.changePercent,
     this.sourceTimestamp,
+    this.previousClose,
+    this.dailyLow,
+    this.dailyHigh,
   });
 
   final String symbol;
@@ -14,6 +17,9 @@ class DemoQuote {
   final double ask;
   final double changePercent;
   final DateTime? sourceTimestamp;
+  final double? previousClose;
+  final double? dailyLow;
+  final double? dailyHigh;
 
   bool get isUp => changePercent >= 0;
 }

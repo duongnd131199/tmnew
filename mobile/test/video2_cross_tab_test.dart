@@ -12,6 +12,7 @@ import 'package:trading_mobile/features/profile/presentation/screens/profile_scr
 import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
 
 import 'test_support/video_reference_fixtures.dart';
 
@@ -112,7 +113,15 @@ void main() {
       expect(container.read(demoAccountProvider).balance, 27297978.10);
       expect(find.text('-1 013 283.20 USD'), findsOneWidget);
       expect(find.text('27 297 978.10'), findsOneWidget);
-      expect(find.text('4108.117 → 4102.396'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is MtPriceRangeText &&
+              widget.openPrice == '4108.117' &&
+              widget.closePrice == '4102.396',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('-102 405.90'), findsOneWidget);
 
       router.push('/profile');
@@ -260,15 +269,18 @@ void main() {
         tester.getRect(find.byKey(const Key('trade-add-button'))),
       );
       expect(addButton.left, closeTo(492, .01));
-      expect(addButton.top, closeTo(91.5, .01));
+      expect(addButton.top, closeTo(81.5, .01));
       expect(addButton.right, closeTo(556, .01));
-      expect(addButton.bottom, closeTo(155.5, .01));
+      expect(addButton.bottom, closeTo(145.5, .01));
       final addInk = await _tradeButtonInkMetrics(
         tester,
         const Key('trade-add-button'),
         pixelRatio: 1.5,
       );
-      expect(addInk.bounds, const Rect.fromLTRB(19, 16.5, 44, 41.5));
+      expect(addInk.bounds.left, closeTo(19, .01));
+      expect(addInk.bounds.top, closeTo(16.5, .01));
+      expect(addInk.bounds.right, closeTo(44, .01));
+      expect(addInk.bounds.bottom, closeTo(41.5, .01));
       expect(addInk.pixels, inInclusiveRange(115, 140));
 
       final first = tester.getRect(
@@ -448,7 +460,10 @@ void main() {
 
       router.go('/market');
       await tester.pumpAndSettle();
-      await tester.drag(find.text('BTCUSD'), const Offset(-220, 0));
+      await tester.drag(
+        find.byKey(const ValueKey('market-symbol-BTCUSD')),
+        const Offset(-220, 0),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('market-chart-BTCUSD')));
       await tester.pumpAndSettle();
@@ -469,7 +484,7 @@ void main() {
 
       await tester.tap(find.text('Huy'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('BTCUSD'));
+      await tester.tap(find.byKey(const ValueKey('market-symbol-BTCUSD')));
       await tester.pumpAndSettle();
       expect(find.text('BTCUSD: Bitcoin'), findsOneWidget);
       expect(find.text('Depth of Market'), findsNothing);

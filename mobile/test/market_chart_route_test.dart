@@ -98,7 +98,7 @@ void main() {
 
     router.go('/market');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('BTCUSD'));
+    await tester.tap(find.byKey(const ValueKey('market-symbol-BTCUSD')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Bieu do'));
     await tester.pumpAndSettle();
@@ -220,7 +220,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('BTCUSD'));
+      await tester.tap(find.byKey(const ValueKey('market-symbol-BTCUSD')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Bieu do').last);
       await tester.pumpAndSettle();
