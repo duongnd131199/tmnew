@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/features/authentication/presentation/screens/login_screen.dart';
 import 'package:trading_mobile/features/authentication/presentation/screens/register_screen.dart';
@@ -6,6 +7,7 @@ import 'package:trading_mobile/features/authentication/presentation/screens/spla
 import 'package:trading_mobile/features/account_link/presentation/screens/broker_list_screen.dart';
 import 'package:trading_mobile/features/account_link/presentation/screens/existing_account_login_screen.dart';
 import 'package:trading_mobile/features/account_link/presentation/screens/trading_server_screen.dart';
+import 'package:trading_mobile/features/chart/application/chart_timeframe_session.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_indicators_screen.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_objects_screen.dart';
@@ -96,9 +98,17 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/chart',
               builder: (context, state) {
-                final symbol = state.uri.queryParameters['symbol'] ?? 'XAUUSD+';
+                final session = ProviderScope.containerOf(
+                  context,
+                  listen: false,
+                ).read(chartTimeframeSessionProvider.notifier);
+                final symbol =
+                    state.uri.queryParameters['symbol'] ??
+                    session.activeSymbol ??
+                    'XAUUSD+';
                 final timeframe =
-                    state.uri.queryParameters['timeframe'] ?? 'H4';
+                    state.uri.queryParameters['timeframe'] ??
+                    session.timeframeFor(symbol);
                 return ChartScreen(
                   key: ValueKey('chart-route-$symbol-$timeframe'),
                   symbol: symbol,

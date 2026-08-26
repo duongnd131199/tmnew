@@ -158,7 +158,7 @@ void main() {
     final timeframe = tester.widget<Text>(
       find.byKey(const Key('chart-toolbar-timeframe')),
     );
-    expect(timeframe.style?.fontFamily, AppTypography.plainFamily);
+    expect(timeframe.style?.fontFamily, AppTypography.tabPlainFamily);
     expect(timeframe.style?.fontSize, AppTypography.chartToolbar.fontSize);
 
     final painter =
@@ -3302,7 +3302,7 @@ void main() {
     final panel = find.byKey(const Key('chart-one-click-panel'));
     final buyLabel = find.descendant(of: panel, matching: find.text('Buy'));
     final buyLabelWidget = tester.widget<Text>(buyLabel);
-    expect(buyLabelWidget.style?.fontFamily, AppTypography.plainFamily);
+    expect(buyLabelWidget.style?.fontFamily, AppTypography.tabPlainFamily);
     expect(buyLabelWidget.style?.fontSize, 7);
     expect(buyLabelWidget.style?.letterSpacing, 1.35);
     expect(

@@ -94,25 +94,45 @@ class _AppShellState extends ConsumerState<AppShell>
       _lastAccountGeneration = accountGeneration;
     }
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final mediaQuery = MediaQuery.of(context);
+    final bodyPadding = mediaQuery.padding;
+    final bodyViewPadding = mediaQuery.viewPadding;
+    final referenceMediaQuery = mediaQuery.copyWith(
+      padding: EdgeInsets.fromLTRB(
+        bodyPadding.left,
+        math.min(bodyPadding.top, TabReferenceMetrics.topSafeInset),
+        bodyPadding.right,
+        bodyPadding.bottom,
+      ),
+      viewPadding: EdgeInsets.fromLTRB(
+        bodyViewPadding.left,
+        math.min(bodyViewPadding.top, TabReferenceMetrics.topSafeInset),
+        bodyViewPadding.right,
+        bodyViewPadding.bottom,
+      ),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
       extendBody: true,
-      body: FadeTransition(
-        key: const Key('app-shell-tab-fade'),
-        opacity: _tabFade,
-        child: _resettingAccountScope
-            ? const ColoredBox(
-                key: Key('account-scope-resetting'),
-                color: AppColors.background,
-              )
-            : KeyedSubtree(
-                key: ValueKey(accountGeneration.value),
-                child: AppTabScope(
-                  index: widget.navigationShell.currentIndex,
-                  child: widget.navigationShell,
+      body: MediaQuery(
+        data: referenceMediaQuery,
+        child: FadeTransition(
+          key: const Key('app-shell-tab-fade'),
+          opacity: _tabFade,
+          child: _resettingAccountScope
+              ? const ColoredBox(
+                  key: Key('account-scope-resetting'),
+                  color: AppColors.background,
+                )
+              : KeyedSubtree(
+                  key: ValueKey(accountGeneration.value),
+                  child: AppTabScope(
+                    index: widget.navigationShell.currentIndex,
+                    child: widget.navigationShell,
+                  ),
                 ),
-              ),
+        ),
       ),
       bottomNavigationBar: keyboardVisible
           ? null
@@ -274,6 +294,24 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = selected ? selectedColor : AppColors.navigationUnselected;
+    final labelStyle =
+        (selected
+                ? AppTypography.navigationLabelSelected
+                : AppTypography.navigationLabel)
+            .copyWith(
+              color: color,
+              letterSpacing: selected
+                  ? switch (kind) {
+                      _MtNavKind.quotes => 0,
+                      _MtNavKind.chart => .3,
+                      _MtNavKind.trade => .2,
+                      _MtNavKind.history => .3,
+                      _MtNavKind.settings => .3,
+                    }
+                  : kind == _MtNavKind.history
+                  ? .4
+                  : null,
+            );
     return Stack(
       alignment: Alignment.topCenter,
       children: [
@@ -283,7 +321,7 @@ class _NavItem extends StatelessWidget {
           right: 0,
           top: TabReferenceMetrics.bottomNavigationLabelTop,
           child: Transform.translate(
-            offset: !selected && kind == _MtNavKind.history
+            offset: kind == _MtNavKind.history
                 ? const Offset(-.6666666667, 0)
                 : Offset.zero,
             child: Text(
@@ -291,16 +329,9 @@ class _NavItem extends StatelessWidget {
               key: ValueKey('bottom-nav-label-${kind.name}'),
               maxLines: 1,
               textAlign: TextAlign.center,
-              style:
-                  (selected
-                          ? AppTypography.navigationLabelSelected
-                          : AppTypography.navigationLabel)
-                      .copyWith(
-                        color: color,
-                        letterSpacing: !selected && kind == _MtNavKind.history
-                            ? .4
-                            : null,
-                      ),
+              style: selected
+                  ? AppTypography.tabColorInk(context, labelStyle)
+                  : labelStyle,
             ),
           ),
         ),

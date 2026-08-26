@@ -1000,7 +1000,10 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
                     ),
                     TextSpan(
                       text: meta.percent,
-                      style: TextStyle(color: dailyColor),
+                      style: AppTypography.tabColorInk(
+                        context,
+                        TextStyle(color: dailyColor),
+                      ),
                     ),
                   ],
                 ),

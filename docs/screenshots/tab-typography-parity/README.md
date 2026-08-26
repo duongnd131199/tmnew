@@ -21,31 +21,35 @@ The seven deterministic candidate PNGs are stored in
 
 ## Static acceptance
 
-- Bundled deterministic families: `Mt5Roboto` and `Mt5RobotoCondensed`, weights
-  400, 500, and 700.
+- Bundled deterministic families: `Mt5Roboto`, `Mt5RobotoCondensed`,
+  `Mt5RobotoVariable`, and `Mt5RobotoCondensedVariable`. The covered tab roles
+  use calibrated variable axes from 250 through 600 where the static families
+  were visibly too dense.
 - Covered semantic roles lock font size, line height, weight, letter spacing,
   baseline offsets, and row pitch.
-- Calibrated inks: primary `#111111`, secondary `#5C5C60`, buy/selected
-  `#007FFF`, and sell/negative `#E42D30`.
+- Calibrated inks: primary `#000000`, secondary `#3C3C43`, buy/selected
+  `#007AFF`, and sell/negative `#E42D30`.
 - Static comparison tolerance: every ink-bound edge must be within 1 physical
-  pixel; candidate semantic RGB must be within 6 per channel. Semantic color is
-  estimated from the most opaque candidate pixels against the local background
-  and is compared directly with the manifest color; it is never snapped to the
-  expected value.
-- A regression test recolors the Prices blue ink by 20 RGB levels and verifies
-  that both deterministic and Android-renderer comparison modes reject it.
+  pixel; candidate semantic RGB must be within 6 per channel; optical ink
+  density must be within 30 percent for regions where the source JPEG provides
+  a reliable sample. Semantic color is estimated from the most opaque candidate
+  pixels against the local background and is compared directly with the
+  manifest color; it is never snapped to the expected value.
+- Regression tests recolor the Prices blue ink and dilate a black quote symbol
+  without changing its outer bounds. The comparator rejects both color drift
+  and a visibly heavier font with unchanged geometry.
 
 `dart run tool/compare_tab_typography.dart` passed with these worst results:
 
-| Case | Maximum edge delta | Maximum semantic ink delta |
-| --- | ---: | ---: |
-| Prices | 1 px | 0 |
-| Chart | 1 px | 0 |
-| Trade | 1 px | 0 |
-| History positions | 1 px | 0 |
-| History orders | 1 px | 0 |
-| History orders summary | 1 px | 0 |
-| History deals | 1 px | 0 |
+| Case | Maximum edge delta | Maximum semantic ink delta | Maximum density delta |
+| --- | ---: | ---: | ---: |
+| Prices | 1 px | 0 | 21.9% |
+| Chart | 1 px | 0 | 14.0% |
+| Trade | 1 px | 0 | 13.7% |
+| History positions | 1 px | 0 | 17.8% |
+| History orders | 1 px | 0 | 13.4% |
+| History orders summary | 1 px | 0 | 15.1% |
+| History deals | 1 px | 0 | 14.4% |
 
 ## Android renderer verification
 
@@ -63,22 +67,21 @@ the emulator was restored to 1080 x 2400 at 420 dpi afterward. Captures:
 - `android-history-deals-590x1280.png`
 
 Android uses a separate, explicit rasterizer allowance of 2 physical pixels
-for ink bounds and 12 RGB levels for thin anti-aliased glyphs. The final device
+for ink bounds, 12 RGB levels for thin anti-aliased glyphs, and 40 percent for
+optical ink density. The ticket labels, Trade metric labels, and the first
+History segment have small Android-only raster corrections so the production
+device output remains aligned with the iOS reference. The final device
 comparison passed with these worst results:
 
-| Case | Maximum edge delta | Maximum semantic ink delta |
-| --- | ---: | ---: |
-| Prices | 2 px | 0 |
-| Chart | 2 px | 12 |
-| Trade | 2 px | 0 |
-| History positions | 1 px | 0 |
-| History orders | 1 px | 0 |
-| History orders summary | 1 px | 0 |
-| History deals | 1 px | 0 |
-
-The 12-level Chart result is the very small white `Buy` label on a blue
-surface; its production style color remains exactly white and the difference
-comes from Android subpixel anti-aliasing.
+| Case | Maximum edge delta | Maximum semantic ink delta | Maximum density delta |
+| --- | ---: | ---: | ---: |
+| Prices | 2 px | 0 | 28.3% |
+| Chart | 2 px | 0 | 39.2% |
+| Trade | 2 px | 0 | 38.4% |
+| History positions | 2 px | 0 | 38.0% |
+| History orders | 2 px | 0 | 30.8% |
+| History orders summary | 2 px | 0 | 38.4% |
+| History deals | 2 px | 0 | 37.7% |
 
 The comparator checks named static regions for the Prices title/symbol/nav,
 Chart timeframe/Sell/nav, Trade metrics/section/position, and History
@@ -110,22 +113,25 @@ its dedicated geometry, viewport, gesture, repaint, and multi-timeframe tests.
 ## Verification
 
 - `flutter analyze`: passed, no issues.
-- Final typography golden/comparator run: 9/9 passed. The deterministic
+- Final typography golden/comparator run passed. The deterministic
   comparator passed every named region across all seven states with a maximum
-  edge delta of 1 physical pixel and zero semantic color delta.
-- The complete per-file Flutter suite passed 80 of 83 test files. The three
-  remaining failures were reproduced unchanged on the clean pre-task baseline:
+  edge delta of 1 physical pixel, zero semantic color delta, and a maximum
+  optical density delta of 21.9 percent.
+- The complete Flutter suite passed 639 assertions. The three remaining
+  failures were reproduced unchanged on the pre-task baseline:
   the two Chart data assertions (40 vs 41 candles; H4 active high 4425 vs quote
   4429) and the Windows-only PowerShell capture preflight on macOS
   (`powershell.exe` unavailable). They are not regressions from this task.
 - `flutter build apk --debug`: passed. Output:
-  `mobile/build/app/outputs/flutter-apk/app-debug.apk` (155 MB).
+  `mobile/build/app/outputs/flutter-apk/app-debug.apk` (200,213,736 bytes).
 - `dotnet build Trading.sln` and `dotnet test Trading.sln --no-build`: blocked
   by SDK resolution. The repository requests .NET SDK 8.0.421; only 10.0.203 is
   installed. `global.json` was intentionally not changed.
 - Android integration capture: passed all 7 isolated states with no Flutter
-  exception or overflow. Prices was captured once more using the final driver,
-  and the Android-mode static comparator passed all seven captured PNGs. The
+  exception or overflow. The Android-mode comparator passed all seven final
+  captured PNGs with a maximum edge delta of 2 physical pixels, zero semantic
+  color delta, and a maximum optical density delta of 39.2 percent. The normal
+  debug APK was installed after the capture, launched successfully, and the
   emulator was verified restored to 1080 x 2400 at 420 dpi.
 
 ## Reference gaps

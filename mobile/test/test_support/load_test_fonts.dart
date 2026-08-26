@@ -15,6 +15,12 @@ Future<void> loadMt5TestFonts() async {
     'assets/fonts/RobotoCondensed-Medium.ttf',
     'assets/fonts/RobotoCondensed-Bold.ttf',
   ]);
+  await _loadFamily('Mt5RobotoVariable', const [
+    'assets/fonts/Roboto-Variable.ttf',
+  ]);
+  await _loadFamily('Mt5RobotoCondensedVariable', const [
+    'assets/fonts/RobotoCondensed-Variable.ttf',
+  ]);
 }
 
 Future<void> _loadFamily(String family, List<String> assetPaths) async {

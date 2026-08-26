@@ -1,7 +1,7 @@
 name: trading_mobile
 description: Android-first client for the Trading Demo application.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+202608262038
 
 environment:
   sdk: ^3.12.2
@@ -30,6 +30,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/metatrader5_splash.png
+    - assets/fonts/OFL-Roboto.txt
+    - assets/fonts/LICENSE-RobotoCondensed-Apache-2.0.txt
   fonts:
     - family: Mt5Roboto
       fonts:
@@ -47,3 +49,9 @@ flutter:
           weight: 500
         - asset: assets/fonts/RobotoCondensed-Bold.ttf
           weight: 700
+    - family: Mt5RobotoVariable
+      fonts:
+        - asset: assets/fonts/Roboto-Variable.ttf
+    - family: Mt5RobotoCondensedVariable
+      fonts:
+        - asset: assets/fonts/RobotoCondensed-Variable.ttf

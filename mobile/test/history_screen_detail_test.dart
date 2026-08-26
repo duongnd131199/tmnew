@@ -19,13 +19,15 @@ import 'test_support/load_test_fonts.dart';
 import 'test_support/video_reference_fixtures.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(loadMt5TestFonts);
 
-  Widget testApp() {
+  Widget testApp({TargetPlatform platform = TargetPlatform.android}) {
     return ProviderScope(
       overrides: videoReferenceOverrides,
-      child: const MaterialApp(
-        home: RepaintBoundary(
+      child: MaterialApp(
+        theme: ThemeData(platform: platform),
+        home: const RepaintBoundary(
           key: Key('history-icon-reference-capture'),
           child: HistoryScreen(),
         ),
@@ -38,6 +40,69 @@ void main() {
       await tester.pump();
     }
   }
+
+  testWidgets(
+    'iOS History accent text keeps one optical weight in every mode',
+    (tester) async {
+      await tester.pumpWidget(testApp(platform: TargetPlatform.iOS));
+      await pumpBottomAnchor(tester);
+
+      final positionsList = tester.widget<ListView>(
+        find.byKey(const PageStorageKey('history-positions-list')),
+      );
+      positionsList.controller!.jumpTo(0);
+      await tester.pump();
+
+      expect(
+        _variableWeight(
+          tester
+              .widget<Text>(
+                find.byKey(const ValueKey('history-positions-action-0')),
+              )
+              .style,
+        ),
+        400,
+      );
+      expect(
+        _variableWeight(
+          tester
+              .widget<Text>(
+                find.byKey(
+                  const ValueKey('history-positions-trailing-primary-0'),
+                ),
+              )
+              .style,
+        ),
+        400,
+      );
+
+      await tester.tap(find.byKey(const Key('history-tab-1')));
+      await tester.pump();
+      expect(
+        _variableWeight(
+          tester
+              .widget<Text>(
+                find.byKey(const ValueKey('history-orders-action-0')),
+              )
+              .style,
+        ),
+        400,
+      );
+
+      await tester.tap(find.byKey(const Key('history-tab-2')));
+      await tester.pump();
+      expect(
+        _variableWeight(
+          tester
+              .widget<Text>(
+                find.byKey(const ValueKey('history-deals-action-0')),
+              )
+              .style,
+        ),
+        400,
+      );
+    },
+  );
 
   testWidgets('reference typography is shared across history modes', (
     tester,
@@ -134,7 +199,7 @@ void main() {
           ?.letterSpacing,
       -.2,
     );
-    expect(AppTypography.historySecondary.letterSpacing, closeTo(.1, .01));
+    expect(AppTypography.historySecondary.letterSpacing, closeTo(.22, .01));
     expect(
       tester
           .widget<Text>(
@@ -339,7 +404,7 @@ void main() {
   testWidgets(
     'wallet history Balance rows match the deposit and withdrawal reference',
     (tester) async {
-      tester.view.physicalSize = const Size(400, 800);
+      tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -395,6 +460,18 @@ void main() {
         52,
       );
       expect(
+        tester.getRect(find.text('D-ALLINT-USD-INT-924750483461')).right,
+        lessThanOrEqualTo(
+          tester.getRect(find.text('2026.07.21 02:28:53')).left - 4,
+        ),
+      );
+      expect(
+        tester.getRect(find.text('W-BANKVNGT-USD-1475391737862')).right,
+        lessThanOrEqualTo(
+          tester.getRect(find.text('2026.07.21 06:49:19')).left - 4,
+        ),
+      );
+      expect(
         tester.widget<Text>(find.text('518.54')).style?.color,
         AppColors.primary,
       );
@@ -419,6 +496,7 @@ void main() {
     );
     expect(summaryLabel.style?.fontSize, 14.5);
     expect(summaryLabel.style?.fontWeight, FontWeight.w400);
+    expect(summaryLabel.style?.fontFamily, AppTypography.tabPlainFamily);
 
     final listFinder = find.byKey(
       const PageStorageKey('history-positions-list'),
@@ -443,6 +521,10 @@ void main() {
     expect(profit.style?.fontSize, 16);
     expect(price.style?.fontSize, 14);
     expect(time.style?.fontSize, 14);
+    expect(title.style?.fontFamily, AppTypography.tabCondensedFamily);
+    expect(profit.style?.fontFamily, AppTypography.tabCondensedFamily);
+    expect(price.style?.fontFamily, AppTypography.tabCondensedFamily);
+    expect(time.style?.fontFamily, AppTypography.tabCondensedFamily);
     expect(
       tester.getTopLeft(find.byWidget(price)).dy -
           tester.getTopLeft(find.byWidget(title)).dy,
@@ -451,6 +533,10 @@ void main() {
             TabReferenceMetrics.historyPrimaryTop,
         .1,
       ),
+    );
+    expect(
+      tester.getBottomLeft(find.byWidget(title)).dy,
+      lessThan(tester.getTopLeft(find.byWidget(price)).dy),
     );
   });
 
@@ -470,6 +556,11 @@ void main() {
         .toList();
     expect(orderTexts.first.style?.fontSize, 16);
     expect(orderTexts.last.style?.fontSize, 14);
+    expect(
+      orderTexts.first.style?.fontFamily,
+      AppTypography.tabCondensedFamily,
+    );
+    expect(orderTexts.last.style?.fontFamily, AppTypography.tabCondensedFamily);
 
     await tester.tap(find.byKey(const Key('history-tab-2')));
     await tester.pump();
@@ -481,6 +572,215 @@ void main() {
         .toList();
     expect(dealTexts.first.style?.fontSize, 16);
     expect(dealTexts.last.style?.fontSize, 14);
+    expect(dealTexts.first.style?.fontFamily, AppTypography.tabCondensedFamily);
+    expect(dealTexts.last.style?.fontFamily, AppTypography.tabCondensedFamily);
+  });
+
+  testWidgets('history segment labels use deterministic compact styles', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 848);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    await tester.pumpWidget(testApp());
+    await pumpBottomAnchor(tester);
+
+    final labels = <Text>[
+      tester.widget<Text>(find.text('Lenh co tr...')),
+      tester.widget<Text>(find.text('Cac lenh')),
+      tester.widget<Text>(find.text('Cac giao d...')),
+    ];
+
+    for (final (index, label) in labels.indexed) {
+      expect(label.style?.fontFamily, AppTypography.tabPlainFamily);
+      expect(label.style?.fontSize, index == 2 ? 14 : 14.5);
+      expect(label.style?.height, 1);
+    }
+
+    final firstRect = tester.getRect(find.text('Lenh co tr...'));
+    final secondRect = tester.getRect(find.text('Cac lenh'));
+    final thirdRect = tester.getRect(find.text('Cac giao d...'));
+    expect(firstRect.right, lessThan(secondRect.left));
+    expect(secondRect.right, lessThan(thirdRect.left));
+  });
+
+  testWidgets('history rows keep both lines separate at larger text scales', (
+    tester,
+  ) async {
+    const position = DemoHistoryPosition(
+      id: 'scaled-history-position',
+      title: 'XAUUSD+',
+      side: 'SELL',
+      volume: 0.25,
+      openPrice: 4000,
+      closePrice: 4001,
+      profit: -20,
+      time: '2026.08.26 08:35:00',
+    );
+    const walletEntry = DemoHistoryPosition(
+      id: 'scaled-wallet-entry',
+      title: 'Balance',
+      profit: 518.54,
+      time: '2026.08.26 08:36:00',
+      subtitle: 'D-ALLINT-USD-INT-924750483461',
+    );
+
+    for (final width in <double>[360, 430]) {
+      for (final scale in <double>[1.3, 2]) {
+        tester.view.physicalSize = Size(width, 848);
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              ...videoReferenceOverrides,
+              demoHistoryPositionsProvider.overrideWithValue(const [
+                position,
+                walletEntry,
+              ]),
+            ],
+            child: MaterialApp(
+              home: MediaQuery(
+                data: MediaQueryData(
+                  size: Size(width, 848),
+                  textScaler: TextScaler.linear(scale),
+                ),
+                child: HistoryScreen(key: ValueKey('history-$width-$scale')),
+              ),
+            ),
+          ),
+        );
+        await pumpBottomAnchor(tester);
+
+        final row = find.byKey(
+          const ValueKey('history-position-scaled-history-position'),
+        );
+        expect(row, findsOneWidget, reason: 'width=$width scale=$scale');
+        Finder roleText(String role) => find.descendant(
+          of: row,
+          matching: find.byWidgetPredicate((widget) {
+            final key = widget.key;
+            return widget is Text &&
+                key is ValueKey<String> &&
+                key.value.startsWith(role);
+          }),
+        );
+        final primary = roleText('history-positions-primary-');
+        final trailingPrimary = roleText('history-positions-trailing-primary-');
+        final secondary = roleText('history-positions-secondary-');
+        final trailingSecondary = roleText(
+          'history-positions-trailing-secondary-',
+        );
+        final firstSummary = find.text('Tien nap');
+        final secondSummary = find.text('Loi nhuan');
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getRect(primary).bottom,
+          lessThanOrEqualTo(tester.getRect(secondary).top),
+          reason: 'width=$width scale=$scale',
+        );
+        expect(
+          tester.getRect(firstSummary).bottom,
+          lessThanOrEqualTo(tester.getRect(secondSummary).top),
+          reason: 'width=$width scale=$scale',
+        );
+        expect(
+          tester.getRect(primary).overlaps(tester.getRect(trailingPrimary)),
+          isFalse,
+          reason: 'position primary width=$width scale=$scale',
+        );
+        expect(
+          tester.getRect(secondary).overlaps(tester.getRect(trailingSecondary)),
+          isFalse,
+          reason: 'position secondary width=$width scale=$scale',
+        );
+        final walletRow = find.byKey(
+          const ValueKey('history-position-scaled-wallet-entry'),
+        );
+        Finder walletRoleText(String role) => find.descendant(
+          of: walletRow,
+          matching: find.byWidgetPredicate((widget) {
+            final key = widget.key;
+            return widget is Text &&
+                key is ValueKey<String> &&
+                key.value.startsWith(role);
+          }),
+        );
+        final walletReference = walletRoleText('history-positions-secondary-');
+        final walletTime = walletRoleText(
+          'history-positions-trailing-secondary-',
+        );
+        expect(
+          tester.getRect(walletReference).overlaps(tester.getRect(walletTime)),
+          isFalse,
+          reason: 'wallet secondary width=$width scale=$scale',
+        );
+
+        if (width == 360 && scale == 2) {
+          await tester.tap(find.byKey(const Key('history-tab-1')));
+          await tester.pump();
+          final order = find.byKey(const Key('history-order-57360798130'));
+          Finder orderRoleText(String role) => find.descendant(
+            of: order,
+            matching: find.byWidgetPredicate((widget) {
+              final key = widget.key;
+              return widget is Text &&
+                  key is ValueKey<String> &&
+                  key.value.startsWith(role);
+            }),
+          );
+          expect(
+            tester
+                .getRect(orderRoleText('history-orders-primary-'))
+                .overlaps(
+                  tester.getRect(
+                    orderRoleText('history-orders-trailing-primary-'),
+                  ),
+                ),
+            isFalse,
+          );
+          expect(
+            tester
+                .getRect(orderRoleText('history-orders-secondary-'))
+                .overlaps(
+                  tester.getRect(
+                    orderRoleText('history-orders-trailing-secondary-'),
+                  ),
+                ),
+            isFalse,
+          );
+
+          await tester.tap(find.byKey(const Key('history-tab-2')));
+          await tester.pump();
+          final deal = find.byKey(const Key('history-deal-57016800413'));
+          Finder dealRoleText(String role) => find.descendant(
+            of: deal,
+            matching: find.byWidgetPredicate((widget) {
+              final key = widget.key;
+              return widget is Text &&
+                  key is ValueKey<String> &&
+                  key.value.startsWith(role);
+            }),
+          );
+          expect(
+            tester
+                .getRect(dealRoleText('history-deals-secondary-'))
+                .overlaps(
+                  tester.getRect(
+                    dealRoleText('history-deals-trailing-secondary-'),
+                  ),
+                ),
+            isFalse,
+          );
+        }
+      }
+    }
+
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
   });
 
   testWidgets('positions history initially anchors the video footer', (
@@ -1059,6 +1359,15 @@ Finder _priceRange(String openPrice, String closePrice) =>
           widget.openPrice == openPrice &&
           widget.closePrice == closePrice,
     );
+
+double? _variableWeight(TextStyle? style) {
+  final weights = style?.fontVariations
+      ?.where((variation) => variation.axis == 'wght')
+      .toList();
+  if (weights == null || weights.isEmpty) return null;
+  expect(weights, hasLength(1));
+  return weights.single.value;
+}
 
 Future<({Rect bounds, int pixels})> _historyButtonInkMetrics(
   WidgetTester tester,

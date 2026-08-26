@@ -64,12 +64,12 @@ void main() {
       (decoration) => decoration.color == AppColors.navigationSelectedSurface,
     );
 
-    expect(capsule.color, const Color(0xFFFDFDFD));
+    expect(capsule.color, const Color(0xFFFFFFFF));
     expect(capsule.border, isNull);
-    expect(selectedPill.color, const Color(0xFFE8E8E8));
+    expect(selectedPill.color, const Color(0xFFEDEDED));
     expect(
       _painterColor(tester, 'bottom-nav-icon-chart'),
-      const Color(0xFF303030),
+      const Color(0xFF000000),
     );
   });
 
@@ -172,7 +172,7 @@ void main() {
       );
       final label = find.byKey(const ValueKey('bottom-nav-label-quotes'));
       final text = tester.widget<Text>(label);
-      expect(text.style?.fontFamily, AppTypography.plainFamily);
+      expect(text.style?.fontFamily, AppTypography.tabPlainFamily);
       expect(text.style?.fontSize, 9.5);
       expect(text.style?.height, 1);
       final transform = tester
@@ -183,6 +183,21 @@ void main() {
       referenceRect ??= rect;
       expect(rect, referenceRect);
     }
+  });
+
+  testWidgets('iOS selected navigation label keeps the accent optical weight', (
+    tester,
+  ) async {
+    await _pumpNavigation(
+      tester,
+      selectedIndex: 3,
+      platform: TargetPlatform.iOS,
+    );
+
+    final selected = tester.widget<Text>(
+      find.byKey(const ValueKey('bottom-nav-label-history')),
+    );
+    expect(_variableWeight(selected.style), 400);
   });
 
   testWidgets('unselected History label keeps its measured reference width', (
@@ -198,7 +213,7 @@ void main() {
     final selected = tester.widget<Text>(
       find.byKey(const ValueKey('bottom-nav-label-history')),
     );
-    expect(selected.style?.letterSpacing, isNull);
+    expect(selected.style?.letterSpacing, .3);
   });
 }
 
@@ -208,6 +223,7 @@ Future<void> _pumpNavigation(
   DemoAccountSnapshot account = _positiveAccount,
   Size surfaceSize = const Size(384, 848),
   ValueChanged<int>? onTap,
+  TargetPlatform platform = TargetPlatform.android,
 }) async {
   await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -215,12 +231,22 @@ Future<void> _pumpNavigation(
     ProviderScope(
       overrides: [demoAccountProvider.overrideWithValue(account)],
       child: MaterialApp(
+        theme: ThemeData(platform: platform),
         debugShowCheckedModeBanner: false,
         home: _NavigationHarness(selectedIndex: selectedIndex, onTap: onTap),
       ),
     ),
   );
   await tester.pump();
+}
+
+double? _variableWeight(TextStyle? style) {
+  final weights = style?.fontVariations
+      ?.where((variation) => variation.axis == 'wght')
+      .toList();
+  if (weights == null || weights.isEmpty) return null;
+  expect(weights, hasLength(1));
+  return weights.single.value;
 }
 
 Color _painterColor(WidgetTester tester, String key) {

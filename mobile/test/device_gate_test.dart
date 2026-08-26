@@ -4,11 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
-import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
-import 'package:trading_mobile/features/account_login/data/account_password_login_dependencies.dart';
-import 'package:trading_mobile/features/account_login/data/account_password_login_repository.dart';
-import 'package:trading_mobile/features/account_login/data/installation_id_store.dart';
-import 'package:trading_mobile/features/account_login/domain/account_password_login_models.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
@@ -45,7 +40,7 @@ void main() {
     expect(find.text('SERVER APP'), findsNothing);
   });
 
-  testWidgets('token read retry starts a fresh read and reaches login', (
+  testWidgets('token read retry starts a fresh read and reaches token entry', (
     tester,
   ) async {
     final store = _SequencedTokenStore([
@@ -73,14 +68,14 @@ void main() {
 
     expect(store.readCalls, 2);
     expect(
-      find.byKey(const Key('account-password-login-screen')),
+      find.byKey(const Key('dev-device-token-import-screen')),
       findsOneWidget,
     );
     expect(find.text('SERVER APP'), findsNothing);
   });
 
   testWidgets(
-    'missing token shows account password login without token input',
+    'missing token shows token activation without EX2 password login',
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
@@ -94,52 +89,19 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(const Key('account-password-login-screen')),
+        find.byKey(const Key('dev-device-token-import-screen')),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('account-login-field')), findsOneWidget);
-      expect(find.byKey(const Key('account-password-field')), findsOneWidget);
-      expect(find.text('Device token'), findsNothing);
+      expect(find.byKey(const Key('dev-device-token-field')), findsOneWidget);
+      expect(
+        find.byKey(const Key('account-password-login-screen')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('account-login-field')), findsNothing);
+      expect(find.byKey(const Key('account-password-field')), findsNothing);
       expect(find.text('SERVER APP'), findsNothing);
     },
   );
-
-  testWidgets('account password login opens the app with canonical bootstrap', (
-    tester,
-  ) async {
-    final repository = _GateLoginRepository();
-    final tokenStore = _MemoryTokenStore();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          exV2EnabledProvider.overrideWithValue(true),
-          deviceTokenStoreProvider.overrideWithValue(tokenStore),
-          accountPasswordLoginRepositoryProvider.overrideWithValue(repository),
-          installationIdStoreProvider.overrideWithValue(_InstallationStore()),
-          exV2AccountProvider.overrideWithBuild(
-            (ref, controller) async => null,
-          ),
-        ],
-        child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-      find.byKey(const Key('account-login-field')),
-      '109740422',
-    );
-    await tester.enterText(
-      find.byKey(const Key('account-password-field')),
-      ' Test-Pass_123! ',
-    );
-    await tester.tap(find.byKey(const Key('account-login-submit')));
-    await tester.pumpAndSettle();
-
-    expect(repository.requests.single.password, ' Test-Pass_123! ');
-    expect(await tokenStore.read(), 'opaque-test-token');
-    expect(find.text('SERVER APP'), findsOneWidget);
-  });
 
   testWidgets('stored token opens the unchanged application', (tester) async {
     await tester.pumpWidget(
@@ -284,7 +246,7 @@ void main() {
     expect(find.text('SERVER APP'), findsNothing);
   });
 
-  testWidgets('rejected device token can return to account login explicitly', (
+  testWidgets('rejected device token returns to token activation explicitly', (
     tester,
   ) async {
     final store = _MemoryTokenStore('expired-token');
@@ -315,7 +277,7 @@ void main() {
 
     expect(await store.read(), isNull);
     expect(
-      find.byKey(const Key('account-password-login-screen')),
+      find.byKey(const Key('dev-device-token-import-screen')),
       findsOneWidget,
     );
     expect(find.text('SERVER APP'), findsNothing);
@@ -483,38 +445,6 @@ final _bootstrap = <String, Object?>{
   'connection': {'marketFeedStatus': 'connected', 'lastMarketTickAt': null},
   'integrityWarnings': 0,
 };
-
-final class _GateLoginRepository implements AccountPasswordLoginRepository {
-  final List<AccountPasswordLoginRequest> requests =
-      <AccountPasswordLoginRequest>[];
-
-  @override
-  Future<AccountPasswordLoginResult> login(
-    AccountPasswordLoginRequest request, {
-    required String installationId,
-    required ExV2CommandMetadata metadata,
-  }) async {
-    requests.add(request);
-    return AccountPasswordLoginResult(
-      deviceToken: 'opaque-test-token',
-      account: const LinkedTradingAccount(
-        id: 'account-1',
-        brokerId: 'yodo-demo',
-        brokerName: 'YODO Demo Markets',
-        serverId: 'yodo-demo-01',
-        serverName: 'YODO-Demo-01',
-        login: '109740422',
-        isActive: true,
-      ),
-      bootstrap: ExV2Bootstrap.fromJson(_bootstrap),
-    );
-  }
-}
-
-final class _InstallationStore implements InstallationIdStore {
-  @override
-  Future<String> readOrCreate() async => '11111111-1111-4111-8111-111111111111';
-}
 
 final class _MemoryTokenStore implements DeviceTokenStore {
   _MemoryTokenStore([this.value]);

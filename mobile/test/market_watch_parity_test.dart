@@ -21,6 +21,7 @@ void main() {
   Future<ProviderContainer> pumpMarket(
     WidgetTester tester, {
     ProviderContainer? container,
+    TargetPlatform platform = TargetPlatform.android,
   }) async {
     await tester.binding.setSurfaceSize(const Size(384, 848));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -29,8 +30,9 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: scope,
-        child: const MaterialApp(
-          home: MediaQuery(
+        child: MaterialApp(
+          theme: ThemeData(platform: platform),
+          home: const MediaQuery(
             data: MediaQueryData(
               size: Size(384, 848),
               padding: EdgeInsets.only(top: 24),
@@ -46,6 +48,22 @@ void main() {
     await tester.pump();
     return scope;
   }
+
+  testWidgets('iOS quote change accent keeps the reference optical weight', (
+    tester,
+  ) async {
+    await pumpMarket(tester, platform: TargetPlatform.iOS);
+
+    final dailyChange = tester.widget<Text>(
+      find.byKey(const ValueKey('market-change-XAUUSD+')),
+    );
+    final spans = (dailyChange.textSpan! as TextSpan).children!
+        .cast<TextSpan>()
+        .toList();
+
+    expect(_variableWeight(dailyChange.style), 300);
+    expect(_variableWeight(spans[1].style), 400);
+  });
 
   testWidgets('Quotes toolbar icon ink matches the measured references', (
     tester,
@@ -392,6 +410,15 @@ void main() {
     expect(double.parse(low.substring(3)), greaterThan(59000));
     expect(double.parse(high.substring(3)), greaterThan(59000));
   });
+}
+
+double? _variableWeight(TextStyle? style) {
+  final weights = style?.fontVariations
+      ?.where((variation) => variation.axis == 'wght')
+      .toList();
+  if (weights == null || weights.isEmpty) return null;
+  expect(weights, hasLength(1));
+  return weights.single.value;
 }
 
 Future<({Rect bounds, int pixels})> _buttonInkMetrics(

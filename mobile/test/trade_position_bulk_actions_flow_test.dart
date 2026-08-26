@@ -87,8 +87,9 @@ ProviderContainer _createContainer() => ProviderContainer(
 
 Future<void> _pumpTrade(
   WidgetTester tester,
-  ProviderContainer container,
-) async {
+  ProviderContainer container, {
+  TargetPlatform platform = TargetPlatform.android,
+}) async {
   tester.view.physicalSize = const Size(384, 848);
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
@@ -98,10 +99,22 @@ Future<void> _pumpTrade(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const MaterialApp(home: TradeScreen()),
+      child: MaterialApp(
+        theme: ThemeData(platform: platform),
+        home: const TradeScreen(),
+      ),
     ),
   );
   await tester.pump();
+}
+
+double _variableWeight(TextStyle? style) {
+  final weights = style?.fontVariations
+      ?.where((variation) => variation.axis == 'wght')
+      .toList();
+  expect(weights, isNotNull);
+  expect(weights, hasLength(1));
+  return weights!.single.value;
 }
 
 Future<void> _openContextualBulkDialog(WidgetTester tester) async {
@@ -114,6 +127,63 @@ Future<void> _openContextualBulkDialog(WidgetTester tester) async {
 
 void main() {
   setUpAll(loadMt5TestFonts);
+
+  testWidgets('trade renders the measured reference foreground colors', (
+    tester,
+  ) async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+
+    final header = tester.widget<Text>(
+      find.byKey(const Key('trade-header-profit')),
+    );
+    expect(header.style?.color, const Color(0xFFE42D30));
+
+    final winningPrimary = tester.widget<Text>(
+      find.byKey(const ValueKey('trade-position-primary-x-buy-win')),
+    );
+    final winningSpans = (winningPrimary.textSpan! as TextSpan).children!;
+    expect(winningSpans.first.style?.color, const Color(0xFF000000));
+    expect(winningSpans.last.style?.color, const Color(0xFF007AFF));
+
+    final losingProfit = tester.widget<Text>(
+      find.byKey(const ValueKey('trade-position-profit-x-buy-loss')),
+    );
+    expect(losingProfit.style?.color, const Color(0xFFE42D30));
+  });
+
+  testWidgets('iOS trade text compensates its lighter raster coverage', (
+    tester,
+  ) async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container, platform: TargetPlatform.iOS);
+
+    final header = tester.widget<Text>(
+      find.byKey(const Key('trade-header-profit')),
+    );
+    final section = tester.widget<Text>(
+      find.byKey(const Key('trade-section-label')),
+    );
+    final primary = tester.widget<Text>(
+      find.byKey(const ValueKey('trade-position-primary-x-buy-win')),
+    );
+    final secondary = tester.widget<Text>(
+      find.byKey(const ValueKey('trade-position-secondary-x-buy-win')),
+    );
+    final profit = tester.widget<Text>(
+      find.byKey(const ValueKey('trade-position-profit-x-buy-win')),
+    );
+
+    expect(_variableWeight(header.style), 450);
+    expect(_variableWeight(section.style), 850);
+    expect(_variableWeight(primary.style), 400);
+    final primarySpans = (primary.textSpan! as TextSpan).children!;
+    expect(_variableWeight(primarySpans.first.style), 500);
+    expect(_variableWeight(secondary.style), 350);
+    expect(_variableWeight(profit.style), 450);
+  });
 
   testWidgets('trade reference typography keeps measured baselines', (
     tester,

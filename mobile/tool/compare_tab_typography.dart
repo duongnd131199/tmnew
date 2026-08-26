@@ -7,6 +7,8 @@ import '../test/test_support/tab_reference_manifest.dart';
 const _maximumEdgeDelta = 1;
 const _androidMaximumEdgeDelta = 2;
 const _androidSemanticColorTolerance = 12;
+const _maximumInkDensityDeltaPercent = 30;
+const _androidMaximumInkDensityDeltaPercent = 40;
 
 void main(List<String> args) {
   exitCode = runTabTypographyComparison(args);
@@ -43,11 +45,15 @@ int runTabTypographyComparison(
   final maximumEdgeDelta = configuration.renderer == _CandidateRenderer.android
       ? _androidMaximumEdgeDelta
       : _maximumEdgeDelta;
+  final maximumInkDensityDeltaPercent =
+      configuration.renderer == _CandidateRenderer.android
+      ? _androidMaximumInkDensityDeltaPercent
+      : _maximumInkDensityDeltaPercent;
   var failed = false;
   output.writeln('candidateRenderer, ${configuration.renderer.name}');
   output.writeln(
     'case, region, referenceBounds, candidateBounds, maxEdgeDelta, '
-    'semanticInkDelta',
+    'semanticInkDelta, inkDensityDeltaPercent, candidateInkRatio',
   );
 
   for (final referenceCase in tabReferenceCases) {
@@ -59,7 +65,7 @@ int runTabTypographyComparison(
     _expectCanonicalSize(referenceCase.id, 'candidate', candidate);
 
     for (final region in referenceCase.staticTextRegions) {
-      final geometryInk = region.geometryInk ?? region.ink;
+      final geometryInk = geometryInkFor(region.geometryInk ?? region.ink);
       final referenceSample = _measure(
         reference,
         region.referenceRect,
@@ -84,10 +90,22 @@ int runTabTypographyComparison(
       );
       final expectedInk = _MeasuredInk.fromReference(region.ink);
       final inkDelta = expectedInk.edgeDelta(candidateSample.semanticInk);
+      final inkDensityDeltaPercent = referenceSample.inkDensityDeltaPercent(
+        candidateSample,
+      );
+      final inkDensityTolerancePercent =
+          region.inkDensityTolerancePercent ?? maximumInkDensityDeltaPercent;
+      final inkDensityReport = region.measureInkDensity
+          ? '${inkDensityDeltaPercent.toStringAsFixed(1)}%'
+          : 'not-measured';
+      final inkDensityRatio = referenceSample.inkDensityRatio(candidateSample);
+      final inkDensityRatioReport = region.measureInkDensity
+          ? '${inkDensityRatio.toStringAsFixed(3)}x'
+          : 'not-measured';
       output.writeln(
         '${referenceCase.id}, ${region.name}, '
         '${referenceSample.bounds}, ${candidateSample.bounds}, '
-        '$edgeDelta, $inkDelta '
+        '$edgeDelta, $inkDelta, $inkDensityReport, $inkDensityRatioReport '
         '(reference ${referenceSample.semanticInk}; '
         'expected $expectedInk -> candidate ${candidateSample.semanticInk})',
       );
@@ -95,7 +113,10 @@ int runTabTypographyComparison(
           configuration.renderer == _CandidateRenderer.android
           ? _androidSemanticColorTolerance
           : region.semanticColorTolerance;
-      if (edgeDelta > maximumEdgeDelta || inkDelta > semanticColorTolerance) {
+      if (edgeDelta > maximumEdgeDelta ||
+          inkDelta > semanticColorTolerance ||
+          (region.measureInkDensity &&
+              inkDensityDeltaPercent > inkDensityTolerancePercent)) {
         failed = true;
       }
     }
@@ -104,7 +125,8 @@ int runTabTypographyComparison(
   if (failed) {
     errors.writeln(
       'Static typography exceeds tolerance: edge <= '
-      '$maximumEdgeDelta px and semantic RGB within each renderer tolerance.',
+      '$maximumEdgeDelta px, semantic RGB within each renderer tolerance, '
+      'and ink density <= $maximumInkDensityDeltaPercent%.',
     );
     return 1;
   }
@@ -201,6 +223,10 @@ _TextSample _measure(
   return _TextSample(
     _InkBounds.fromPixels(measuredGeometryPixels),
     semanticInk,
+    measuredGeometryPixels.fold<double>(
+      0,
+      (total, pixel) => total + pixel.distanceFromMeasured(backgroundInk) / 255,
+    ),
   );
 }
 
@@ -276,10 +302,17 @@ void _validateSearchRect(image.Image source, ReferencePixelRect rect) {
 }
 
 class _TextSample {
-  const _TextSample(this.bounds, this.semanticInk);
+  const _TextSample(this.bounds, this.semanticInk, this.opticalInkArea);
 
   final _InkBounds bounds;
   final _MeasuredInk semanticInk;
+  final double opticalInkArea;
+
+  double inkDensityDeltaPercent(_TextSample other) =>
+      ((opticalInkArea - other.opticalInkArea).abs() / opticalInkArea) * 100;
+
+  double inkDensityRatio(_TextSample other) =>
+      other.opticalInkArea / opticalInkArea;
 }
 
 class _InkPixel {
@@ -292,6 +325,12 @@ class _InkPixel {
   final int blue;
 
   int distanceFrom(ReferenceInk ink) => [
+    (red - ink.red).abs(),
+    (green - ink.green).abs(),
+    (blue - ink.blue).abs(),
+  ].reduce((a, b) => a > b ? a : b);
+
+  int distanceFromMeasured(_MeasuredInk ink) => [
     (red - ink.red).abs(),
     (green - ink.green).abs(),
     (blue - ink.blue).abs(),

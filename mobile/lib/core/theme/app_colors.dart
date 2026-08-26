@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
-  static const background = Color(0xFFFDFDFD);
+  static const background = Color(0xFFFFFFFF);
   static const groupedBackground = Color(0xFFEEEDF5);
-  static const surface = Color(0xFFFDFDFD);
+  static const surface = Color(0xFFFFFFFF);
   static const accountSelectedSurface = Color(0xFFF4F4F4);
   static const surfaceElevated = Color(0xFFF5F5F5);
   static const surfaceSelected = Color(0xFFE4E4E4);
   static const sheetSurface = Color(0xFFF1F1F1);
   static const sheetActionSurface = Color(0xFFEAEAEA);
   static const disabledSurface = Color(0xFFF1F1F1);
-  static const navigationSurface = Color(0xFFFDFDFD);
-  static const navigationSelectedSurface = Color(0xFFE8E8E8);
-  static const navigationUnselected = Color(0xFF303030);
+  static const navigationSurface = Color(0xFFFFFFFF);
+  static const navigationSelectedSurface = Color(0xFFEDEDED);
+  static const navigationUnselected = Color(0xFF000000);
   static const dimBarrier = Color(0x39000000);
-  static const primary = Color(0xFF007FFF);
+  static const primary = Color(0xFF007AFF);
   static const historyOrderStatus = Color(0xFF294675);
   static const historySegmentSelected = Color(0xFFEDEDED);
   static const primaryMuted = Color(0xFFDCEBFF);
-  static const positive = Color(0xFF007FFF);
+  static const positive = Color(0xFF007AFF);
   static const negative = Color(0xFFE42D30);
   static const destructive = Color(0xFFE42D30);
   static const orderTicketSurface = Color(0xFFF1F1F1);
@@ -38,8 +38,8 @@ abstract final class AppColors {
   static const connectedIndicatorTop = Color(0xFF347EAA);
   static const connectedIndicatorBottom = Color(0xFF008FD0);
   static const connectedIndicatorGlyph = Color(0xFFC8F0FF);
-  static const textPrimary = Color(0xFF111111);
-  static const textSecondary = Color(0xFF5C5C60);
+  static const textPrimary = Color(0xFF000000);
+  static const textSecondary = Color(0xFF3C3C43);
   static const textTertiary = Color(0xFF9A9A9F);
   static const divider = Color(0xFFD9D9DE);
   static const chartGrid = Color(0xFFE8E8E8);

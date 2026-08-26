@@ -281,7 +281,7 @@ void main() {
       expect(addInk.bounds.top, closeTo(16.5, .01));
       expect(addInk.bounds.right, closeTo(44, .01));
       expect(addInk.bounds.bottom, closeTo(41.5, .01));
-      expect(addInk.pixels, inInclusiveRange(115, 140));
+      expect(addInk.pixels, inInclusiveRange(155, 170));
 
       final first = tester.getRect(
         find.byKey(ValueKey('trade-position-${positions[0].id}')),

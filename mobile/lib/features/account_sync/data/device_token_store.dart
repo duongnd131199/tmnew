@@ -33,12 +33,12 @@ final class DeviceActivationService {
     required Future<void> Function(String token) validate,
   }) async {
     final normalized = token.trim();
-    if (normalized.isEmpty) {
-      throw const FormatException('Device token cannot be empty');
-    }
-    await _store.write(normalized);
     try {
+      if (normalized.isEmpty) {
+        throw const FormatException('Device token cannot be empty');
+      }
       await validate(normalized);
+      await _store.write(normalized);
     } catch (_) {
       await _store.delete();
       rethrow;

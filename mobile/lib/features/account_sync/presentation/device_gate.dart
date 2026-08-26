@@ -6,9 +6,9 @@ import 'package:trading_mobile/app/router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
-import 'package:trading_mobile/features/account_login/presentation/account_password_login_screen.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
+import 'package:trading_mobile/features/account_sync/presentation/dev_device_token_import_screen.dart';
 
 class DeviceGate extends ConsumerStatefulWidget {
   const DeviceGate({
@@ -127,19 +127,20 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: AccountPasswordLoginScreen(
-        onAuthenticated: () {
-          if (!mounted) return;
-          setState(() {
-            _activated = true;
-            _accountlessUnlocked = false;
-          });
-          if (ref.read(exV2AccountProvider).isLoading) {
-            _armBootstrapTimeout();
-          }
-        },
-      ),
+      home: DevDeviceTokenImportScreen(onActivated: _completeTokenActivation),
     );
+  }
+
+  void _completeTokenActivation() {
+    if (!mounted) return;
+    ref.invalidate(exV2AccountProvider);
+    setState(() {
+      _activated = true;
+      _accountlessUnlocked = false;
+    });
+    if (ref.read(exV2AccountProvider).isLoading) {
+      _armBootstrapTimeout();
+    }
   }
 
   void _openAddAccount() {

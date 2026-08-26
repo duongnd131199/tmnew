@@ -36,10 +36,10 @@ void main() {
     );
     final add = await _darkInkMetrics(tester, 'account-add-reference-capture');
     expect(back.bounds, const Rect.fromLTWH(15, 13, 10, 18));
-    expect(back.pixels, inInclusiveRange(42, 58));
+    expect(back.pixels, inInclusiveRange(58, 65));
 
     expect(add.bounds, const Rect.fromLTWH(13, 13, 17, 17));
-    expect(add.pixels, inInclusiveRange(45, 62));
+    expect(add.pixels, inInclusiveRange(82, 92));
   });
 
   testWidgets('account visuals keep the reference sizes and hit targets', (

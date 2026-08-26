@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io' as io;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -228,7 +229,7 @@ final class _ImmutableCandleRange extends ListBase<MarketCandle>
 }
 
 class _ChartScreenState extends ConsumerState<ChartScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late String timeframe;
   bool crosshairEnabled = false;
@@ -245,6 +246,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
   final ChartHitTargets _chartHitTargets = ChartHitTargets();
   final ChartViewportController _viewportController = ChartViewportController();
   ChartViewport _viewport = const ChartViewport();
+  late final ChartTimeframeSessionController _chartViewSessionController;
   ProviderSubscription<AsyncValue<List<MarketCandle>>>? _historySubscription;
   final ChartPriceViewportController _priceViewportController =
       ChartPriceViewportController();
@@ -313,14 +315,21 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _sellQuoteColor = widget.theme.tradeBlue;
     _buyQuoteColor = widget.theme.tradeBlue;
     timeframe = widget.initialTimeframe;
+    _chartViewSessionController = ref.read(
+      chartTimeframeSessionProvider.notifier,
+    );
+    final rememberedView = _chartViewSessionController.viewFor(widget.symbol);
+    if (rememberedView?.timeframe == timeframe) {
+      _viewport = rememberedView!.viewport;
+      _priceViewport = rememberedView.priceViewport;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref
-          .read(chartTimeframeSessionProvider.notifier)
-          .remember(widget.symbol, timeframe);
+      _rememberChartView();
     });
     _selectedRequest = MarketDataRequest(widget.symbol, timeframe);
     final normalisedSymbol = _normaliseSymbol(widget.symbol);
@@ -343,6 +352,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
 
   @override
   void dispose() {
+    _rememberChartView();
+    WidgetsBinding.instance.removeObserver(this);
     _historySubscription?.close();
     _chartLongPressTimer?.cancel();
     _pendingSubtitleTimer?.cancel();
@@ -352,11 +363,30 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _rememberChartView();
+    }
+  }
+
   String _normaliseSymbol(String symbol) =>
       symbol.endsWith('+') ? symbol.substring(0, symbol.length - 1) : symbol;
 
   bool _sameSymbol(String left, String right) =>
       _normaliseSymbol(left) == _normaliseSymbol(right);
+
+  void _rememberChartView({ChartViewport? viewport}) {
+    _chartViewSessionController.remember(
+      widget.symbol,
+      timeframe,
+      viewport: viewport ?? _viewport,
+      priceViewport: _priceViewport,
+    );
+  }
 
   // Video 2 is the canonical chart shell. Every symbol and timeframe keeps
   // the same toolbar/header/axis geometry; only the candle data changes.
@@ -586,9 +616,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
       if (closeFavorites) showTimeframes = false;
     });
     if (requestChanged) {
-      ref
-          .read(chartTimeframeSessionProvider.notifier)
-          .remember(widget.symbol, period);
+      _rememberChartView();
       _listenToHistory(_selectedRequest, _requestGeneration);
     }
   }
@@ -887,6 +915,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
         _priceAxisDragOrigin = null;
       }
       if (_priceAxisSequencePointers.isEmpty) {
+        _rememberChartView();
         Future<void>.microtask(() {
           if (_priceAxisSequencePointers.isEmpty) {
             _priceAxisScaleSuppressed = false;
@@ -1758,10 +1787,13 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                           onScaleEnd: (details) {
                             if (crosshairEnabled ||
                                 _priceAxisScaleSuppressed ||
-                                _pendingScalePointer != null ||
-                                _scaleGestureWasPinch ||
+                                _pendingScalePointer != null) {
+                              return;
+                            }
+                            if (_scaleGestureWasPinch ||
                                 details.velocity.pixelsPerSecond.dx.abs() <
                                     10) {
+                              _rememberChartView();
                               return;
                             }
                             final plotWidth = math.max(
@@ -1774,7 +1806,11 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                               plotWidth: plotWidth,
                               candleCount: viewportCandleCount,
                             );
-                            if (target == _viewport) return;
+                            if (target == _viewport) {
+                              _rememberChartView();
+                              return;
+                            }
+                            _rememberChartView(viewport: target);
                             _panAnimationPlotWidth = plotWidth;
                             _panAnimationCandleCount = viewportCandleCount;
                             _panInertiaController.value =
@@ -1812,6 +1848,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                                           .reset(),
                                     );
                                   }
+                                  _rememberChartView();
                                 },
                           child: RepaintBoundary(
                             key: const Key('chart-plot-repaint-boundary'),
@@ -1840,7 +1877,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                               text: displayTradingSymbol(widget.symbol),
                               style: TextStyle(
                                 color: _theme.tradeBlue,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w500,
+                                fontVariations: const [
+                                  FontVariation('wght', 500),
+                                ],
                               ),
                             ),
                             TextSpan(text: ' '),
@@ -1885,7 +1925,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                               text: displayTradingSymbol(widget.symbol),
                               style: TextStyle(
                                 color: _theme.tradeBlue,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w500,
+                                fontVariations: const [
+                                  FontVariation('wght', 500),
+                                ],
                                 fontSize: _usesVideo2ChartLayout ? 13 : null,
                                 letterSpacing: _usesVideo2ChartLayout
                                     ? .5
@@ -4064,12 +4107,23 @@ class _TradeQuote extends StatelessWidget {
                 style:
                     (label == 'Buy'
                             ? AppTypography.chartTicketLabel.copyWith(
-                                fontFamily: AppTypography.plainFamily,
+                                fontFamily: AppTypography.tabPlainFamily,
                                 fontSize: 7,
+                                fontVariations: const [
+                                  FontVariation('wght', 250),
+                                ],
                                 letterSpacing: 1.35,
                               )
                             : AppTypography.chartTicketLabel)
-                        .copyWith(color: theme.background),
+                        .copyWith(
+                          color: theme.background,
+                          fontWeight: io.Platform.isAndroid
+                              ? FontWeight.w500
+                              : null,
+                          fontVariations: io.Platform.isAndroid
+                              ? const [FontVariation('wght', 500)]
+                              : null,
+                        ),
               ),
             ),
             Positioned(

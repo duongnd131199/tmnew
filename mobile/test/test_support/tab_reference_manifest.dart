@@ -51,6 +51,8 @@ class StaticTextRegion {
     this.geometryColorTolerance = 112,
     this.semanticColorTolerance = 6,
     this.measureLargestGeometryComponent = false,
+    this.measureInkDensity = true,
+    this.inkDensityTolerancePercent,
   });
 
   final String name;
@@ -61,19 +63,40 @@ class StaticTextRegion {
   final int geometryColorTolerance;
   final int semanticColorTolerance;
   final bool measureLargestGeometryComponent;
+  final bool measureInkDensity;
+  final double? inkDensityTolerancePercent;
 }
 
-const referencePrimaryInk = ReferenceInk(17, 17, 17);
-const referenceSecondaryInk = ReferenceInk(92, 92, 96);
-const referenceBlueInk = ReferenceInk(0, 127, 255);
+const referencePrimaryInk = ReferenceInk(0, 0, 0);
+const referenceSecondaryInk = ReferenceInk(60, 60, 67);
+const referenceBlueInk = ReferenceInk(0, 122, 255);
 const referenceRedInk = ReferenceInk(228, 45, 48);
 const referenceWhiteInk = ReferenceInk(255, 255, 255);
-const referenceNavigationInk = ReferenceInk(48, 48, 48);
+const referenceNavigationInk = ReferenceInk(0, 0, 0);
 const referenceHistoryStatusInk = ReferenceInk(41, 70, 117);
 const referenceHistorySegmentSelectedInk = ReferenceInk(237, 237, 237);
 const referenceChartToolbarInk = ReferenceInk(64, 64, 64);
 const referenceChartBlueInk = ReferenceInk(49, 131, 255);
 const referenceBlackInk = ReferenceInk(0, 0, 0);
+
+const _geometryPrimaryInk = ReferenceInk(17, 17, 17);
+const _geometrySecondaryInk = ReferenceInk(92, 92, 96);
+const _geometryBlueInk = ReferenceInk(0, 127, 255);
+const _geometryRedInk = ReferenceInk(228, 45, 48);
+const _geometryNavigationInk = ReferenceInk(48, 48, 48);
+
+ReferenceInk geometryInkFor(ReferenceInk semanticInk) {
+  if (identical(semanticInk, referencePrimaryInk)) return _geometryPrimaryInk;
+  if (identical(semanticInk, referenceSecondaryInk)) {
+    return _geometrySecondaryInk;
+  }
+  if (identical(semanticInk, referenceBlueInk)) return _geometryBlueInk;
+  if (identical(semanticInk, referenceRedInk)) return _geometryRedInk;
+  if (identical(semanticInk, referenceNavigationInk)) {
+    return _geometryNavigationInk;
+  }
+  return semanticInk;
+}
 
 const _navigationPrices = StaticTextRegion(
   name: 'navigation-prices-label',
@@ -86,6 +109,7 @@ const _navigationPricesSelected = StaticTextRegion(
   referenceRect: ReferencePixelRect(60, 1223, 60, 21),
   candidateRect: ReferencePixelRect(60, 1223, 60, 21),
   ink: referenceBlueInk,
+  measureInkDensity: false,
 );
 const _navigationChart = StaticTextRegion(
   name: 'navigation-chart-label',
@@ -98,6 +122,7 @@ const _navigationChartSelected = StaticTextRegion(
   referenceRect: ReferencePixelRect(150, 1223, 110, 21),
   candidateRect: ReferencePixelRect(150, 1223, 110, 21),
   ink: referenceBlueInk,
+  measureInkDensity: false,
 );
 const _navigationTrade = StaticTextRegion(
   name: 'navigation-trade-label',
@@ -110,6 +135,7 @@ const _navigationTradeSelected = StaticTextRegion(
   referenceRect: ReferencePixelRect(255, 1223, 100, 21),
   candidateRect: ReferencePixelRect(255, 1223, 100, 21),
   ink: referenceBlueInk,
+  measureInkDensity: false,
 );
 const _navigationHistory = StaticTextRegion(
   name: 'navigation-history-label',
@@ -122,6 +148,7 @@ const _navigationHistorySelected = StaticTextRegion(
   referenceRect: ReferencePixelRect(350, 1223, 100, 21),
   candidateRect: ReferencePixelRect(350, 1223, 100, 21),
   ink: referenceBlueInk,
+  measureInkDensity: false,
 );
 const _navigationSettings = StaticTextRegion(
   name: 'navigation-settings-label',
@@ -323,6 +350,7 @@ const tabReferenceCases = <TabReferenceCase>[
         candidateRect: ReferencePixelRect(0, 225, 180, 35),
         ink: referenceBlackInk,
         geometryInk: referencePrimaryInk,
+        measureInkDensity: false,
       ),
       ..._chartNavigationRegions,
     ],
@@ -395,6 +423,7 @@ const tabReferenceCases = <TabReferenceCase>[
         geometryColorTolerance: 10,
         semanticColorTolerance: 6,
         measureLargestGeometryComponent: true,
+        measureInkDensity: false,
       ),
       StaticTextRegion(
         name: 'segment-orders',
@@ -485,6 +514,7 @@ const tabReferenceCases = <TabReferenceCase>[
         geometryColorTolerance: 10,
         semanticColorTolerance: 6,
         measureLargestGeometryComponent: true,
+        measureInkDensity: false,
       ),
       StaticTextRegion(
         name: 'segment-orders',
@@ -551,6 +581,7 @@ const tabReferenceCases = <TabReferenceCase>[
         geometryColorTolerance: 10,
         semanticColorTolerance: 6,
         measureLargestGeometryComponent: true,
+        measureInkDensity: false,
       ),
       StaticTextRegion(
         name: 'segment-orders',
@@ -623,6 +654,7 @@ const tabReferenceCases = <TabReferenceCase>[
         geometryColorTolerance: 10,
         semanticColorTolerance: 6,
         measureLargestGeometryComponent: true,
+        measureInkDensity: false,
       ),
       StaticTextRegion(
         name: 'segment-deals',
