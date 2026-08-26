@@ -55,14 +55,52 @@ void main() {
 
     expect(result.exitCode, 2, reason: result.diagnostics);
     expect(result.diagnostics, contains('fixture candidate'));
-    expect(
-      result.diagnostics,
-      contains('candidate/fixture-590x1280.png'),
-    );
+    expect(result.diagnostics, contains('candidate/fixture-590x1280.png'));
     expect(result.diagnostics, contains('fully opaque'));
     expect(result.diagnostics, contains('(14,14)'));
     expect(result.diagnostics, contains('alpha 0'));
   });
+
+  test(
+    'preflight rejects a later alpha error without partial evidence',
+    () async {
+      final firstReference = _blankImage();
+      final secondReference = _blankImage();
+      final secondCandidate = image.Image.from(secondReference);
+      secondCandidate.setPixelRgba(31, 27, 255, 255, 255, 0);
+      final root = await Directory.systemTemp.createTemp(
+        'mt5-preflight-output-',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final outputDirectory = Directory('${root.path}/evidence');
+
+      final result = await _runFixtures(
+        fixtures: [
+          _FixtureInput(
+            reference: firstReference,
+            candidate: image.Image.from(firstReference),
+            referenceCase: _fixtureCase(id: 'first', fileName: 'first.png'),
+          ),
+          _FixtureInput(
+            reference: secondReference,
+            candidate: secondCandidate,
+            referenceCase: _fixtureCase(id: 'second', fileName: 'second.png'),
+          ),
+        ],
+        outputDirectory: outputDirectory,
+      );
+
+      expect(result.exitCode, 2, reason: result.diagnostics);
+      expect(result.diagnostics, contains('second candidate'));
+      expect(result.diagnostics, contains('(31,27)'));
+      expect(result.diagnostics, contains('alpha 0'));
+      expect(
+        outputDirectory.existsSync(),
+        isFalse,
+        reason: 'Preflight failures must not create partial evidence.',
+      );
+    },
+  );
 
   test(
     'Trade keeps the reference header area left of profit visually blank',
@@ -684,17 +722,38 @@ Future<_RunResult> _runFixture({
   String? renderer,
   Directory? outputDirectory,
   List<String> Function(String candidateDirectory)? arguments,
+}) => _runFixtures(
+  fixtures: [
+    _FixtureInput(
+      reference: reference,
+      candidate: candidate,
+      referenceCase: referenceCase,
+    ),
+  ],
+  renderer: renderer,
+  outputDirectory: outputDirectory,
+  arguments: arguments,
+);
+
+Future<_RunResult> _runFixtures({
+  required List<_FixtureInput> fixtures,
+  String? renderer,
+  Directory? outputDirectory,
+  List<String> Function(String candidateDirectory)? arguments,
 }) async {
   final root = await Directory.systemTemp.createTemp('mt5-comparator-');
   addTearDown(() => root.delete(recursive: true));
   final referenceDirectory = Directory('${root.path}/reference')..createSync();
   final candidateDirectory = Directory('${root.path}/candidate')..createSync();
-  File(
-    '${referenceDirectory.path}/${referenceCase.fileName}',
-  ).writeAsBytesSync(image.encodePng(reference));
-  File(
-    '${candidateDirectory.path}/${referenceCase.id}-590x1280.png',
-  ).writeAsBytesSync(image.encodePng(candidate));
+  for (final fixture in fixtures) {
+    File(
+      '${referenceDirectory.path}/${fixture.referenceCase.fileName}',
+    ).writeAsBytesSync(image.encodePng(fixture.reference));
+    File(
+      '${candidateDirectory.path}/'
+      '${fixture.referenceCase.id}-590x1280.png',
+    ).writeAsBytesSync(image.encodePng(fixture.candidate));
+  }
 
   final output = StringBuffer();
   final errors = StringBuffer();
@@ -712,7 +771,7 @@ Future<_RunResult> _runFixture({
     args,
     standardOutput: output,
     errorOutput: errors,
-    referenceCases: [referenceCase],
+    referenceCases: fixtures.map((fixture) => fixture.referenceCase).toList(),
     referenceDirectory: referenceDirectory.path,
   );
   return _RunResult(exitCode, '$output$errors');
@@ -755,4 +814,16 @@ class _RunResult {
 
   final int exitCode;
   final String diagnostics;
+}
+
+class _FixtureInput {
+  const _FixtureInput({
+    required this.reference,
+    required this.candidate,
+    required this.referenceCase,
+  });
+
+  final image.Image reference;
+  final image.Image candidate;
+  final TabReferenceCase referenceCase;
 }

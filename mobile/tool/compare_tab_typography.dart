@@ -42,6 +42,21 @@ int runTabTypographyComparison(
     return 2;
   }
 
+  late final List<_DecodedComparisonCase> decodedCases;
+  try {
+    decodedCases = _preflightInputs(
+      referenceCases,
+      candidateDirectory: configuration.candidateDirectory,
+      referenceDirectory: referenceDirectory,
+    );
+  } on _ComparisonInputError catch (error) {
+    errors.writeln(error.message);
+    return 2;
+  } on FileSystemException catch (error) {
+    errors.writeln('Could not read comparison input: ${error.message}');
+    return 2;
+  }
+
   Directory? artifactDirectory;
   if (configuration.outputDirectory != null) {
     try {
@@ -59,17 +74,10 @@ int runTabTypographyComparison(
   final report = _CsvReport();
   var failed = false;
   try {
-    for (final referenceCase in referenceCases) {
-      final referencePath = referenceDirectory == null
-          ? referenceCase.referencePath
-          : '$referenceDirectory/${referenceCase.fileName}';
-      final candidatePath =
-          '${configuration.candidateDirectory}/'
-          '${referenceCase.id}-590x1280.png';
-      final reference = _decode(referencePath);
-      final candidate = _decode(candidatePath);
-      _expectCanonicalSize(referenceCase, 'reference', reference);
-      _expectCanonicalSize(referenceCase, 'candidate', candidate);
+    for (final decodedCase in decodedCases) {
+      final referenceCase = decodedCase.referenceCase;
+      final reference = decodedCase.reference;
+      final candidate = decodedCase.candidate;
 
       final masks = _MaskMap(
         width: reference.width,
@@ -77,9 +85,6 @@ int runTabTypographyComparison(
         masks: referenceCase.dynamicMaskRegions,
       );
       final staticAudit = _StaticPixelAudit.measure(
-        caseId: referenceCase.id,
-        referencePath: referencePath,
-        candidatePath: candidatePath,
         reference: reference,
         candidate: candidate,
         masks: masks,
@@ -436,6 +441,45 @@ image.Image _decode(String path) {
   return decoded;
 }
 
+List<_DecodedComparisonCase> _preflightInputs(
+  List<TabReferenceCase> referenceCases, {
+  required String candidateDirectory,
+  required String? referenceDirectory,
+}) {
+  final decodedCases = <_DecodedComparisonCase>[];
+  for (final referenceCase in referenceCases) {
+    final referencePath = referenceDirectory == null
+        ? referenceCase.referencePath
+        : '$referenceDirectory/${referenceCase.fileName}';
+    final candidatePath =
+        '$candidateDirectory/${referenceCase.id}-590x1280.png';
+    final reference = _decode(referencePath);
+    final candidate = _decode(candidatePath);
+    _expectCanonicalSize(referenceCase, 'reference', reference);
+    _expectCanonicalSize(referenceCase, 'candidate', candidate);
+    _expectFullyOpaque(
+      caseId: referenceCase.id,
+      kind: 'reference',
+      path: referencePath,
+      value: reference,
+    );
+    _expectFullyOpaque(
+      caseId: referenceCase.id,
+      kind: 'candidate',
+      path: candidatePath,
+      value: candidate,
+    );
+    decodedCases.add(
+      _DecodedComparisonCase(
+        referenceCase: referenceCase,
+        reference: reference,
+        candidate: candidate,
+      ),
+    );
+  }
+  return decodedCases;
+}
+
 void _expectCanonicalSize(
   TabReferenceCase referenceCase,
   String kind,
@@ -448,6 +492,25 @@ void _expectCanonicalSize(
       '${referenceCase.id} $kind must be ${expectedWidth}x$expectedHeight, '
       'got ${value.width}x${value.height}.',
     );
+  }
+}
+
+void _expectFullyOpaque({
+  required String caseId,
+  required String kind,
+  required String path,
+  required image.Image value,
+}) {
+  for (var y = 0; y < value.height; y++) {
+    for (var x = 0; x < value.width; x++) {
+      final alpha = value.getPixel(x, y).a.toInt();
+      if (alpha != 255) {
+        throw _ComparisonInputError(
+          '$caseId $kind input $path must be fully opaque; '
+          'pixel ($x,$y) has alpha $alpha.',
+        );
+      }
+    }
   }
 }
 
@@ -588,9 +651,6 @@ class _StaticPixelAudit {
   });
 
   factory _StaticPixelAudit.measure({
-    required String caseId,
-    required String referencePath,
-    required String candidatePath,
     required image.Image reference,
     required image.Image candidate,
     required _MaskMap masks,
@@ -614,20 +674,6 @@ class _StaticPixelAudit {
       for (var x = 0; x < width; x++) {
         final referencePixel = reference.getPixel(x, y);
         final candidatePixel = candidate.getPixel(x, y);
-        final referenceAlpha = referencePixel.a.toInt();
-        if (referenceAlpha != 255) {
-          throw _ComparisonInputError(
-            '$caseId reference input $referencePath must be fully opaque; '
-            'pixel ($x,$y) has alpha $referenceAlpha.',
-          );
-        }
-        final candidateAlpha = candidatePixel.a.toInt();
-        if (candidateAlpha != 255) {
-          throw _ComparisonInputError(
-            '$caseId candidate input $candidatePath must be fully opaque; '
-            'pixel ($x,$y) has alpha $candidateAlpha.',
-          );
-        }
         final redDelta = (referencePixel.r - candidatePixel.r).abs().toInt();
         final greenDelta = (referencePixel.g - candidatePixel.g).abs().toInt();
         final blueDelta = (referencePixel.b - candidatePixel.b).abs().toInt();
@@ -952,6 +998,18 @@ String _csvCell(String value) {
 }
 
 enum _CandidateRenderer { deterministic, android }
+
+class _DecodedComparisonCase {
+  const _DecodedComparisonCase({
+    required this.referenceCase,
+    required this.reference,
+    required this.candidate,
+  });
+
+  final TabReferenceCase referenceCase;
+  final image.Image reference;
+  final image.Image candidate;
+}
 
 class _ComparisonConfiguration {
   const _ComparisonConfiguration({
