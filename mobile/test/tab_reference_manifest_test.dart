@@ -162,7 +162,6 @@ void main() {
     for (final item in tabReferenceCases) {
       final referenceCase = item;
       expect(referenceCase.route, isNotEmpty, reason: '${item.id} route');
-      expect(referenceCase.selectedTab, isNotNull, reason: '${item.id} tab');
       expect(
         referenceCase.captureState.description,
         isNotEmpty,
@@ -230,4 +229,155 @@ void main() {
       }
     }
   });
+
+  const expectedCaptureCases =
+      <
+        String,
+        ({
+          String route,
+          ReferenceSelectedTab selectedTab,
+          ReferenceScrollState scrollState,
+          bool hasVisibleScrollbar,
+          ReferencePixelRect? scrollbarRect,
+        })
+      >{
+        'prices': (
+          route: '/prices',
+          selectedTab: ReferenceSelectedTab.prices,
+          scrollState: ReferenceScrollState.atTop,
+          hasVisibleScrollbar: false,
+          scrollbarRect: null,
+        ),
+        'chart': (
+          route: '/chart',
+          selectedTab: ReferenceSelectedTab.chart,
+          scrollState: ReferenceScrollState.atTop,
+          hasVisibleScrollbar: false,
+          scrollbarRect: null,
+        ),
+        'trade': (
+          route: '/trade',
+          selectedTab: ReferenceSelectedTab.trade,
+          scrollState: ReferenceScrollState.atTop,
+          hasVisibleScrollbar: true,
+          scrollbarRect: ReferencePixelRect(581, 318, 5, 790),
+        ),
+        'history-positions': (
+          route: '/history/positions',
+          selectedTab: ReferenceSelectedTab.history,
+          scrollState: ReferenceScrollState.atTop,
+          hasVisibleScrollbar: false,
+          scrollbarRect: null,
+        ),
+        'history-orders': (
+          route: '/history/orders',
+          selectedTab: ReferenceSelectedTab.history,
+          scrollState: ReferenceScrollState.offset,
+          hasVisibleScrollbar: true,
+          scrollbarRect: ReferencePixelRect(581, 177, 5, 687),
+        ),
+        'history-orders-summary': (
+          route: '/history/orders',
+          selectedTab: ReferenceSelectedTab.history,
+          scrollState: ReferenceScrollState.atEnd,
+          hasVisibleScrollbar: true,
+          scrollbarRect: ReferencePixelRect(581, 474, 5, 688),
+        ),
+        'history-deals': (
+          route: '/history/deals',
+          selectedTab: ReferenceSelectedTab.history,
+          scrollState: ReferenceScrollState.atEnd,
+          hasVisibleScrollbar: true,
+          scrollbarRect: ReferencePixelRect(581, 525, 5, 637),
+        ),
+      };
+
+  for (final entry in expectedCaptureCases.entries) {
+    test('${entry.key} matches the independently measured capture state', () {
+      final referenceCase = tabReferenceCases.singleWhere(
+        (item) => item.id == entry.key,
+      );
+      final expected = entry.value;
+      expect(referenceCase.route, expected.route);
+      expect(referenceCase.selectedTab, expected.selectedTab);
+      expect(referenceCase.captureState.scrollState, expected.scrollState);
+      expect(
+        referenceCase.captureState.hasVisibleScrollbar,
+        expected.hasVisibleScrollbar,
+      );
+
+      final scrollbars = referenceCase.visualRegions
+          .where((region) => region.type == ReferenceVisualRegionType.scrollbar)
+          .toList();
+      if (expected.scrollbarRect == null) {
+        expect(scrollbars, isEmpty);
+        return;
+      }
+
+      expect(scrollbars, hasLength(1));
+      final actual = scrollbars.single.rect;
+      final wanted = expected.scrollbarRect!;
+      expect(actual.left, wanted.left);
+      expect(actual.top, wanted.top);
+      expect(actual.width, wanted.width);
+      expect(actual.height, wanted.height);
+    });
+  }
+
+  const expectedProtectedRegions = <String, Map<String, ReferencePixelRect>>{
+    'prices': {
+      'prices-first-low-label': ReferencePixelRect(372, 220, 13, 38),
+      'prices-first-high-label': ReferencePixelRect(487, 220, 15, 38),
+      'prices-second-low-label': ReferencePixelRect(392, 320, 13, 38),
+      'prices-second-high-label': ReferencePixelRect(515, 320, 15, 38),
+    },
+    'chart': {
+      'chart-plot-frame': ReferencePixelRect(0, 260, 472, 7),
+      'chart-right-price-axis': ReferencePixelRect(472, 260, 118, 880),
+      'chart-x-axis-labels': ReferencePixelRect(0, 1140, 472, 28),
+    },
+    'trade': {
+      'trade-section-surface': ReferencePixelRect(0, 327, 590, 38),
+      'trade-scrollbar-indicator': ReferencePixelRect(581, 318, 5, 790),
+    },
+    'history-positions': {
+      'history-positions-selected-segment': ReferencePixelRect(105, 97, 130, 6),
+    },
+    'history-orders': {
+      'history-orders-scrollbar-indicator': ReferencePixelRect(
+        581,
+        177,
+        5,
+        687,
+      ),
+    },
+    'history-orders-summary': {
+      'history-orders-summary-scrollbar-indicator': ReferencePixelRect(
+        581,
+        474,
+        5,
+        688,
+      ),
+    },
+    'history-deals': {
+      'history-deals-scrollbar-indicator': ReferencePixelRect(581, 525, 5, 637),
+    },
+  };
+
+  for (final entry in expectedProtectedRegions.entries) {
+    test('${entry.key} protects measured static regions from masks', () {
+      final referenceCase = tabReferenceCases.singleWhere(
+        (item) => item.id == entry.key,
+      );
+      for (final expected in entry.value.entries) {
+        final actual = referenceCase.staticControlRegions.singleWhere(
+          (region) => region.name == expected.key,
+        );
+        expect(actual.rect.left, expected.value.left, reason: expected.key);
+        expect(actual.rect.top, expected.value.top, reason: expected.key);
+        expect(actual.rect.width, expected.value.width, reason: expected.key);
+        expect(actual.rect.height, expected.value.height, reason: expected.key);
+      }
+    });
+  }
 }

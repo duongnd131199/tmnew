@@ -282,10 +282,28 @@ const _baseVisualRegions = <ReferenceVisualRegion>[
   ),
 ];
 
-const _historyScrollbarRegion = ReferenceVisualRegion(
-  name: 'history-scrollbar',
+const _tradeScrollbarRegion = ReferenceVisualRegion(
+  name: 'trade-scrollbar-indicator',
   type: ReferenceVisualRegionType.scrollbar,
-  rect: ReferencePixelRect(581, 143, 5, 1000),
+  rect: ReferencePixelRect(581, 318, 5, 790),
+);
+
+const _historyOrdersScrollbarRegion = ReferenceVisualRegion(
+  name: 'history-orders-scrollbar-indicator',
+  type: ReferenceVisualRegionType.scrollbar,
+  rect: ReferencePixelRect(581, 177, 5, 687),
+);
+
+const _historyOrdersSummaryScrollbarRegion = ReferenceVisualRegion(
+  name: 'history-orders-summary-scrollbar-indicator',
+  type: ReferenceVisualRegionType.scrollbar,
+  rect: ReferencePixelRect(581, 474, 5, 688),
+);
+
+const _historyDealsScrollbarRegion = ReferenceVisualRegion(
+  name: 'history-deals-scrollbar-indicator',
+  type: ReferenceVisualRegionType.scrollbar,
+  rect: ReferencePixelRect(581, 525, 5, 637),
 );
 
 const _baseStaticControls = <ReferenceStaticControlRegion>[
@@ -309,12 +327,16 @@ const _baseStaticControls = <ReferenceStaticControlRegion>[
     name: 'navigation-settings-label',
     rect: ReferencePixelRect(470, 1223, 60, 12),
   ),
+  ReferenceStaticControlRegion(
+    name: 'bottom-navigation-surface',
+    rect: ReferencePixelRect(0, 1168, 590, 112),
+  ),
 ];
 
 const _systemStatusMasks = <ReferenceDynamicMask>[
   ReferenceDynamicMask(
     kind: ReferenceDynamicMaskKind.systemStatusValues,
-    rect: ReferencePixelRect(0, 15, 82, 40),
+    rect: ReferencePixelRect(62, 15, 98, 40),
     reason:
         'The operating-system clock and silent indicator are capture-time values.',
   ),
@@ -340,6 +362,22 @@ const _pricesStaticControls = <ReferenceStaticControlRegion>[
     name: 'second-quote-symbol',
     rect: ReferencePixelRect(4, 297, 120, 25),
   ),
+  ReferenceStaticControlRegion(
+    name: 'prices-first-low-label',
+    rect: ReferencePixelRect(372, 220, 13, 38),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'prices-first-high-label',
+    rect: ReferencePixelRect(487, 220, 15, 38),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'prices-second-low-label',
+    rect: ReferencePixelRect(392, 320, 13, 38),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'prices-second-high-label',
+    rect: ReferencePixelRect(515, 320, 15, 38),
+  ),
 ];
 
 const _chartStaticControls = <ReferenceStaticControlRegion>[
@@ -364,6 +402,18 @@ const _chartStaticControls = <ReferenceStaticControlRegion>[
     name: 'plot-subtitle',
     rect: ReferencePixelRect(0, 225, 180, 35),
   ),
+  ReferenceStaticControlRegion(
+    name: 'chart-plot-frame',
+    rect: ReferencePixelRect(0, 260, 472, 7),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'chart-right-price-axis',
+    rect: ReferencePixelRect(472, 260, 118, 880),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'chart-x-axis-labels',
+    rect: ReferencePixelRect(0, 1140, 472, 28),
+  ),
 ];
 
 const _tradeStaticControls = <ReferenceStaticControlRegion>[
@@ -380,6 +430,14 @@ const _tradeStaticControls = <ReferenceStaticControlRegion>[
     name: 'position-symbol',
     rect: ReferencePixelRect(4, 369, 100, 40),
   ),
+  ReferenceStaticControlRegion(
+    name: 'trade-section-surface',
+    rect: ReferencePixelRect(0, 327, 590, 38),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'trade-scrollbar-indicator',
+    rect: ReferencePixelRect(581, 318, 5, 790),
+  ),
 ];
 
 const _historyStaticControls = <ReferenceStaticControlRegion>[
@@ -387,6 +445,38 @@ const _historyStaticControls = <ReferenceStaticControlRegion>[
   ReferenceStaticControlRegion(
     name: 'history-segment-control',
     rect: ReferencePixelRect(105, 90, 385, 49),
+  ),
+];
+
+const _historyPositionsStaticControls = <ReferenceStaticControlRegion>[
+  ..._historyStaticControls,
+  ReferenceStaticControlRegion(
+    name: 'history-positions-selected-segment',
+    rect: ReferencePixelRect(105, 97, 130, 6),
+  ),
+];
+
+const _historyOrdersStaticControls = <ReferenceStaticControlRegion>[
+  ..._historyStaticControls,
+  ReferenceStaticControlRegion(
+    name: 'history-orders-scrollbar-indicator',
+    rect: ReferencePixelRect(581, 177, 5, 687),
+  ),
+];
+
+const _historyOrdersSummaryStaticControls = <ReferenceStaticControlRegion>[
+  ..._historyStaticControls,
+  ReferenceStaticControlRegion(
+    name: 'history-orders-summary-scrollbar-indicator',
+    rect: ReferencePixelRect(581, 474, 5, 688),
+  ),
+];
+
+const _historyDealsStaticControls = <ReferenceStaticControlRegion>[
+  ..._historyStaticControls,
+  ReferenceStaticControlRegion(
+    name: 'history-deals-scrollbar-indicator',
+    rect: ReferencePixelRect(581, 525, 5, 637),
   ),
 ];
 
@@ -533,42 +623,42 @@ const tabReferenceCases = <TabReferenceCase>[
       ..._systemStatusMasks,
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(365, 180, 105, 45),
+        rect: ReferencePixelRect(365, 180, 105, 37),
         reason: 'The first quote bid is supplied by the live market feed.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(485, 180, 105, 45),
+        rect: ReferencePixelRect(485, 180, 105, 37),
         reason: 'The first quote ask is supplied by the live market feed.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(385, 278, 90, 45),
+        rect: ReferencePixelRect(385, 278, 90, 40),
         reason: 'The second quote bid is supplied by the live market feed.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(505, 278, 85, 45),
+        rect: ReferencePixelRect(505, 278, 85, 40),
         reason: 'The second quote ask is supplied by the live market feed.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(375, 220, 100, 38),
+        rect: ReferencePixelRect(390, 220, 70, 38),
         reason: 'The first quote low is derived from the live market session.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(500, 220, 90, 38),
+        rect: ReferencePixelRect(508, 220, 72, 38),
         reason: 'The first quote high is derived from the live market session.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(395, 320, 80, 38),
+        rect: ReferencePixelRect(410, 320, 50, 38),
         reason: 'The second quote low is derived from the live market session.',
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.livePrices,
-        rect: ReferencePixelRect(515, 320, 75, 38),
+        rect: ReferencePixelRect(536, 320, 43, 38),
         reason:
             'The second quote high is derived from the live market session.',
       ),
@@ -661,7 +751,7 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.liveChartContent,
-        rect: ReferencePixelRect(0, 267, 472, 891),
+        rect: ReferencePixelRect(0, 267, 472, 873),
         reason:
             'Only the drawable candle plot changes as new market candles arrive.',
       ),
@@ -674,11 +764,13 @@ const tabReferenceCases = <TabReferenceCase>[
     route: '/trade',
     selectedTab: ReferenceSelectedTab.trade,
     captureState: ReferenceCaptureState(
-      description: 'Open Positions at the initial, top-of-list position.',
+      description:
+          'Open Positions at the initial, top-of-list position with a visible scrollbar.',
       scrollState: ReferenceScrollState.atTop,
+      hasVisibleScrollbar: true,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: _baseVisualRegions,
+    visualRegions: [..._baseVisualRegions, _tradeScrollbarRegion],
     staticControlRegions: _tradeStaticControls,
     staticTextRegions: [
       StaticTextRegion(
@@ -734,8 +826,63 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
-        rect: ReferencePixelRect(475, 375, 115, 730),
-        reason: 'Open-position profit and loss values change with live quotes.',
+        rect: ReferencePixelRect(494, 388, 87, 27),
+        reason:
+            'The first open-position profit and loss changes with live quotes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(494, 467, 87, 28),
+        reason:
+            'The second open-position profit and loss changes with live quotes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(494, 547, 87, 27),
+        reason:
+            'The third open-position profit and loss changes with live quotes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(494, 626, 87, 28),
+        reason:
+            'The fourth open-position profit and loss changes with live quotes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(494, 706, 87, 28),
+        reason:
+            'The fifth open-position profit and loss changes with live quotes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(494, 786, 87, 27),
+        reason:
+            'The sixth open-position profit and loss changes with live quotes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(486, 866, 95, 27),
+        reason:
+            'The seventh open-position profit and loss changes with live quotes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(486, 945, 95, 28),
+        reason:
+            'The eighth open-position profit and loss changes with live quotes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(486, 1025, 95, 27),
+        reason:
+            'The ninth open-position profit and loss changes with live quotes.',
+      ),
+      ReferenceDynamicMask(
+        kind: ReferenceDynamicMaskKind.liveProfitAndLoss,
+        rect: ReferencePixelRect(495, 1104, 86, 18),
+        reason:
+            'The clipped tenth open-position profit and loss changes with live quotes.',
       ),
     ],
   ),
@@ -752,7 +899,7 @@ const tabReferenceCases = <TabReferenceCase>[
     ),
     staticAuditRegion: _referenceCanvas,
     visualRegions: _baseVisualRegions,
-    staticControlRegions: _historyStaticControls,
+    staticControlRegions: _historyPositionsStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',
@@ -867,8 +1014,8 @@ const tabReferenceCases = <TabReferenceCase>[
       hasVisibleScrollbar: true,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: [..._baseVisualRegions, _historyScrollbarRegion],
-    staticControlRegions: _historyStaticControls,
+    visualRegions: [..._baseVisualRegions, _historyOrdersScrollbarRegion],
+    staticControlRegions: _historyOrdersStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',
@@ -944,8 +1091,11 @@ const tabReferenceCases = <TabReferenceCase>[
       hasVisibleScrollbar: true,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: [..._baseVisualRegions, _historyScrollbarRegion],
-    staticControlRegions: _historyStaticControls,
+    visualRegions: [
+      ..._baseVisualRegions,
+      _historyOrdersSummaryScrollbarRegion,
+    ],
+    staticControlRegions: _historyOrdersSummaryStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',
@@ -1027,8 +1177,8 @@ const tabReferenceCases = <TabReferenceCase>[
       hasVisibleScrollbar: true,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: [..._baseVisualRegions, _historyScrollbarRegion],
-    staticControlRegions: _historyStaticControls,
+    visualRegions: [..._baseVisualRegions, _historyDealsScrollbarRegion],
+    staticControlRegions: _historyDealsStaticControls,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',

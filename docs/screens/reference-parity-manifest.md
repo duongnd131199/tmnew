@@ -13,6 +13,11 @@ does not prescribe or tune production UI.
 - Text scale: `1.0`.
 - Coordinates are original physical pixels. Rectangles use
   `[left, top, width, height]`, with right and bottom edges exclusive.
+- Measurements are taken directly from the decoded JPEG pixel grid. Horizontal
+  text-mask edges are placed immediately after protected label glyphs and
+  around changing numeric glyphs; their vertical extents retain the measured
+  baseline band. Scrollbar rectangles identify the visible indicator/thumb,
+  not an inferred full-height scroll rail.
 
 Each case has a full-canvas `staticAuditRegion` of `[0, 0, 590, 1280]`. Its
 dynamic masks are narrowly-scoped exclusions; they do not turn a partial crop
@@ -24,19 +29,23 @@ into the source of truth.
 | --- | --- | --- | --- |
 | `photo_2026-08-25_22-30-10.jpg` | Prices, `/prices` | Prices | Market Watch at the initial top-of-list position. |
 | `photo_2026-08-25_22-30-17.jpg` | Chart, `/chart` | Chart | One-click chart with the initial visible candle range. |
-| `photo_2026-08-25_22-30-20.jpg` | Trade, `/trade` | Trade | Open Positions at the initial top-of-list position. |
+| `photo_2026-08-25_22-30-20.jpg` | Trade, `/trade` | Trade | Open Positions at the initial top-of-list position; scrollbar indicator `[581, 318, 5, 790]`. |
 | `photo_2026-08-25_22-30-23.jpg` | History positions, `/history/positions` | History | Positions segment at the initial top-of-list position. |
-| `photo_2026-08-25_22-30-26.jpg` | History orders, `/history/orders` | History | Orders segment after a 32 physical-pixel list offset; scrollbar visible. |
-| `photo_2026-08-25_22-30-29.jpg` | History orders summary, `/history/orders` | History | Orders segment scrolled to its end summary; scrollbar visible. |
-| `photo_2026-08-25_22-30-34.jpg` | History deals, `/history/deals` | History | Deals segment scrolled to its end summary; scrollbar visible. |
+| `photo_2026-08-25_22-30-26.jpg` | History orders, `/history/orders` | History | Orders segment after a 32 physical-pixel list offset; scrollbar indicator `[581, 177, 5, 687]`. |
+| `photo_2026-08-25_22-30-29.jpg` | History orders summary, `/history/orders` | History | Orders segment scrolled to its end summary; scrollbar indicator `[581, 474, 5, 688]`. |
+| `photo_2026-08-25_22-30-34.jpg` | History deals, `/history/deals` | History | Deals segment scrolled to its end summary; scrollbar indicator `[581, 525, 5, 637]`. |
 
 ## Static audit contract
 
 Every case declares typed visual regions for the system area, content bounds,
-header, body, and bottom navigation. The three scrolled history images also
-declare their measured scrollbar rail. `staticControlRegions` identifies
-controls and labels that a mask must never cover; the manifest test enforces
-both that restriction and canvas bounds.
+header, body, and bottom navigation. Trade and the three scrolled History
+images declare their individually measured scrollbar indicators; Prices,
+Chart, and History Positions have none. `staticControlRegions` identifies
+controls and labels that a mask must never cover, including price `L:`/`H:`
+labels, chart frame and axes, Trade section surface and scrollbar, history
+selected segment, and every visible scrollbar indicator. The manifest test
+enforces those independent expected bounds, mask non-overlap, and canvas
+bounds.
 
 `StaticTextRegion` remains unchanged for the existing typography comparator.
 `dynamicMaskRegions` is the typed, reasoned mask API; the legacy
@@ -52,11 +61,11 @@ and bottom navigation remain static audit targets.
 
 | Dynamic class | Exact exclusion reason |
 | --- | --- |
-| `systemStatusValues` | “The operating-system clock and silent indicator are capture-time values.” Carrier, signal, and battery use the separate exact reason “Carrier, signal, and battery status are supplied by the device at capture time.” |
-| `livePrices` | Quote Bid/Ask values are “supplied by the live market feed”; session Low/High values are “derived from the live market session”; chart-ticket sell and buy quotes are “a live market value.” |
+| `systemStatusValues` | “The operating-system clock and silent indicator are capture-time values.” The left glyph mask is `[62, 15, 98, 40]`, measured around the clock/silent glyphs rather than from the canvas edge. Carrier, signal, and battery use the separate exact reason “Carrier, signal, and battery status are supplied by the device at capture time.” |
+| `livePrices` | Quote Bid/Ask values are “supplied by the live market feed”; session Low/High values are “derived from the live market session”; chart-ticket sell and buy quotes are “a live market value.” Low/High masks start after the static `L:`/`H:` glyphs. |
 | `liveTimes` | Quote timestamps are excluded because they “advance with the live market feed.” Historical transaction timestamps are not masked: they describe the captured history state. |
-| `liveProfitAndLoss` | Trade header and open-position profit values change with live quotes. The Positions-history profit summary is excluded because it “is recalculated from position outcomes.” |
-| `liveChartContent` | The drawable candle plot alone is excluded because “Only the drawable candle plot changes as new market candles arrive.” The chart toolbar, ticket labels, plot identity, axes outside the plot, and navigation remain audited. |
+| `liveProfitAndLoss` | Trade header and each visible open-position profit glyph changes with live quotes. Each Trade row has an individual glyph-tight mask so row spacing and the `[581, 318, 5, 790]` scrollbar remain static. The Positions-history profit summary is excluded because it “is recalculated from position outcomes.” |
+| `liveChartContent` | The drawable candle plot alone is excluded because “Only the drawable candle plot changes as new market candles arrive.” Its mask ends at `y=1140`, before the protected X-axis labels; the chart toolbar, ticket labels, frame, price axis, X-axis, and navigation remain audited. |
 
 The masks use physical-pixel rectangles wholly inside the JPEG canvas. They
 are evaluated against required static control/label rectangles so future
