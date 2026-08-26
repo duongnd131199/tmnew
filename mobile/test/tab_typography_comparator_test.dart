@@ -6,18 +6,30 @@ import 'package:image/image.dart' as image;
 import '../tool/compare_tab_typography.dart' as comparator;
 import 'test_support/tab_reference_manifest.dart';
 
-void main() {
-  test('canonical tab renderings match reference optical ink density', () {
-    final output = StringBuffer();
-    final errors = StringBuffer();
+const _canvas = ReferencePixelRect(0, 0, 64, 64);
+const _textSearch = ReferencePixelRect(8, 8, 28, 24);
 
-    final result = comparator.runTabTypographyComparison(
-      const [],
-      standardOutput: output,
-      errorOutput: errors,
+void main() {
+  test('synthetic known-equal reference and candidate succeed', () async {
+    final reference = _blankImage();
+    _fillRect(reference, 12, 12, 16, 10, 0, 0, 0);
+
+    final result = await _runFixture(
+      reference: reference,
+      candidate: image.Image.from(reference),
+      referenceCase: _fixtureCase(
+        staticTextRegions: const [
+          StaticTextRegion(
+            name: 'label',
+            referenceRect: _textSearch,
+            candidateRect: _textSearch,
+            ink: referencePrimaryInk,
+          ),
+        ],
+      ),
     );
 
-    expect(result, 0, reason: '$output\n$errors');
+    expect(result.exitCode, 0, reason: result.diagnostics);
   });
 
   test(
@@ -56,154 +68,358 @@ void main() {
   );
 
   test(
-    'comparator rejects visibly heavier glyphs with unchanged bounds and ink',
+    'rejects candidate ink matching manifest hint but not measured reference',
     () async {
-      final candidateDirectory = await Directory.systemTemp.createTemp(
-        'mt5-tab-density-comparator-',
-      );
-      addTearDown(() => candidateDirectory.delete(recursive: true));
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillRect(reference, 12, 12, 16, 10, 24, 24, 24);
+      _fillRect(candidate, 12, 12, 16, 10, 0, 0, 0);
 
-      for (final referenceCase in tabReferenceCases) {
-        await File(
-          'test/goldens/tab-typography/'
-          '${referenceCase.id}-590x1280.png',
-        ).copy('${candidateDirectory.path}/${referenceCase.id}-590x1280.png');
+      for (final renderer in <String?>[null, 'android']) {
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          renderer: renderer,
+          referenceCase: _fixtureCase(
+            staticTextRegions: const [
+              StaticTextRegion(
+                name: 'measured-color-label',
+                referenceRect: _textSearch,
+                candidateRect: _textSearch,
+                ink: referencePrimaryInk,
+                measureInkDensity: false,
+              ),
+            ],
+          ),
+        );
+
+        expect(
+          result.exitCode,
+          1,
+          reason: '${renderer ?? 'deterministic'}\n${result.diagnostics}',
+        );
+        expect(result.diagnostics, contains('manifestInkHint'));
+        expect(result.diagnostics, contains('measuredReferenceInk'));
+        expect(result.diagnostics, contains('candidateInk'));
+        expect(result.diagnostics, contains('rgb(24,24,24)'));
+        expect(result.diagnostics, contains('semantic RGB delta 24 exceeds 4'));
       }
-
-      final pricesCase = tabReferenceCases.singleWhere(
-        (referenceCase) => referenceCase.id == 'prices',
-      );
-      final symbolRegion = pricesCase.staticTextRegions.singleWhere(
-        (region) => region.name == 'quote-symbol',
-      );
-      final pricesFile = File('${candidateDirectory.path}/prices-590x1280.png');
-      final prices = image.decodePng(await pricesFile.readAsBytes())!;
-      const ink = (red: 0, green: 0, blue: 0);
-
-      for (var pass = 0; pass < 2; pass++) {
-        final solidInk = <(int, int)>{};
-        for (
-          var y = symbolRegion.candidateRect.top;
-          y < symbolRegion.candidateRect.bottom;
-          y++
-        ) {
-          for (
-            var x = symbolRegion.candidateRect.left;
-            x < symbolRegion.candidateRect.right;
-            x++
-          ) {
-            final pixel = prices.getPixel(x, y);
-            if (pixel.r == ink.red &&
-                pixel.g == ink.green &&
-                pixel.b == ink.blue) {
-              solidInk.add((x, y));
-            }
-          }
-        }
-        final left = solidInk
-            .map((pixel) => pixel.$1)
-            .reduce((a, b) => a < b ? a : b);
-        final right = solidInk
-            .map((pixel) => pixel.$1)
-            .reduce((a, b) => a > b ? a : b);
-        final top = solidInk
-            .map((pixel) => pixel.$2)
-            .reduce((a, b) => a < b ? a : b);
-        final bottom = solidInk
-            .map((pixel) => pixel.$2)
-            .reduce((a, b) => a > b ? a : b);
-        final additions = <(int, int)>{};
-        for (final pixel in solidInk) {
-          for (final offset in const <(int, int)>[
-            (-1, 0),
-            (1, 0),
-            (0, -1),
-            (0, 1),
-          ]) {
-            final x = pixel.$1 + offset.$1;
-            final y = pixel.$2 + offset.$2;
-            if (x >= left && x <= right && y >= top && y <= bottom) {
-              additions.add((x, y));
-            }
-          }
-        }
-        for (final pixel in additions) {
-          prices.setPixelRgba(
-            pixel.$1,
-            pixel.$2,
-            ink.red,
-            ink.green,
-            ink.blue,
-            255,
-          );
-        }
-      }
-      await pricesFile.writeAsBytes(image.encodePng(prices));
-
-      final output = StringBuffer();
-      final errors = StringBuffer();
-      final result = comparator.runTabTypographyComparison(
-        ['--candidate-dir', candidateDirectory.path],
-        standardOutput: output,
-        errorOutput: errors,
-      );
-
-      expect(result, 1, reason: '$output\n$errors');
-      expect('$output$errors', contains('ink density'));
     },
   );
 
-  test('comparator rejects semantic ink shifted beyond six channels', () async {
-    final candidateDirectory = await Directory.systemTemp.createTemp(
-      'mt5-tab-comparator-',
-    );
-    addTearDown(() => candidateDirectory.delete(recursive: true));
+  test('rejects optical density drift above five percent', () async {
+    final reference = _densityImage(interiorChannel: 100);
+    final candidate = _densityImage(interiorChannel: 80);
 
-    for (final referenceCase in tabReferenceCases) {
-      await File(
-        'test/goldens/tab-typography/'
-        '${referenceCase.id}-590x1280.png',
-      ).copy('${candidateDirectory.path}/${referenceCase.id}-590x1280.png');
+    for (final renderer in <String?>[null, 'android']) {
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        renderer: renderer,
+        referenceCase: _fixtureCase(
+          staticTextRegions: const [
+            StaticTextRegion(
+              name: 'density-label',
+              referenceRect: _textSearch,
+              candidateRect: _textSearch,
+              ink: referencePrimaryInk,
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        result.exitCode,
+        1,
+        reason: '${renderer ?? 'deterministic'}\n${result.diagnostics}',
+      );
+      expect(result.diagnostics, contains('inkDensityDeltaPercent'));
+      expect(
+        result.diagnostics,
+        contains('ink density delta 6.7% exceeds 5.0%'),
+      );
     }
-
-    final pricesFile = File('${candidateDirectory.path}/prices-590x1280.png');
-    final prices = image.decodePng(await pricesFile.readAsBytes())!;
-    for (var y = 0; y < prices.height; y++) {
-      for (var x = 0; x < prices.width; x++) {
-        final pixel = prices.getPixel(x, y);
-        final distance = <int>[
-          pixel.r.toInt(),
-          (pixel.g.toInt() - 127).abs(),
-          (pixel.b.toInt() - 255).abs(),
-        ].reduce((left, right) => left > right ? left : right);
-        if (distance <= 48) prices.setPixelRgba(x, y, 0, 147, 255, 255);
-      }
-    }
-    await pricesFile.writeAsBytes(image.encodePng(prices));
-
-    final output = StringBuffer();
-    final errors = StringBuffer();
-    final result = comparator.runTabTypographyComparison(
-      ['--candidate-dir', candidateDirectory.path],
-      standardOutput: output,
-      errorOutput: errors,
-    );
-
-    expect(result, 1, reason: '$output\n$errors');
-    expect('$output$errors', contains('Static typography exceeds tolerance'));
-
-    final androidOutput = StringBuffer();
-    final androidErrors = StringBuffer();
-    final androidResult = comparator.runTabTypographyComparison(
-      [
-        '--candidate-dir',
-        candidateDirectory.path,
-        '--candidate-renderer',
-        'android',
-      ],
-      standardOutput: androidOutput,
-      errorOutput: androidErrors,
-    );
-    expect(androidResult, 1, reason: '$androidOutput\n$androidErrors');
   });
+
+  test('rejects a two-physical-pixel text edge shift', () async {
+    final reference = _blankImage();
+    final candidate = _blankImage();
+    _fillRect(reference, 12, 12, 14, 10, 0, 0, 0);
+    _fillRect(candidate, 14, 12, 14, 10, 0, 0, 0);
+
+    for (final renderer in <String?>[null, 'android']) {
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        renderer: renderer,
+        referenceCase: _fixtureCase(
+          staticTextRegions: const [
+            StaticTextRegion(
+              name: 'shifted-label',
+              referenceRect: _textSearch,
+              candidateRect: _textSearch,
+              ink: referencePrimaryInk,
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        result.exitCode,
+        1,
+        reason: '${renderer ?? 'deterministic'}\n${result.diagnostics}',
+      );
+      expect(result.diagnostics, contains('edgeDelta'));
+      expect(
+        result.diagnostics,
+        contains('edge delta 2 exceeds 1 physical px'),
+      );
+    }
+  });
+
+  test('rejects a static control mutation outside text regions', () async {
+    final reference = _blankImage();
+    final candidate = image.Image.from(reference);
+    _fillRect(candidate, 42, 42, 10, 10, 0, 0, 0);
+
+    final result = await _runFixture(
+      reference: reference,
+      candidate: candidate,
+      referenceCase: _fixtureCase(
+        staticControlRegions: const [
+          ReferenceStaticControlRegion(
+            name: 'static-control',
+            rect: ReferencePixelRect(40, 40, 16, 16),
+          ),
+        ],
+      ),
+    );
+
+    expect(result.exitCode, 1, reason: result.diagnostics);
+    expect(result.diagnostics, contains('static-control'));
+    expect(result.diagnostics, contains('differingPixelCount'));
+    expect(result.diagnostics, contains('100 pixels differ'));
+  });
+
+  test('rejects a dynamic mask intersecting required static control', () async {
+    final reference = _blankImage();
+
+    final result = await _runFixture(
+      reference: reference,
+      candidate: image.Image.from(reference),
+      referenceCase: _fixtureCase(
+        staticControlRegions: const [
+          ReferenceStaticControlRegion(
+            name: 'required-control',
+            rect: ReferencePixelRect(40, 40, 16, 16),
+          ),
+        ],
+        dynamicMaskRegions: const [
+          ReferenceDynamicMask(
+            kind: ReferenceDynamicMaskKind.livePrices,
+            rect: ReferencePixelRect(42, 42, 4, 4),
+            reason: 'Synthetic live value.',
+          ),
+        ],
+      ),
+    );
+
+    expect(result.exitCode, 2, reason: result.diagnostics);
+    expect(result.diagnostics, contains('required-control'));
+    expect(result.diagnostics, contains('intersects'));
+  });
+
+  test('rejects a dynamic mask with an empty reason', () async {
+    final reference = _blankImage();
+
+    final result = await _runFixture(
+      reference: reference,
+      candidate: image.Image.from(reference),
+      referenceCase: _fixtureCase(
+        dynamicMaskRegions: const [
+          ReferenceDynamicMask(
+            kind: ReferenceDynamicMaskKind.livePrices,
+            rect: ReferencePixelRect(42, 42, 4, 4),
+            reason: '   ',
+          ),
+        ],
+      ),
+    );
+
+    expect(result.exitCode, 2, reason: result.diagnostics);
+    expect(result.diagnostics, contains('non-empty reason'));
+  });
+
+  test('rejects a dynamic mask outside the audit canvas', () async {
+    final reference = _blankImage();
+
+    final result = await _runFixture(
+      reference: reference,
+      candidate: image.Image.from(reference),
+      referenceCase: _fixtureCase(
+        dynamicMaskRegions: const [
+          ReferenceDynamicMask(
+            kind: ReferenceDynamicMaskKind.livePrices,
+            rect: ReferencePixelRect(62, 62, 4, 4),
+            reason: 'Synthetic out-of-bounds value.',
+          ),
+        ],
+      ),
+    );
+
+    expect(result.exitCode, 2, reason: result.diagnostics);
+    expect(result.diagnostics, contains('outside static audit canvas'));
+  });
+
+  test('output directory contains machine CSV overlay and heatmap', () async {
+    final outputDirectory = await Directory.systemTemp.createTemp(
+      'mt5-comparator-evidence-',
+    );
+    addTearDown(() => outputDirectory.delete(recursive: true));
+    final reference = _blankImage();
+    _fillRect(reference, 12, 12, 16, 10, 0, 0, 0);
+
+    final result = await _runFixture(
+      reference: reference,
+      candidate: image.Image.from(reference),
+      outputDirectory: outputDirectory,
+      referenceCase: _fixtureCase(
+        staticTextRegions: const [
+          StaticTextRegion(
+            name: 'label',
+            referenceRect: _textSearch,
+            candidateRect: _textSearch,
+            ink: referencePrimaryInk,
+          ),
+        ],
+      ),
+    );
+
+    expect(result.exitCode, 0, reason: result.diagnostics);
+    final csv = File('${outputDirectory.path}/comparison.csv');
+    expect(csv.existsSync(), isTrue);
+    expect(csv.readAsStringSync(), startsWith('recordType,candidateRenderer'));
+    expect(csv.readAsStringSync(), contains('static-region'));
+    for (final name in const [
+      'fixture-overlay-50-50.png',
+      'fixture-heatmap.png',
+    ]) {
+      final artifact = File('${outputDirectory.path}/$name');
+      expect(artifact.existsSync(), isTrue, reason: artifact.path);
+      final decoded = image.decodePng(artifact.readAsBytesSync());
+      expect(decoded, isNotNull, reason: artifact.path);
+      expect((decoded!.width, decoded.height), (64, 64));
+    }
+  });
+}
+
+TabReferenceCase _fixtureCase({
+  List<StaticTextRegion> staticTextRegions = const [],
+  List<ReferenceStaticControlRegion> staticControlRegions = const [],
+  List<ReferenceDynamicMask> dynamicMaskRegions = const [],
+}) => TabReferenceCase(
+  id: 'fixture',
+  fileName: 'fixture.png',
+  state: TabReferenceState.prices,
+  route: '/fixture',
+  selectedTab: ReferenceSelectedTab.prices,
+  captureState: const ReferenceCaptureState(
+    description: 'Synthetic deterministic comparator fixture.',
+    scrollState: ReferenceScrollState.atTop,
+  ),
+  staticAuditRegion: _canvas,
+  visualRegions: const [
+    ReferenceVisualRegion(
+      name: 'fixture-canvas',
+      type: ReferenceVisualRegionType.body,
+      rect: _canvas,
+    ),
+  ],
+  staticControlRegions: staticControlRegions,
+  staticTextRegions: staticTextRegions,
+  dynamicMaskRegions: dynamicMaskRegions,
+);
+
+image.Image _blankImage() {
+  final result = image.Image(width: 64, height: 64, numChannels: 4);
+  _fillRect(result, 0, 0, 64, 64, 255, 255, 255);
+  return result;
+}
+
+image.Image _densityImage({required int interiorChannel}) {
+  final result = _blankImage();
+  _fillRect(result, 12, 12, 10, 10, 0, 0, 0);
+  _fillRect(
+    result,
+    13,
+    13,
+    8,
+    8,
+    interiorChannel,
+    interiorChannel,
+    interiorChannel,
+  );
+  return result;
+}
+
+void _fillRect(
+  image.Image target,
+  int left,
+  int top,
+  int width,
+  int height,
+  int red,
+  int green,
+  int blue,
+) {
+  for (var y = top; y < top + height; y++) {
+    for (var x = left; x < left + width; x++) {
+      target.setPixelRgba(x, y, red, green, blue, 255);
+    }
+  }
+}
+
+Future<_RunResult> _runFixture({
+  required image.Image reference,
+  required image.Image candidate,
+  required TabReferenceCase referenceCase,
+  String? renderer,
+  Directory? outputDirectory,
+}) async {
+  final root = await Directory.systemTemp.createTemp('mt5-comparator-');
+  addTearDown(() => root.delete(recursive: true));
+  final referenceDirectory = Directory('${root.path}/reference')..createSync();
+  final candidateDirectory = Directory('${root.path}/candidate')..createSync();
+  File(
+    '${referenceDirectory.path}/${referenceCase.fileName}',
+  ).writeAsBytesSync(image.encodePng(reference));
+  File(
+    '${candidateDirectory.path}/${referenceCase.id}-590x1280.png',
+  ).writeAsBytesSync(image.encodePng(candidate));
+
+  final output = StringBuffer();
+  final errors = StringBuffer();
+  final args = <String>[
+    if (outputDirectory != null) ...['--output-dir', outputDirectory.path],
+    '--candidate-dir',
+    candidateDirectory.path,
+  ];
+  if (renderer != null) {
+    args.addAll(['--candidate-renderer', renderer]);
+  }
+  final exitCode = comparator.runTabTypographyComparison(
+    args,
+    standardOutput: output,
+    errorOutput: errors,
+    referenceCases: [referenceCase],
+    referenceDirectory: referenceDirectory.path,
+  );
+  return _RunResult(exitCode, '$output$errors');
+}
+
+class _RunResult {
+  const _RunResult(this.exitCode, this.diagnostics);
+
+  final int exitCode;
+  final String diagnostics;
 }
