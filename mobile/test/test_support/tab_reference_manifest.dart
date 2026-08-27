@@ -254,7 +254,7 @@ const referenceNavigationInk = ReferenceInk(0, 0, 0);
 const referenceHistoryStatusInk = ReferenceInk(41, 70, 117);
 const referenceHistorySegmentSelectedInk = ReferenceInk(237, 237, 237);
 const referenceChartToolbarInk = ReferenceInk(64, 64, 64);
-const referenceChartBlueInk = ReferenceInk(49, 131, 255);
+const referenceChartBlueInk = ReferenceInk(57, 133, 233);
 const referenceBlackInk = ReferenceInk(0, 0, 0);
 const navigationBlackRole = 'navigation-black';
 const navigationBlueRole = 'navigation-blue';
@@ -1359,15 +1359,15 @@ const _chartStaticControls = <ReferenceStaticControlRegion>[
   ),
   ReferenceStaticControlRegion(
     name: 'chart-plot-frame',
-    rect: ReferencePixelRect(0, 260, 472, 7),
+    rect: ReferencePixelRect(0, 260, 507, 7),
   ),
   ReferenceStaticControlRegion(
     name: 'chart-right-price-axis',
-    rect: ReferencePixelRect(472, 260, 118, 880),
+    rect: ReferencePixelRect(507, 260, 83, 880),
   ),
   ReferenceStaticControlRegion(
     name: 'chart-x-axis-labels',
-    rect: ReferencePixelRect(0, 1140, 472, 28),
+    rect: ReferencePixelRect(0, 1140, 507, 28),
   ),
 ];
 
@@ -1789,7 +1789,7 @@ const tabReferenceCases = <TabReferenceCase>[
       ),
       ReferenceDynamicMask(
         kind: ReferenceDynamicMaskKind.liveChartContent,
-        rect: ReferencePixelRect(0, 267, 472, 873),
+        rect: ReferencePixelRect(0, 267, 507, 873),
         reason:
             'Only the drawable candle plot changes as new market candles arrive.',
       ),

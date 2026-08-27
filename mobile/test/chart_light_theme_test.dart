@@ -30,6 +30,8 @@ const _tradeBlue = 0xFF3183FF;
 const _plotTitleBlue = 0xFF3985E9;
 const _ticketBlue = 0xFF007AFF;
 const _axisBorder = 0xFFD8D8D8;
+const _axisText = 0xFF404040;
+const _plotSubtitleText = 0xFF404040;
 const _priceLine = 0xFF26A69A;
 const _renderSize = Size(384, 600);
 const _hostilePrimary = Color(0xFFFF00E5);
@@ -48,6 +50,8 @@ const _alternateTheme = ChartReferenceTheme(
   plotTitleBlue: Color(0xFF684FC9),
   ticketBlue: Color(0xFF0A6CE0),
   axisBorder: Color(0xFF8E6F9E),
+  axisText: Color(0xFF194F7A),
+  plotSubtitleText: Color(0xFF7A4F19),
   priceLine: Color(0xFF0F6D99),
 );
 
@@ -68,6 +72,8 @@ ChartReferenceTheme _replaceTheme(
   plotTitleBlue: source.plotTitleBlue,
   ticketBlue: ticketBlue ?? source.ticketBlue,
   axisBorder: source.axisBorder,
+  axisText: source.axisText,
+  plotSubtitleText: source.plotSubtitleText,
   priceLine: priceLine ?? source.priceLine,
 );
 
@@ -98,6 +104,8 @@ Mt5CandlePainter _painter({
   double? pendingOrderPrice,
   double barSpacing = ChartViewport.defaultBarSpacing,
   DateTime? tickTime,
+  String symbol = 'TEST',
+  String timeframe = 'M5',
 }) {
   final resolvedCandles = candles ?? _candles();
   final resolvedPrice = currentPrice ?? resolvedCandles.last.close;
@@ -124,7 +132,7 @@ Mt5CandlePainter _painter({
   );
   return Mt5CandlePainter(
     snapshot: snapshot,
-    symbol: 'TEST',
+    symbol: symbol,
     referencePrice: resolvedPrice,
     currentPrice: resolvedPrice,
     tickTime: tickTime ?? DateTime.utc(2026, 8, 23, 13, 19, 30),
@@ -132,7 +140,7 @@ Mt5CandlePainter _painter({
     crosshairPosition: crosshairEnabled ? const Offset(120, 180) : null,
     measurementStart: null,
     measurementEnd: null,
-    timeframe: 'M5',
+    timeframe: timeframe,
     positions: positions,
     pendingOrders: pendingOrders,
     indicators: const <String>{},
@@ -254,6 +262,8 @@ final class _RenderedPixels {
       palette.bullish,
       palette.bearish,
       palette.tradeBlue,
+      palette.axisText,
+      palette.plotSubtitleText,
       palette.axisBorder,
       palette.priceLine,
     ].where((candidate) => candidate != role).toList(growable: false);
@@ -336,6 +346,44 @@ final class _RenderedPixels {
       }
     }
     return count;
+  }
+
+  Rect? roleBounds(Color role, ChartReferenceTheme palette, Rect region) {
+    final left = region.left.floor().clamp(0, width - 1);
+    final top = region.top.floor().clamp(0, height - 1);
+    final right = region.right.ceil().clamp(left + 1, width);
+    final bottom = region.bottom.ceil().clamp(top + 1, height);
+    var minX = width;
+    var minY = height;
+    var maxX = -1;
+    var maxY = -1;
+    for (var y = top; y < bottom; y++) {
+      for (var x = left; x < right; x++) {
+        final offset = (y * width + x) * 4;
+        if (rgba[offset + 3] != 0xFF ||
+            !_matchesRoleBlend(
+              (rgba[offset], rgba[offset + 1], rgba[offset + 2]),
+              role,
+              palette.background,
+              .18,
+              3,
+            )) {
+          continue;
+        }
+        minX = math.min(minX, x);
+        minY = math.min(minY, y);
+        maxX = math.max(maxX, x);
+        maxY = math.max(maxY, y);
+      }
+    }
+    return maxX < 0
+        ? null
+        : Rect.fromLTRB(
+            minX.toDouble(),
+            minY.toDouble(),
+            (maxX + 1).toDouble(),
+            (maxY + 1).toDouble(),
+          );
   }
 }
 
@@ -637,6 +685,8 @@ void main() {
     expect(light.plotTitleBlue.toARGB32(), _plotTitleBlue);
     expect(light.ticketBlue.toARGB32(), _ticketBlue);
     expect(light.axisBorder.toARGB32(), _axisBorder);
+    expect(light.axisText.toARGB32(), _axisText);
+    expect(light.plotSubtitleText.toARGB32(), _plotSubtitleText);
     expect(light.priceLine.toARGB32(), _priceLine);
   });
 
@@ -1014,6 +1064,113 @@ void main() {
     },
   );
 
+  test('losing BUY position keeps its open-price tag blue', () async {
+    const openPrice = 103.0;
+    final painter = _painter(
+      theme: _alternateTheme,
+      symbol: 'XAUUSD+',
+      timeframe: 'M1',
+      positions: const [
+        DemoPosition(
+          id: 'losing-buy',
+          symbol: 'XAUUSD+',
+          side: 'BUY',
+          volume: .1,
+          openPrice: openPrice,
+          currentPrice: 102,
+          profit: -4.5,
+        ),
+      ],
+    );
+    final pixels = await _renderPainter(painter);
+    final y = _priceY(painter, openPrice);
+    final tag = Rect.fromLTWH(
+      painter.hitTargets.chartWidth + 2,
+      y - 7.5,
+      61,
+      15,
+    );
+
+    expect(
+      pixels.countUnambiguousRole(
+        _alternateTheme.tradeBlue,
+        _alternateTheme,
+        tag,
+      ),
+      greaterThan(0),
+    );
+    expect(
+      pixels.countUnambiguousRole(
+        _alternateTheme.bearish,
+        _alternateTheme,
+        tag,
+      ),
+      0,
+    );
+  });
+
+  test('M1 position label uses the measured line clearance', () async {
+    const openPrice = 103.0;
+    final painter = _painter(
+      theme: _alternateTheme,
+      symbol: 'XAUUSD+',
+      timeframe: 'M1',
+      positions: const [
+        DemoPosition(
+          id: 'buy',
+          symbol: 'XAUUSD+',
+          side: 'BUY',
+          volume: .1,
+          openPrice: openPrice,
+          currentPrice: 104,
+          profit: 4.5,
+        ),
+      ],
+    );
+    final pixels = await _renderPainter(painter);
+    final y = _priceY(painter, openPrice);
+    final bounds = pixels.roleBounds(
+      _alternateTheme.tradeBlue,
+      _alternateTheme,
+      Rect.fromLTRB(4, y - 20, 105, y - 1),
+    );
+
+    expect(bounds, isNotNull);
+    expect(y - bounds!.top, closeTo(11.5, 1));
+    expect(bounds.bottom, lessThan(y));
+  });
+
+  test('M1 time-axis ink starts at the axis origin', () async {
+    final painter = _painter(
+      theme: _alternateTheme,
+      symbol: 'XAUUSD+',
+      timeframe: 'M1',
+    );
+    final pixels = await _renderPainter(painter);
+    final axis = painter.hitTargets.timeAxisRect;
+    final bounds = pixels.roleBounds(
+      _alternateTheme.axisText,
+      _alternateTheme,
+      Rect.fromLTRB(
+        2,
+        axis.top,
+        painter.hitTargets.chartWidth - 2,
+        axis.bottom,
+      ),
+    );
+
+    expect(bounds, isNotNull);
+    expect(bounds!.top - axis.top, lessThanOrEqualTo(3));
+  });
+
+  test('M1 axis uses the measured #404040 semantic ink', () async {
+    final painter = _painter(symbol: 'XAUUSD+', timeframe: 'M1');
+    final pixels = await _renderPainter(painter);
+    final axis = painter.hitTargets.priceAxisRect;
+
+    expect(pixels.countArgb(0xFF404040, axis, tolerance: 1), greaterThan(0));
+  });
+
   test('canvas background, grid, axes and frame use light roles', () async {
     final painter = _painter(candles: _candles(allBearish: true));
     final pixels = await _renderPainter(painter);
@@ -1370,6 +1527,21 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
+  });
+
+  testWidgets('plot subtitle honors its injected semantic role', (
+    tester,
+  ) async {
+    await _pumpAlternateChartOnDark(tester);
+    await tester.tap(find.text('H4').first);
+    await tester.pump();
+    await tester.tap(find.text('M1').first);
+    await tester.pump();
+
+    final subtitle = tester.widget<Text>(
+      find.byKey(const Key('chart-plot-subtitle')),
+    );
+    expect(subtitle.style?.color, _alternateTheme.plotSubtitleText);
   });
 
   test('changing only painter theme requires repaint', () {

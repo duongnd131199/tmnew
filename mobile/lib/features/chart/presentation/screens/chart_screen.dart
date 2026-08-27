@@ -1603,7 +1603,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     final usesM1ReferenceTypography =
         _normaliseSymbol(widget.symbol) == 'XAUUSD' && frameTimeframe == 'M1';
     final navigationOverlap =
-        widget.layoutProfile == ChartLayoutProfile.tabReferenceCapture
+        usesM1ReferenceTypography ||
+            widget.layoutProfile == ChartLayoutProfile.tabReferenceCapture
         ? _chartNavigationOverlap
         : 0.0;
     return Padding(
@@ -2007,7 +2008,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                           chartSubtitle,
                           key: const Key('chart-plot-subtitle'),
                           style: AppTypography.chartAnnotation.copyWith(
-                            color: _theme.foreground,
+                            color: usesM1ReferenceTypography
+                                ? _theme.plotSubtitleText
+                                : _theme.foreground,
                             fontFamily: usesM1ReferenceTypography
                                 ? AppTypography.tabPlainFamily
                                 : null,

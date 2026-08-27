@@ -12,6 +12,8 @@ final class ChartReferenceTheme {
     required this.plotTitleBlue,
     required this.ticketBlue,
     required this.axisBorder,
+    required this.axisText,
+    required this.plotSubtitleText,
     required this.priceLine,
   });
 
@@ -25,6 +27,8 @@ final class ChartReferenceTheme {
     plotTitleBlue: Color(0xFF3985E9),
     ticketBlue: Color(0xFF007AFF),
     axisBorder: Color(0xFFD8D8D8),
+    axisText: Color(0xFF404040),
+    plotSubtitleText: Color(0xFF404040),
     priceLine: Color(0xFF26A69A),
   );
 
@@ -41,6 +45,8 @@ final class ChartReferenceTheme {
   final Color plotTitleBlue;
   final Color ticketBlue;
   final Color axisBorder;
+  final Color axisText;
+  final Color plotSubtitleText;
   final Color priceLine;
 
   Color get toolbarInk =>

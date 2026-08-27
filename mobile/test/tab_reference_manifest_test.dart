@@ -634,9 +634,9 @@ void main() {
       'prices-second-high-label': ReferencePixelRect(515, 320, 15, 38),
     },
     'chart': {
-      'chart-plot-frame': ReferencePixelRect(0, 260, 472, 7),
-      'chart-right-price-axis': ReferencePixelRect(472, 260, 118, 880),
-      'chart-x-axis-labels': ReferencePixelRect(0, 1140, 472, 28),
+      'chart-plot-frame': ReferencePixelRect(0, 260, 507, 7),
+      'chart-right-price-axis': ReferencePixelRect(507, 260, 83, 880),
+      'chart-x-axis-labels': ReferencePixelRect(0, 1140, 507, 28),
     },
     'trade': {
       'trade-header-currency-label': ReferencePixelRect(315, 97, 49, 27),
@@ -666,6 +666,27 @@ void main() {
       'history-deals-scrollbar-indicator': ReferencePixelRect(581, 525, 5, 637),
     },
   };
+
+  test(
+    'chart contract isolates the 507px plot and measured plot-title blue',
+    () {
+      final chart = tabReferenceCases.singleWhere((item) => item.id == 'chart');
+      final dynamicPlot = chart.dynamicMaskRegions.singleWhere(
+        (region) => region.kind == ReferenceDynamicMaskKind.liveChartContent,
+      );
+      expect(dynamicPlot.rect.left, 0);
+      expect(dynamicPlot.rect.top, 267);
+      expect(dynamicPlot.rect.width, 507);
+      expect(dynamicPlot.rect.height, 873);
+
+      final plotSymbol = chart.staticTextRegions.singleWhere(
+        (region) => region.name == 'plot-symbol',
+      );
+      expect(plotSymbol.ink.red, 57);
+      expect(plotSymbol.ink.green, 133);
+      expect(plotSymbol.ink.blue, 233);
+    },
+  );
 
   for (final entry in expectedProtectedRegions.entries) {
     test('${entry.key} protects measured static regions from masks', () {

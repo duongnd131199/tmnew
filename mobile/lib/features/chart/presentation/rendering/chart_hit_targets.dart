@@ -10,12 +10,14 @@ class ChartHitTargets {
   double maxPrice = 0;
   double? pendingOrderY;
   List<({String label, double y})> positionOverlays = const [];
+  List<Rect> positionLabelRects = const [];
   List<({String label, double y})> pendingOrderOverlays = const [];
   Rect chartFrameRect = Rect.zero;
   Rect priceGridRect = Rect.zero;
   Rect priceAxisRect = Rect.zero;
   Rect timeAxisRect = Rect.zero;
   List<String> timeAxisLabels = const <String>[];
+  List<Offset> timeAxisLabelOrigins = const <Offset>[];
   List<({double x, String text, DateTime candleTime})> timeAxisLabelAnchors =
       const [];
   String? crosshairTimeLabel;

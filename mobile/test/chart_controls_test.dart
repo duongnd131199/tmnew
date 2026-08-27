@@ -169,6 +169,17 @@ void main() {
         tester.widget<CustomPaint>(canvasFinder).painter! as Mt5CandlePainter;
     expect(painter.referenceTextFamily, AppTypography.plainFamily);
     expect(painter.priceGridRect.top * 1.5, closeTo(118, .01));
+    final plotTitleRect = tester.getRect(
+      find.byKey(const Key('chart-plot-title')),
+    );
+    final upperPositionLabel = painter.hitTargets.positionLabelRects.reduce(
+      (left, right) => left.top < right.top ? left : right,
+    );
+    expect(
+      upperPositionLabel.shift(canvasRect.topLeft).overlaps(plotTitleRect),
+      isFalse,
+      reason: 'The upper M1 order annotation must clear the plot title.',
+    );
 
     await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
     await tester.pump();
@@ -181,7 +192,7 @@ void main() {
     expect(
       tester.widget<Text>(find.byKey(const Key('chart-plot-subtitle'))).style,
       AppTypography.chartAnnotation.copyWith(
-        color: ChartReferenceTheme.light.foreground,
+        color: const Color(0xFF404040),
         fontFamily: AppTypography.tabPlainFamily,
         fontSize: 12.5,
         fontWeight: FontWeight.w200,
@@ -2973,6 +2984,8 @@ void main() {
       plotTitleBlue: Color(0xFF684FC9),
       ticketBlue: Color(0xFF0A6CE0),
       axisBorder: Color(0xFF8E6F9E),
+      axisText: Color(0xFF5B217A),
+      plotSubtitleText: Color(0xFF5B217A),
       priceLine: Color(0xFF0F6D99),
     );
     tester.view.physicalSize = const Size(384, 848);

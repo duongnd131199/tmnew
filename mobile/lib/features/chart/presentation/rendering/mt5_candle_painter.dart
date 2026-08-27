@@ -613,6 +613,7 @@ class Mt5CandlePainter extends CustomPainter {
       ..pendingOrderY = null;
     hitTargets
       ..positionOverlays = const []
+      ..positionLabelRects = const []
       ..pendingOrderOverlays = const []
       ..horizontalGridYs = const []
       ..verticalGridXs = const []
@@ -750,12 +751,13 @@ class Mt5CandlePainter extends CustomPainter {
     }
 
     final visiblePositions = <(DemoPosition, double)>[];
+    final visiblePositionLabels = <Rect>[];
     for (final position
         in loadingPlaceholder ? const <DemoPosition>[] : positions) {
       final y = priceToY(position.openPrice);
       if (y < 0 || y > chartHeight) continue;
       visiblePositions.add((position, y));
-      _positionLine(canvas, chartWidth, y, position);
+      visiblePositionLabels.add(_positionLine(canvas, chartWidth, y, position));
       if (!_usesVideo2ChartChrome) {
         final color = position.side == 'BUY' ? theme.tradeBlue : theme.bearish;
         _positionMarker(canvas, chartWidth - 8, y, color, position.side);
@@ -769,6 +771,7 @@ class Mt5CandlePainter extends CustomPainter {
         ),
       ),
     );
+    hitTargets.positionLabelRects = List.unmodifiable(visiblePositionLabels);
 
     final visiblePendingLevels = <(double, double)>[];
     final visiblePendingOverlays = <({String label, double y})>[];
@@ -966,7 +969,7 @@ class Mt5CandlePainter extends CustomPainter {
         chartWidth,
         y,
         position.openPrice,
-        position.profit >= 0 ? theme.tradeBlue : theme.bearish,
+        position.side == 'BUY' ? theme.tradeBlue : theme.bearish,
       );
     }
     if (!loadingPlaceholder) {
@@ -1488,17 +1491,23 @@ class Mt5CandlePainter extends CustomPainter {
         for (var x = timeLabelInset; x < chartWidth; x += timeLabelPitch) x,
       ];
       final labels = <String>[];
+      final labelOrigins = <Offset>[];
       final anchors = <({double x, String text, DateTime candleTime})>[];
       for (var index = 0; index < labelXs.length; index++) {
         final x = labelXs[index];
         final candleIndex = hitTargets.visibleCandleIndex(x);
         final label = _formatCompactAxisTime(visible[candleIndex].time, index);
+        final labelOrigin = Offset(
+          x,
+          chartHeight + (usesM1ReferenceChrome ? 0 : 2),
+        );
         labels.add(label);
+        labelOrigins.add(labelOrigin);
         anchors.add((x: x, text: label, candleTime: visible[candleIndex].time));
         _text(
           canvas,
           label,
-          Offset(x, chartHeight + (usesM1ReferenceChrome ? 4 : 2)),
+          labelOrigin,
           AppTypography.chartTimeAxis.copyWith(
             color: _axisTextColor,
             fontSize: 11.5,
@@ -1511,6 +1520,7 @@ class Mt5CandlePainter extends CustomPainter {
         );
       }
       hitTargets.timeAxisLabels = List<String>.unmodifiable(labels);
+      hitTargets.timeAxisLabelOrigins = List<Offset>.unmodifiable(labelOrigins);
       hitTargets.timeAxisLabelAnchors = List.unmodifiable(anchors);
       return;
     }
@@ -1557,21 +1567,20 @@ class Mt5CandlePainter extends CustomPainter {
             for (final fraction in xFractions) chartWidth * fraction + 3,
           ];
     final labels = <String>[];
+    final labelOrigins = <Offset>[];
     final anchors = <({double x, String text, DateTime candleTime})>[];
     for (var i = 0; i < labelXs.length; i++) {
       final x = labelXs[i];
       final index = hitTargets.visibleCandleIndex(x);
       final label = _formatAxisTime(visible[index].time, first: i == 0);
+      final labelOrigin = Offset(x, standardTimeLabelY);
       labels.add(label);
+      labelOrigins.add(labelOrigin);
       anchors.add((x: x, text: label, candleTime: visible[index].time));
-      _text(
-        canvas,
-        label,
-        Offset(x, standardTimeLabelY),
-        standardTimeLabelStyle,
-      );
+      _text(canvas, label, labelOrigin, standardTimeLabelStyle);
     }
     hitTargets.timeAxisLabels = List<String>.unmodifiable(labels);
+    hitTargets.timeAxisLabelOrigins = List<Offset>.unmodifiable(labelOrigins);
     hitTargets.timeAxisLabelAnchors = List.unmodifiable(anchors);
   }
 
@@ -1627,7 +1636,9 @@ class Mt5CandlePainter extends CustomPainter {
   // their own market data instead of inheriting the H4 fixture contour.
   bool get _usesVideo2ChartChrome => true;
 
-  Color get _axisTextColor => theme.foreground;
+  Color get _axisTextColor => _isXauUsdVideo2Reference && timeframe == 'M1'
+      ? theme.axisText
+      : theme.foreground;
 
   String _formatAxisTime(DateTime time, {bool first = false}) {
     final displayTime = time.isUtc ? time.toLocal() : time;
@@ -1694,7 +1705,7 @@ class Mt5CandlePainter extends CustomPainter {
         '${two(displayTime.hour)}:${two(displayTime.minute)}';
   }
 
-  void _positionLine(
+  Rect _positionLine(
     Canvas canvas,
     double width,
     double y,
@@ -1718,7 +1729,7 @@ class Mt5CandlePainter extends CustomPainter {
     final style = AppTypography.chartAnnotation.copyWith(
       fontSize: _usesVideo2ChartChrome ? 12.5 : 9,
     );
-    _richText(
+    return _richText(
       canvas,
       TextSpan(
         children: [
@@ -1738,7 +1749,12 @@ class Mt5CandlePainter extends CustomPainter {
       ),
       Offset(
         _usesVideo2ChartChrome ? 5 : 9,
-        y - (_usesVideo2ChartChrome ? 16.5 : 10),
+        y -
+            (_usesVideo2ChartChrome
+                ? _isXauUsdVideo2Reference && timeframe == 'M1'
+                      ? 10.5
+                      : 16.5
+                : 10),
       ),
     );
   }
@@ -1982,10 +1998,11 @@ class Mt5CandlePainter extends CustomPainter {
     painter.paint(canvas, offset);
   }
 
-  static void _richText(Canvas canvas, InlineSpan value, Offset offset) {
+  static Rect _richText(Canvas canvas, InlineSpan value, Offset offset) {
     final painter = TextPainter(text: value, textDirection: TextDirection.ltr)
       ..layout();
     painter.paint(canvas, offset);
+    return offset & painter.size;
   }
 
   @override
