@@ -50,11 +50,12 @@ bounds.
 `StaticTextRegion.auditMode` defaults to `StaticTextAuditMode.static`.
 Static text is always measured against the decoded reference with edge
 `<= 1` physical pixel, RGB `<= 4` per channel, and optical-density delta
-`<= 5%`. A genuinely changing value must opt into `dynamicOnly` and intersect
-a typed, reasoned dynamic mask. The comparator emits a machine-readable
-`SKIP` row containing that reason; it never silently treats excluded text as a
-pass. The legacy `allowsDynamicMask` flag remains compatibility-only and does
-not confer `SKIP` semantics.
+`<= 5%`. A genuinely changing value must opt into `dynamicOnly` and both its
+reference and candidate rectangles must be wholly contained by one typed,
+reasoned dynamic mask. The comparator emits a machine-readable `SKIP` row
+containing only that covering mask's reason; it never silently treats excluded
+text as a pass. The legacy `allowsDynamicMask` flag remains compatibility-only
+and does not confer `SKIP` semantics.
 
 Mixed strings are split into independent audit regions. Prices keep the four
 `L:`/`H:` labels static while their numeric values are dynamic-only. Trade
@@ -63,10 +64,13 @@ dynamic-only. Static controls independently protect those labels and suffixes
 from mask overlap.
 
 Each full-canvas, typed visual-region, and static-control row derives its
-dominant surface color and foreground bounds independently from the decoded
-reference and candidate rasters. Required acceptance is measured surface RGB
-delta `<= 4` per channel and foreground edge delta `<= 1` physical pixel;
-one-sided foreground fails. The `12`-per-channel threshold is used only to
+dominant surface color, measured foreground color, and foreground bounds
+independently from the decoded reference and candidate rasters. Required
+acceptance is measured surface RGB delta `<= 4` per channel, measured
+foreground RGB delta `<= 4` per channel, and foreground edge delta `<= 1`
+physical pixel; one-sided foreground fails. The CSV has 22 columns, including
+the measured reference/candidate foreground and its delta immediately after
+the surface-color columns. The `12`-per-channel threshold is used only to
 absorb JPEG residuals when counting residual pixels and separating foreground
 from a measured local surface. It is not a semantic surface-color tolerance.
 Candidate tokens are never used as reference truth.

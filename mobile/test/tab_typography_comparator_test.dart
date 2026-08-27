@@ -32,6 +32,108 @@ void main() {
     expect(result.exitCode, 0, reason: result.diagnostics);
   });
 
+  test('rejects a partial mask for dynamic-only text', () async {
+    final source = _blankImage();
+    _fillRect(source, 12, 12, 16, 10, 0, 0, 0);
+
+    final result = await _runFixture(
+      reference: source,
+      candidate: image.Image.from(source),
+      referenceCase: _fixtureCase(
+        staticTextRegions: const [
+          StaticTextRegion(
+            name: 'live-price',
+            referenceRect: _textSearch,
+            candidateRect: _textSearch,
+            ink: referencePrimaryInk,
+            auditMode: StaticTextAuditMode.dynamicOnly,
+          ),
+        ],
+        dynamicMaskRegions: const [
+          ReferenceDynamicMask(
+            kind: ReferenceDynamicMaskKind.livePrices,
+            rect: ReferencePixelRect(12, 12, 1, 1),
+            reason: 'Synthetic live price.',
+          ),
+        ],
+      ),
+    );
+
+    expect(result.exitCode, 2, reason: result.diagnostics);
+    expect(result.diagnostics, contains('must be fully covered'));
+  });
+
+  test(
+    'rejects a mask when only the reference text rectangle is contained',
+    () async {
+      final source = _blankImage();
+      _fillRect(source, 12, 12, 16, 10, 0, 0, 0);
+      const candidateRect = ReferencePixelRect(8, 8, 30, 24);
+
+      final result = await _runFixture(
+        reference: source,
+        candidate: image.Image.from(source),
+        referenceCase: _fixtureCase(
+          staticTextRegions: const [
+            StaticTextRegion(
+              name: 'live-price',
+              referenceRect: _textSearch,
+              candidateRect: candidateRect,
+              ink: referencePrimaryInk,
+              auditMode: StaticTextAuditMode.dynamicOnly,
+            ),
+          ],
+          dynamicMaskRegions: const [
+            ReferenceDynamicMask(
+              kind: ReferenceDynamicMaskKind.livePrices,
+              rect: _textSearch,
+              reason: 'Synthetic live price.',
+            ),
+          ],
+        ),
+      );
+
+      expect(result.exitCode, 2, reason: result.diagnostics);
+      expect(result.diagnostics, contains('must be fully covered'));
+    },
+  );
+
+  test(
+    'reports SKIP when one mask fully covers both dynamic-only rectangles',
+    () async {
+      final source = _blankImage();
+      _fillRect(source, 12, 12, 16, 10, 0, 0, 0);
+      const candidateRect = ReferencePixelRect(10, 10, 24, 22);
+
+      final result = await _runFixture(
+        reference: source,
+        candidate: image.Image.from(source),
+        referenceCase: _fixtureCase(
+          staticTextRegions: const [
+            StaticTextRegion(
+              name: 'live-price',
+              referenceRect: _textSearch,
+              candidateRect: candidateRect,
+              ink: referencePrimaryInk,
+              auditMode: StaticTextAuditMode.dynamicOnly,
+            ),
+          ],
+          dynamicMaskRegions: const [
+            ReferenceDynamicMask(
+              kind: ReferenceDynamicMaskKind.livePrices,
+              rect: ReferencePixelRect(8, 8, 28, 24),
+              reason: 'Synthetic live price.',
+            ),
+          ],
+        ),
+      );
+
+      expect(result.exitCode, 0, reason: result.diagnostics);
+      expect(result.diagnostics, contains(',SKIP,'));
+      expect(result.diagnostics, contains('Synthetic live price.'));
+    },
+  );
+
   test('rejects an alpha-only candidate mutation before comparison', () async {
     final reference = _blankImage();
     _fillRect(reference, 12, 12, 16, 10, 0, 0, 0);
@@ -309,6 +411,37 @@ void main() {
     expect(result.diagnostics, contains('100 pixels differ'));
   });
 
+  for (final mutation in <(int, int)>[(4, 0), (5, 1), (12, 1)]) {
+    test(
+      'static foreground RGB ${mutation.$1} has exit ${mutation.$2}',
+      () async {
+        final reference = _blankImage();
+        _fillRect(reference, 20, 20, 10, 10, 0, 0, 0);
+        final candidate = _blankImage();
+        _fillRect(
+          candidate,
+          20,
+          20,
+          10,
+          10,
+          mutation.$1,
+          mutation.$1,
+          mutation.$1,
+        );
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _fixtureCase(
+            staticControlRegions: const [
+              ReferenceStaticControlRegion(name: 'ink-control', rect: _canvas),
+            ],
+          ),
+        );
+        expect(result.exitCode, mutation.$2, reason: result.diagnostics);
+      },
+    );
+  }
+
   for (final candidateChannel in [105, 110]) {
     test('rejects flat static surface drift to $candidateChannel', () async {
       final reference = _solidImage(100);
@@ -551,8 +684,8 @@ void main() {
         staticTextRegions: const [
           StaticTextRegion(
             name: 'live-price',
-            referenceRect: _textSearch,
-            candidateRect: _textSearch,
+            referenceRect: ReferencePixelRect(12, 12, 16, 10),
+            candidateRect: ReferencePixelRect(12, 12, 16, 10),
             ink: referencePrimaryInk,
             auditMode: StaticTextAuditMode.dynamicOnly,
           ),
@@ -579,14 +712,14 @@ void main() {
             'text,deterministic,fixture,dynamicText,live-price,',
           ),
         );
-    expect(_csvColumnCount(skipRow), 19);
+    expect(_csvColumnCount(skipRow), 22);
   });
 
   test('mixed live value keeps its static suffix strictly audited', () async {
     final reference = _blankImage();
     _fillRect(reference, 10, 12, 10, 10, 0, 0, 0);
     _fillRect(reference, 30, 12, 10, 10, 0, 0, 0);
-    const valueSearch = ReferencePixelRect(8, 8, 16, 24);
+    const valueSearch = ReferencePixelRect(10, 12, 10, 10);
     const suffixSearch = ReferencePixelRect(26, 8, 20, 24);
     final referenceCase = _fixtureCase(
       staticTextRegions: const [
@@ -746,7 +879,7 @@ void main() {
     expect(csv.existsSync(), isTrue);
     final csvContents = csv.readAsStringSync();
     expect(csvContents, startsWith('recordType,candidateRenderer'));
-    expect(csvContents.split('\n').first.split(',').length, 19);
+    expect(csvContents.split('\n').first.split(',').length, 22);
     expect(csvContents, contains('"fixture,""quoted""\nregion"'));
 
     final overlayFile = File(
@@ -797,6 +930,69 @@ void main() {
       );
       expect(result.exitCode, 0, reason: result.diagnostics);
     }
+  });
+
+  test('CLI --case emits only the requested case and its artifacts', () async {
+    final root = await Directory.systemTemp.createTemp('mt5-case-filter-');
+    addTearDown(() => root.delete(recursive: true));
+    final outputDirectory = Directory('${root.path}/evidence');
+    final source = _blankImage();
+    final result = await _runFixtures(
+      fixtures: [
+        _FixtureInput(
+          reference: source,
+          candidate: image.Image.from(source),
+          referenceCase: _fixtureCase(id: 'selected', fileName: 'selected.png'),
+        ),
+        _FixtureInput(
+          reference: source,
+          candidate: image.Image.from(source),
+          referenceCase: _fixtureCase(
+            id: 'unselected',
+            fileName: 'unselected.png',
+          ),
+        ),
+      ],
+      arguments: (candidateDirectory) => [
+        '--candidate-dir',
+        candidateDirectory,
+        '--case',
+        'selected',
+        '--output-dir',
+        outputDirectory.path,
+      ],
+    );
+
+    expect(result.exitCode, 0, reason: result.diagnostics);
+    expect(result.diagnostics, contains(',selected,'));
+    expect(result.diagnostics, isNot(contains(',unselected,')));
+    expect(
+      File('${outputDirectory.path}/selected-overlay-50-50.png').existsSync(),
+      isTrue,
+    );
+    expect(
+      File('${outputDirectory.path}/selected-heatmap.png').existsSync(),
+      isTrue,
+    );
+    expect(
+      File('${outputDirectory.path}/unselected-overlay-50-50.png').existsSync(),
+      isFalse,
+    );
+    expect(
+      File('${outputDirectory.path}/unselected-heatmap.png').existsSync(),
+      isFalse,
+    );
+  });
+
+  test('CLI --case rejects an unknown case before input preflight', () {
+    final result = _runArguments(const ['--case', 'unknown']);
+
+    expect(result.exitCode, 2, reason: result.diagnostics);
+    expect(
+      result.diagnostics,
+      contains('Unknown reference parity case: unknown'),
+    );
+    expect(result.diagnostics, isNot(contains('Missing comparison input')));
   });
 
   test('CLI returns usage exit 2 for malformed arguments', () async {

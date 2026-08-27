@@ -490,4 +490,61 @@ void main() {
       );
     }
   });
+
+  test('every dynamic-only rectangle exactly matches its authorized mask', () {
+    const expected = <String, Map<String, ReferencePixelRect>>{
+      'prices': {
+        'first-quote-bid': ReferencePixelRect(361, 180, 109, 37),
+        'first-quote-ask': ReferencePixelRect(481, 180, 100, 37),
+        'second-quote-bid': ReferencePixelRect(385, 278, 90, 40),
+        'second-quote-ask': ReferencePixelRect(505, 278, 74, 40),
+        'first-quote-time': ReferencePixelRect(11, 226, 74, 16),
+        'first-quote-low-value': ReferencePixelRect(390, 220, 70, 38),
+        'first-quote-high-value': ReferencePixelRect(508, 220, 72, 38),
+        'second-quote-time': ReferencePixelRect(31, 327, 75, 17),
+        'second-quote-low-value': ReferencePixelRect(410, 320, 50, 38),
+        'second-quote-high-value': ReferencePixelRect(536, 320, 43, 38),
+      },
+      'chart': {
+        'ticket-sell-price': ReferencePixelRect(35, 162, 120, 33),
+        'ticket-buy-price': ReferencePixelRect(445, 162, 135, 33),
+      },
+      'trade': {
+        'header-profit-value': ReferencePixelRect(225, 97, 85, 27),
+        'position-profit': ReferencePixelRect(494, 388, 87, 27),
+      },
+      'history-positions': {
+        'position-profit': ReferencePixelRect(505, 238, 85, 37),
+        'summary-value': ReferencePixelRect(455, 552, 135, 40),
+      },
+    };
+
+    for (final referenceCase in tabReferenceCases) {
+      final dynamicOnly = referenceCase.staticTextRegions.where(
+        (region) => region.auditMode == StaticTextAuditMode.dynamicOnly,
+      );
+      for (final region in dynamicOnly) {
+        final wanted = expected[referenceCase.id]![region.name]!;
+        expect(region.referenceRect.left, wanted.left, reason: region.name);
+        expect(region.referenceRect.top, wanted.top, reason: region.name);
+        expect(region.referenceRect.width, wanted.width, reason: region.name);
+        expect(region.referenceRect.height, wanted.height, reason: region.name);
+        expect(region.candidateRect.left, wanted.left, reason: region.name);
+        expect(region.candidateRect.top, wanted.top, reason: region.name);
+        expect(region.candidateRect.width, wanted.width, reason: region.name);
+        expect(region.candidateRect.height, wanted.height, reason: region.name);
+        expect(
+          referenceCase.dynamicMaskRegions.any(
+            (mask) =>
+                mask.rect.left == wanted.left &&
+                mask.rect.top == wanted.top &&
+                mask.rect.width == wanted.width &&
+                mask.rect.height == wanted.height,
+          ),
+          isTrue,
+          reason: '${referenceCase.id} ${region.name} mask',
+        );
+      }
+    }
+  });
 }

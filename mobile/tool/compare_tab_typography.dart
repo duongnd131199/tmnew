@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as image;
@@ -33,7 +34,17 @@ int runTabTypographyComparison(
     return 2;
   }
 
-  final manifestErrors = _validateManifest(referenceCases);
+  final selectedCases = configuration.caseId == null
+      ? referenceCases
+      : referenceCases
+            .where((referenceCase) => referenceCase.id == configuration.caseId)
+            .toList(growable: false);
+  if (selectedCases.isEmpty) {
+    errors.writeln('Unknown reference parity case: ${configuration.caseId}.');
+    return 2;
+  }
+
+  final manifestErrors = _validateManifest(selectedCases);
   if (manifestErrors.isNotEmpty) {
     errors.writeln('Invalid reference parity manifest:');
     for (final error in manifestErrors) {
@@ -45,7 +56,7 @@ int runTabTypographyComparison(
   late final List<_DecodedComparisonCase> decodedCases;
   try {
     decodedCases = _preflightInputs(
-      referenceCases,
+      selectedCases,
       candidateDirectory: configuration.candidateDirectory,
       referenceDirectory: referenceDirectory,
     );
@@ -129,15 +140,14 @@ int runTabTypographyComparison(
 
       for (final region in referenceCase.staticTextRegions) {
         if (region.auditMode == StaticTextAuditMode.dynamicOnly) {
-          final reasons = referenceCase.dynamicMaskRegions
-              .where(
-                (mask) =>
-                    _rectsIntersect(mask.rect, region.referenceRect) ||
-                    _rectsIntersect(mask.rect, region.candidateRect),
-              )
-              .map((mask) => mask.reason)
-              .toSet()
-              .join(' | ');
+          final mask = _coveringDynamicMask(referenceCase, region);
+          if (mask == null) {
+            errors.writeln(
+              '${referenceCase.id}: dynamic-only text ${region.name} must be '
+              'fully covered by one reasoned dynamic mask.',
+            );
+            return 2;
+          }
           report.add(
             recordType: 'text',
             renderer: configuration.renderer.name,
@@ -148,7 +158,8 @@ int runTabTypographyComparison(
             candidateBounds: region.candidateRect.toString(),
             manifestInkHint: _MeasuredInk.fromReference(region.ink).toString(),
             status: 'SKIP',
-            details: 'dynamic-only text excluded by reasoned mask: $reasons',
+            details:
+                'dynamic-only text excluded by reasoned mask: ${mask.reason}',
           );
           continue;
         }
@@ -274,7 +285,7 @@ int runTabTypographyComparison(
       'semantic RGB <= $_maximumSemanticColorDelta/channel against measured '
       'reference ink, optical density delta <= '
       '${_maximumInkDensityDeltaPercent.toStringAsFixed(1)}%. Required static '
-      'regions: measured surface RGB <= '
+      'regions: measured surface and foreground RGB <= '
       '$_maximumSemanticColorDelta/channel, feature edge <= '
       '$_maximumEdgeDelta physical px, and differing pixel ratio <= '
       '${(_maximumStaticDifferenceRatio * 100).toStringAsFixed(1)}% after '
@@ -296,6 +307,9 @@ bool _writeStaticResult(
   required _StaticRegionResult result,
 }) {
   final surfaceFailed = result.surfaceColorDelta > _maximumSemanticColorDelta;
+  final foregroundColorFailed =
+      result.hasOneSidedMeasuredForeground ||
+      result.foregroundColorDelta > _maximumSemanticColorDelta;
   final edgeFailed =
       result.hasOneSidedForeground ||
       result.featureEdgeDelta > _maximumEdgeDelta;
@@ -304,6 +318,7 @@ bool _writeStaticResult(
   final regionFailed =
       result.auditedPixelCount == 0 ||
       surfaceFailed ||
+      foregroundColorFailed ||
       edgeFailed ||
       residualFailed;
   final details = <String>[
@@ -311,6 +326,11 @@ bool _writeStaticResult(
       'no unmasked static pixels remain to audit',
     if (surfaceFailed)
       'surface RGB delta ${result.surfaceColorDelta} exceeds '
+          '$_maximumSemanticColorDelta/channel',
+    if (result.hasOneSidedMeasuredForeground)
+      'measured foreground exists on only one side',
+    if (!result.hasOneSidedMeasuredForeground && foregroundColorFailed)
+      'foreground RGB delta ${result.foregroundColorDelta} exceeds '
           '$_maximumSemanticColorDelta/channel',
     if (result.hasOneSidedForeground) 'foreground exists on only one side',
     if (!result.hasOneSidedForeground &&
@@ -337,6 +357,11 @@ bool _writeStaticResult(
     measuredReferenceInk: result.referenceSurface.toString(),
     candidateInk: result.candidateSurface.toString(),
     semanticInkDelta: '${result.surfaceColorDelta}',
+    measuredReferenceForeground: result.referenceForeground?.toString() ?? '',
+    candidateForeground: result.candidateForeground?.toString() ?? '',
+    foregroundColorDelta: result.hasOneSidedMeasuredForeground
+        ? 'one-sided'
+        : '${result.foregroundColorDelta}',
     differingPixelCount: '${result.differingPixelCount}',
     auditedPixelCount: '${result.auditedPixelCount}',
     differingPixelRatio: result.differingPixelRatio.toStringAsFixed(6),
@@ -448,15 +473,11 @@ List<String> _validateManifest(List<TabReferenceCase> cases) {
     for (final text in item.staticTextRegions.where(
       (text) => text.auditMode == StaticTextAuditMode.dynamicOnly,
     )) {
-      final hasReasonedMask = item.dynamicMaskRegions.any(
-        (mask) =>
-            _rectsIntersect(mask.rect, text.referenceRect) ||
-            _rectsIntersect(mask.rect, text.candidateRect),
-      );
-      if (!hasReasonedMask) {
+      if (_coveringDynamicMask(item, text) == null) {
         errors.add(
-          '${item.id}: dynamic-only text ${text.name} must intersect a '
-          'reasoned dynamic mask.',
+          '${item.id}: dynamic-only text ${text.name} must be fully covered '
+          'by one reasoned dynamic mask (reference ${text.referenceRect}, '
+          'candidate ${text.candidateRect}).',
         );
       }
     }
@@ -472,6 +493,19 @@ bool _containsRect(ReferencePixelRect outer, ReferencePixelRect inner) =>
     inner.top >= outer.top &&
     inner.right <= outer.right &&
     inner.bottom <= outer.bottom;
+
+ReferenceDynamicMask? _coveringDynamicMask(
+  TabReferenceCase referenceCase,
+  StaticTextRegion region,
+) {
+  for (final mask in referenceCase.dynamicMaskRegions) {
+    if (_containsRect(mask.rect, region.referenceRect) &&
+        _containsRect(mask.rect, region.candidateRect)) {
+      return mask;
+    }
+  }
+  return null;
+}
 
 bool _rectsIntersect(ReferencePixelRect left, ReferencePixelRect right) =>
     left.left < right.right &&
@@ -818,6 +852,16 @@ class _StaticPixelAudit {
         rect,
         candidateSurface,
       ),
+      referenceForeground: _measureForegroundInk(
+        reference,
+        rect,
+        referenceSurface,
+      ),
+      candidateForeground: _measureForegroundInk(
+        candidate,
+        rect,
+        candidateSurface,
+      ),
     );
   }
 
@@ -870,6 +914,39 @@ class _StaticPixelAudit {
     if (left == null) return null;
     return _InkBounds(left, top!, right!, bottom!);
   }
+
+  _MeasuredInk? _measureForegroundInk(
+    image.Image source,
+    ReferencePixelRect rect,
+    _MeasuredInk surface,
+  ) {
+    final pixels = <_InkPixel>[];
+    for (var y = rect.top; y < rect.bottom; y++) {
+      for (var x = rect.left; x < rect.right; x++) {
+        if (masks.contains(x, y)) continue;
+        final pixel = source.getPixel(x, y);
+        final sample = _InkPixel(
+          x,
+          y,
+          pixel.r.toInt(),
+          pixel.g.toInt(),
+          pixel.b.toInt(),
+        );
+        if (sample.distanceFromMeasured(surface) >
+            _staticPixelChannelTolerance) {
+          pixels.add(sample);
+        }
+      }
+    }
+    if (pixels.isEmpty) return null;
+    pixels.sort(
+      (left, right) => right
+          .distanceFromMeasured(surface)
+          .compareTo(left.distanceFromMeasured(surface)),
+    );
+    final core = pixels.take(math.max(1, (pixels.length / 4).ceil())).toList();
+    return _MeasuredInk.channelMedian(core);
+  }
 }
 
 class _StaticRegionResult {
@@ -880,6 +957,8 @@ class _StaticRegionResult {
     required this.candidateSurface,
     required this.referenceFeatureBounds,
     required this.candidateFeatureBounds,
+    required this.referenceForeground,
+    required this.candidateForeground,
   });
 
   final int differingPixelCount;
@@ -888,11 +967,21 @@ class _StaticRegionResult {
   final _MeasuredInk candidateSurface;
   final _InkBounds? referenceFeatureBounds;
   final _InkBounds? candidateFeatureBounds;
+  final _MeasuredInk? referenceForeground;
+  final _MeasuredInk? candidateForeground;
 
   int get surfaceColorDelta => referenceSurface.edgeDelta(candidateSurface);
 
   bool get hasOneSidedForeground =>
       (referenceFeatureBounds == null) != (candidateFeatureBounds == null);
+
+  bool get hasOneSidedMeasuredForeground =>
+      (referenceForeground == null) != (candidateForeground == null);
+
+  int get foregroundColorDelta =>
+      referenceForeground == null || candidateForeground == null
+      ? 0
+      : referenceForeground!.edgeDelta(candidateForeground!);
 
   int get featureEdgeDelta =>
       referenceFeatureBounds == null || candidateFeatureBounds == null
@@ -1035,6 +1124,21 @@ class _MeasuredInk {
     );
   }
 
+  factory _MeasuredInk.channelMedian(List<_InkPixel> pixels) {
+    int median(Iterable<int> source) {
+      final values = source.toList()..sort();
+      final lower = values[(values.length - 1) ~/ 2];
+      final upper = values[values.length ~/ 2];
+      return (lower + upper) ~/ 2;
+    }
+
+    return _MeasuredInk(
+      median(pixels.map((pixel) => pixel.red)),
+      median(pixels.map((pixel) => pixel.green)),
+      median(pixels.map((pixel) => pixel.blue)),
+    );
+  }
+
   factory _MeasuredInk.mostOpaqueFromPixels(
     List<_InkPixel> pixels,
     _MeasuredInk background,
@@ -1087,7 +1191,8 @@ class _CsvReport {
     _buffer.writeln(
       'recordType,candidateRenderer,case,regionType,region,referenceBounds,'
       'candidateBounds,edgeDelta,manifestInkHint,measuredReferenceInk,'
-      'candidateInk,semanticInkDelta,inkDensityDeltaPercent,candidateInkRatio,'
+      'candidateInk,semanticInkDelta,measuredReferenceForeground,'
+      'candidateForeground,foregroundColorDelta,inkDensityDeltaPercent,candidateInkRatio,'
       'differingPixelCount,auditedPixelCount,differingPixelRatio,status,details',
     );
   }
@@ -1109,6 +1214,9 @@ class _CsvReport {
     String measuredReferenceInk = '',
     String candidateInk = '',
     String semanticInkDelta = '',
+    String measuredReferenceForeground = '',
+    String candidateForeground = '',
+    String foregroundColorDelta = '',
     String inkDensityDeltaPercent = '',
     String candidateInkRatio = '',
     String differingPixelCount = '',
@@ -1131,6 +1239,9 @@ class _CsvReport {
         measuredReferenceInk,
         candidateInk,
         semanticInkDelta,
+        measuredReferenceForeground,
+        candidateForeground,
+        foregroundColorDelta,
         inkDensityDeltaPercent,
         candidateInkRatio,
         differingPixelCount,
@@ -1171,6 +1282,7 @@ class _ComparisonConfiguration {
   const _ComparisonConfiguration({
     required this.candidateDirectory,
     required this.renderer,
+    this.caseId,
     this.outputDirectory,
   });
 
@@ -1178,6 +1290,7 @@ class _ComparisonConfiguration {
     var candidateDirectory = 'test/goldens/tab-typography';
     var renderer = _CandidateRenderer.deterministic;
     String? outputDirectory;
+    String? caseId;
     final seen = <String>{};
     for (var index = 0; index < args.length; index++) {
       final flag = args[index];
@@ -1185,6 +1298,7 @@ class _ComparisonConfiguration {
         '--candidate-dir',
         '--candidate-renderer',
         '--output-dir',
+        '--case',
       }.contains(flag)) {
         throw _UsageError('Unknown argument: $flag');
       }
@@ -1212,12 +1326,15 @@ class _ComparisonConfiguration {
           };
         case '--output-dir':
           outputDirectory = value;
+        case '--case':
+          caseId = value;
       }
     }
     return _ComparisonConfiguration(
       candidateDirectory: candidateDirectory,
       renderer: renderer,
       outputDirectory: outputDirectory,
+      caseId: caseId,
     );
   }
 
@@ -1225,11 +1342,13 @@ class _ComparisonConfiguration {
       'Usage: dart run tool/compare_tab_typography.dart '
       '[--candidate-dir <directory>] '
       '[--candidate-renderer deterministic|android] '
-      '[--output-dir <directory>]';
+      '[--output-dir <directory>] '
+      '[--case <case-id>]';
 
   final String candidateDirectory;
   final _CandidateRenderer renderer;
   final String? outputDirectory;
+  final String? caseId;
 }
 
 class _ComparisonInputError implements Exception {
