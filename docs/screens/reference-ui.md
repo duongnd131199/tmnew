@@ -2,15 +2,17 @@
 
 ## Reference
 
-- Thư mục ảnh/video: `giaoDienMau`.
-- Ảnh tĩnh: 9 ảnh JPEG, kích thước 590 × 1280.
-- Video: 4 MP4, kích thước 384 × 848, 30 fps.
-- Thiết bị kiểm tra: LDPlayer-1, 590 × 1280, 240 dpi.
+- Bộ parity cuối: 7 ảnh progressive JPEG trong `iconMau/anhmau`, mỗi ảnh
+  590 × 1280 physical pixels; không có ảnh gốc lossless.
+- Candidate được render từ production widgets ở viewport
+  393.3333333333 × 853.3333333333 logical pixels, DPR 1.5 và text scale 1.0.
+- Bản tích hợp cuối chạy trên iPhone 17 đang mở sẵn; không mở simulator thứ hai.
 
 ## Visual foundations
 
-- Nền ứng dụng: đen tuyệt đối.
-- Surface nổi: xám đen, border xám mảnh.
+- Nền ứng dụng và surface chính: trắng theo bảy ảnh parity.
+- Surface được chọn và section dùng các mức xám semantic đã khóa trong design
+  system.
 - Màu nhấn: xanh iOS cho trạng thái tăng/được chọn.
 - Màu giảm/cảnh báo lệnh: đỏ.
 - Font: họ sans-serif condensed, số dùng tabular figures.
@@ -23,6 +25,8 @@
 - Năm tab: Giá, Biểu đồ, Giao dịch, Lịch sử, Cài đặt.
 - Tab chọn có nền xám tròn; icon và label chuyển xanh.
 - Phần dưới capsule dành khoảng trống cho bottom safe area.
+- Shadow production dùng alpha `0x0D`, blur 30, spread
+  `9.6666666667` và offset `(0, 4)` logical pixels.
 
 ## Giá
 
@@ -51,6 +55,9 @@
 - Khi danh sách timeframe hoạt động, chart bắt đầu ngay dưới toolbar.
 - Chart có nền đen, grid tối, candle teal/đỏ, price axis bên phải và time axis
   phía dưới.
+- XAUUSD M1 production dùng 10 logical pixels navigation overlap. BUY tag theo
+  side của position; annotation và X-axis đã căn chuẩn; axis/subtitle dùng
+  `#404040`; plot boundary ở physical x=507 và plot blue là `#3985E9`.
 - Position, đường Bid hiện tại và nhãn giá được vẽ trực tiếp trên chart; đường
   Ask không bật trong video mẫu.
 - Feed demo chạy liên tục cả ngoài giờ thị trường. Mỗi tick cập nhật đồng bộ
@@ -69,6 +76,8 @@
 ## Giao dịch
 
 - Header chỉ hiển thị tổng profit/loss ở giữa và nút thêm bên phải.
+- Section strip dùng `#F8F8F8`. Nút thêm 42.6667 logical pixels, không border,
+  với circular shadow alpha `0x19`, blur 30 và offset `(0, 4)`.
 - Account metrics căn hai phía, không dùng dotted leader.
 - Section header đen-xám, position row gồm hai dòng và profit bên phải.
 - Nút thêm mở form lệnh thị trường bình thường, không gắn hành động đóng position.
@@ -83,6 +92,9 @@
 - Nút sắp xếp bên trái và chọn khoảng thời gian bên phải.
 - Bộ lọc khoảng thời gian cho phép lọc tiếp theo symbol và giữ lựa chọn khi mở lại.
 - Mỗi tab có nội dung và phần tổng kết riêng theo video mẫu.
+- Scrollbar bounds là `[581,177,5,687]`, `[581,474,5,688]` và
+  `[581,525,5,637]` cho Orders, Orders Summary và Deals. Bốn selected-segment
+  interior được audit như static surface, không phải text.
 
 ## Cài đặt
 
@@ -109,20 +121,22 @@
 
 ## Assumptions
 
-- Status bar trong ảnh là iOS; bản Android chỉ đặt status bar hệ thống thành
-  màu đen với icon sáng, không giả mạo status bar iOS.
+- Status bar là nội dung hệ điều hành; clock/carrier/signal/battery là typed
+  dynamic/OS evidence, không phải pixel do app kiểm soát.
 - Giá và thời gian trong ảnh/video thay đổi theo tick; layout, typography và
   trạng thái màu là chuẩn so sánh, còn giá trị realtime được phép biến đổi.
 
 ## Trạng thái triển khai 2026-08-27
 
-- Giá, Biểu đồ, Giao dịch và bốn trạng thái Lịch sử đã được hiệu chỉnh trong
-  production widgets; không dùng ảnh mẫu làm widget.
-- AppShell giữ đúng clearance của bottom navigation trên route production;
-  chart không còn vẽ trục thời gian bên dưới navigation.
-- Full Flutter suite: 754 pass, 1 platform skip, 0 fail; analyze, debug APK,
-  backend build và 17 backend tests đều pass.
-- Bản tích hợp cuối đang chạy trực tiếp trên iPhone 17 với tên MetaTrader 5.
-- Chứng nhận comparator tuyệt đối vẫn cần ảnh tham chiếu lossless. Bảy đầu vào
-  hiện tại đều là progressive JPEG; không chuyển đuôi JPEG thành PNG và không
-  nới ngưỡng để tạo kết quả PASS giả.
+- Final independent QA không còn phát hiện mismatch ổn định do app kiểm soát về
+  font, size, weight, letter-spacing, color hoặc block spacing; principal static
+  glyph bounds nằm trong một physical pixel. Prices toolbar/row pitch/symbol/
+  metadata/Bid-Ask/L-H đều được khóa bằng regression tests.
+- Comparator strict vẫn exit 1: 64 PASS, 186 FAIL và 30 typed SKIP trên 280
+  rows. Tất cả mismatch ổn định có evidence nhất quán đã được sửa; phần còn lại
+  là progressive-JPEG/non-invertible evidence, broad/dependent residual hoặc
+  typed dynamic/OS evidence. Không tuyên bố mathematical/raw-pixel 100%.
+- App cuối chạy trong iPhone 17 simulator
+  `5AD1B6AA-5814-4EAA-A573-4B9C561BABA4`, bundle
+  `com.tradingdemo.tradingMobile`, persistent Flutter session `11742`; không mở
+  simulator thứ hai.

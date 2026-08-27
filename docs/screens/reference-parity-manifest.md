@@ -7,7 +7,8 @@ does not prescribe or tune production UI.
 ## Canonical capture environment
 
 - JPEG source directory: `iconMau/anhmau`.
-- Every source image is `590 × 1280` physical pixels.
+- All seven source images are progressive JPEG at `590 × 1280` physical
+  pixels. No lossless reference oracle was supplied.
 - Flutter viewport: `393.3333333333 × 853.3333333333` logical pixels.
 - Device pixel ratio: `1.5`.
 - Text scale: `1.0`.
@@ -62,6 +63,11 @@ Mixed strings are split into independent audit regions. Prices keep the four
 keeps the `USD` suffix static while only the numeric header P/L is
 dynamic-only. Static controls independently protect those labels and suffixes
 from mask overlap.
+
+The four History selected-segment interiors are `ReferenceSurfaceRegion`
+entries and emit `static-surface` / `surface` rows, never text rows. Their
+exact rectangles remain public strict evidence; no halo or rounded-edge
+exclusion is added.
 
 Reference-only semantic roles declare exact interior rectangles on the decoded
 reference. Samples cluster at Chebyshev radius 2, and the most-frequent
@@ -127,18 +133,27 @@ and bottom navigation remain static audit targets.
 The masks use physical-pixel rectangles wholly inside the JPEG canvas. They
 are evaluated against required static control/label rectangles so future
 updates cannot accidentally hide a regression in UI structure.
-Task 2 navigation certification is verification-deferred, not PASS. The manifest owns every navigation pixel hierarchically through opaque foreground leaves, explicit capsule and selected-pill surface leaves, dedicated shadow leaves, and seven integrated composites. Current JPEG-derived atomic and pill evidence stays strict FAIL with `reference-evidence-deferred: lossless shared navigation source required; restore in Task 7`; Task 7 must provide the lossless shared source and remove that deferral. Tasks 3–6 may rely on the implemented ownership structure but may not promote these rows to PASS.
+The manifest owns navigation pixels hierarchically through opaque foreground
+leaves, capsule and selected-pill surfaces, dedicated shadow leaves, and seven
+integrated composites. Legacy lossless-reference diagnostics remain visible on
+JPEG-derived FAIL rows; they are not promoted to PASS/SKIP and are not a
+requirement to manufacture a lossless source from the supplied JPEGs.
 
 ## 2026-08-27 final gate status
 
-All seven deterministic candidates and 14 overlay/heatmap artifacts were
-regenerated from the final widgets. The CSV has exactly 22 columns and 280
-rows. Its per-case PASS/FAIL/SKIP counts are recorded in
-`docs/screenshots/tab-typography-parity/README.md`.
+After reviewed code commit `2cc29da`, final evidence was regenerated without
+threshold, mask, reference, or candidate normalization. The CSV has exactly 22
+columns and 280 rows; all 14 overlay/heatmap PNGs are non-empty at 590 × 1280.
+The strict result is 64 PASS / 186 FAIL / 30 typed SKIP (exit 1); per-case
+counts are in `docs/screenshots/tab-typography-parity/README.md`.
 
-The strict comparator exits 1. Exactly 67 FAIL rows retain the required
-lossless-navigation deferral, and additional broad JPEG/control rows remain
-red rather than being hidden by masks or threshold changes. The supplied
-reference directory contains only seven progressive JPEG inputs; therefore
-Task 7 cannot truthfully remove the deferral or certify exit 0 until genuine
-lossless reference captures are supplied.
+All 21 navigation-shadow rows have identical reference/candidate bounds and
+edge delta zero: 9 strict PASS and 12 JPEG residual FAIL remain public. History
+selected surfaces are PASS for Orders and Orders Summary; Positions remains
+FAIL at edge delta 3 / residual 1.194%, and Deals remains FAIL at edge delta 1
+/ residual 3.272%, from adjacent control halo or rounded-edge evidence. Final
+independent QA found no remaining stable app-controlled typography, color, or
+spacing mismatch supported by consistent evidence; principal static glyph
+bounds are within one physical pixel. The remaining red rows are lossy/
+non-invertible JPEG evidence or broad/dependent residuals, while capture-time
+market and OS values remain typed SKIP. Raw-pixel 100% is not certified.
