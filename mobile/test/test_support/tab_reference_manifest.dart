@@ -261,6 +261,11 @@ const navigationBlueRole = 'navigation-blue';
 const navigationWhiteSurfaceRole = 'navigation-white-surface';
 const navigationSelectedSurfaceRole = 'navigation-selected-surface';
 const navigationSurroundingWhiteRole = 'navigation-surrounding-white';
+const pricesBlackRole = 'prices-black';
+const pricesSecondaryRole = 'prices-secondary';
+const pricesBlueRole = 'prices-blue';
+const pricesRedRole = 'prices-red';
+const pricesWhiteSurfaceRole = 'prices-white-surface';
 
 const _geometryPrimaryInk = ReferenceInk(17, 17, 17);
 const _geometrySecondaryInk = ReferenceInk(92, 92, 96);
@@ -427,6 +432,39 @@ const _pricesSelectedPillVisual = ReferenceVisualRegion(
     'navigation-prices-label',
   ],
 );
+const _pricesHeaderForegroundVisual = ReferenceVisualRegion(
+  name: 'prices-header-foreground',
+  type: ReferenceVisualRegionType.header,
+  rect: ReferencePixelRect(0, 75, 590, 70),
+  requiredForegroundRoles: <String>[pricesBlackRole],
+  foregroundRegionNames: <String>[
+    'prices-toolbar-list',
+    'prices-toolbar-edit',
+    'prices-toolbar-search',
+  ],
+);
+const _pricesBodyForegroundVisual = ReferenceVisualRegion(
+  name: 'prices-body-foreground',
+  type: ReferenceVisualRegionType.body,
+  rect: ReferencePixelRect(0, 145, 590, 220),
+  requiredForegroundRoles: <String>[
+    pricesBlackRole,
+    pricesSecondaryRole,
+    pricesBlueRole,
+    pricesRedRole,
+  ],
+  foregroundRegionNames: <String>[
+    'quote-corner',
+    'quote-symbol',
+    'second-quote-symbol',
+    'prices-first-change-accent',
+    'prices-second-change-accent',
+    'first-quote-low-label',
+    'first-quote-high-label',
+    'second-quote-low-label',
+    'second-quote-high-label',
+  ],
+);
 const _chartSelectedPillVisual = ReferenceVisualRegion(
   name: 'bottom-navigation-selected-pill',
   type: ReferenceVisualRegionType.bottomNavigation,
@@ -552,6 +590,22 @@ const _historyNavigationSurfaceRegions = <ReferenceSurfaceRegion>[
 ];
 
 const _pricesForegroundInteriors = <ReferenceForegroundInterior>[
+  ReferenceForegroundInterior(
+    role: pricesBlackRole,
+    rect: ReferencePixelRect(287, 1186, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: pricesSecondaryRole,
+    rect: ReferencePixelRect(373, 232, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: pricesBlueRole,
+    rect: ReferencePixelRect(552, 191, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: pricesRedRole,
+    rect: ReferencePixelRect(424, 300, 1, 1),
+  ),
   ReferenceForegroundInterior(
     role: navigationBlackRole,
     rect: ReferencePixelRect(287, 1186, 1, 1),
@@ -686,6 +740,10 @@ const _historyDealsForegroundInteriors = <ReferenceForegroundInterior>[
 
 const _pricesSurfaceInteriors = <ReferenceSurfaceInterior>[
   ReferenceSurfaceInterior(
+    role: pricesWhiteSurfaceRole,
+    rect: ReferencePixelRect(200, 400, 2, 2),
+  ),
+  ReferenceSurfaceInterior(
     role: navigationWhiteSurfaceRole,
     rect: ReferencePixelRect(460, 1238, 8, 5),
   ),
@@ -745,6 +803,18 @@ const _historySurfaceInteriors = <ReferenceSurfaceInterior>[
 ];
 
 const _pricesForegroundRoles = <String, String>{
+  'prices-toolbar-list': pricesBlackRole,
+  'prices-toolbar-edit': pricesBlackRole,
+  'prices-toolbar-search': pricesBlackRole,
+  'quote-corner': pricesBlueRole,
+  'quote-symbol': pricesBlackRole,
+  'second-quote-symbol': pricesBlackRole,
+  'prices-first-change-accent': pricesRedRole,
+  'prices-second-change-accent': pricesBlueRole,
+  'first-quote-low-label': pricesSecondaryRole,
+  'first-quote-high-label': pricesSecondaryRole,
+  'second-quote-low-label': pricesSecondaryRole,
+  'second-quote-high-label': pricesSecondaryRole,
   'navigation-prices-icon': navigationBlueRole,
   'navigation-prices-label': navigationBlueRole,
   'navigation-chart-icon': navigationBlackRole,
@@ -797,6 +867,18 @@ const _historyForegroundRoles = <String, String>{
 };
 
 const _pricesSurfaceRoles = <String, String>{
+  'prices-toolbar-list': pricesWhiteSurfaceRole,
+  'prices-toolbar-edit': pricesWhiteSurfaceRole,
+  'prices-toolbar-search': pricesWhiteSurfaceRole,
+  'quote-corner': pricesWhiteSurfaceRole,
+  'quote-symbol': pricesWhiteSurfaceRole,
+  'second-quote-symbol': pricesWhiteSurfaceRole,
+  'prices-first-change-accent': pricesWhiteSurfaceRole,
+  'prices-second-change-accent': pricesWhiteSurfaceRole,
+  'first-quote-low-label': pricesWhiteSurfaceRole,
+  'first-quote-high-label': pricesWhiteSurfaceRole,
+  'second-quote-low-label': pricesWhiteSurfaceRole,
+  'second-quote-high-label': pricesWhiteSurfaceRole,
   'navigation-prices-icon': navigationSelectedSurfaceRole,
   'navigation-prices-label': navigationSelectedSurfaceRole,
   'navigation-chart-icon': navigationWhiteSurfaceRole,
@@ -849,6 +931,18 @@ const _historySurfaceRoles = <String, String>{
 };
 
 const _pricesForegroundSelections = <String, ReferenceForegroundSelectionState>{
+  'prices-toolbar-list': ReferenceForegroundSelectionState.unselected,
+  'prices-toolbar-edit': ReferenceForegroundSelectionState.unselected,
+  'prices-toolbar-search': ReferenceForegroundSelectionState.unselected,
+  'quote-corner': ReferenceForegroundSelectionState.unselected,
+  'quote-symbol': ReferenceForegroundSelectionState.unselected,
+  'second-quote-symbol': ReferenceForegroundSelectionState.unselected,
+  'prices-first-change-accent': ReferenceForegroundSelectionState.unselected,
+  'prices-second-change-accent': ReferenceForegroundSelectionState.unselected,
+  'first-quote-low-label': ReferenceForegroundSelectionState.unselected,
+  'first-quote-high-label': ReferenceForegroundSelectionState.unselected,
+  'second-quote-low-label': ReferenceForegroundSelectionState.unselected,
+  'second-quote-high-label': ReferenceForegroundSelectionState.unselected,
   'navigation-prices-icon': ReferenceForegroundSelectionState.selected,
   'navigation-prices-label': ReferenceForegroundSelectionState.selected,
   'navigation-chart-icon': ReferenceForegroundSelectionState.unselected,
@@ -903,6 +997,29 @@ const _historyForegroundSelections =
 
 final tabReferenceForegroundConsensusGroups =
     <ReferenceForegroundConsensusGroup>[
+      for (final entry in <(String, String)>[
+        ('prices-toolbar-list', pricesBlackRole),
+        ('prices-toolbar-edit', pricesBlackRole),
+        ('prices-toolbar-search', pricesBlackRole),
+        ('quote-corner', pricesBlueRole),
+        ('quote-symbol', pricesBlackRole),
+        ('second-quote-symbol', pricesBlackRole),
+        ('prices-first-change-accent', pricesRedRole),
+        ('prices-second-change-accent', pricesBlueRole),
+        ('first-quote-low-label', pricesSecondaryRole),
+        ('first-quote-high-label', pricesSecondaryRole),
+        ('second-quote-low-label', pricesSecondaryRole),
+        ('second-quote-high-label', pricesSecondaryRole),
+      ])
+        ReferenceForegroundConsensusGroup(
+          key: ReferenceForegroundConsensusKey(
+            controlIdentity: entry.$1,
+            selection: ReferenceForegroundSelectionState.unselected,
+            semanticRole: entry.$2,
+            surfaceRole: pricesWhiteSurfaceRole,
+          ),
+          memberCaseIds: ['prices'],
+        ),
       ReferenceForegroundConsensusGroup(
         key: ReferenceForegroundConsensusKey(
           controlIdentity: 'navigation-prices-icon',
@@ -1181,16 +1298,24 @@ const _systemStatusAuditRows = <StaticTextRegion>[
 const _pricesStaticControls = <ReferenceStaticControlRegion>[
   ..._baseStaticControls,
   ReferenceStaticControlRegion(
-    name: 'toolbar-title',
-    rect: ReferencePixelRect(250, 88, 90, 50),
+    name: 'prices-toolbar-list',
+    rect: ReferencePixelRect(25, 80, 66, 66),
   ),
   ReferenceStaticControlRegion(
-    name: 'quote-symbol',
-    rect: ReferencePixelRect(4, 184, 120, 38),
+    name: 'prices-toolbar-edit',
+    rect: ReferencePixelRect(423, 80, 66, 66),
   ),
   ReferenceStaticControlRegion(
-    name: 'second-quote-symbol',
-    rect: ReferencePixelRect(4, 297, 120, 25),
+    name: 'prices-toolbar-search',
+    rect: ReferencePixelRect(503, 80, 66, 66),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'prices-first-change-accent',
+    rect: ReferencePixelRect(63, 158, 65, 27),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'prices-second-change-accent',
+    rect: ReferencePixelRect(44, 264, 68, 27),
   ),
   ReferenceStaticControlRegion(
     name: 'prices-first-low-label',
@@ -1384,7 +1509,12 @@ const tabReferenceCases = <TabReferenceCase>[
       scrollState: ReferenceScrollState.atTop,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: [..._baseVisualRegions, _pricesSelectedPillVisual],
+    visualRegions: [
+      ..._baseVisualRegions,
+      _pricesHeaderForegroundVisual,
+      _pricesBodyForegroundVisual,
+      _pricesSelectedPillVisual,
+    ],
     surfaceRegions: _pricesNavigationSurfaceRegions,
     staticControlRegions: _pricesStaticControls,
     shadowRegions: _navigationShadowRegions,

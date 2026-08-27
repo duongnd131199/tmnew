@@ -142,7 +142,11 @@ void main() {
         child: const MaterialApp(
           home: MediaQuery(
             data: media,
-            child: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'M1'),
+            child: ChartScreen(
+              symbol: 'XAUUSD+',
+              initialTimeframe: 'M1',
+              layoutProfile: ChartLayoutProfile.tabReferenceCapture,
+            ),
           ),
         ),
       ),
@@ -154,7 +158,7 @@ void main() {
     expect(canvasRect.left, closeTo(0, .001));
     expect(canvasRect.top, closeTo(94.6666666667, .001));
     expect(canvasRect.width, closeTo(393.3333333333, .001));
-    expect(canvasRect.height, closeTo(679.6666666666, .001));
+    expect(canvasRect.height, closeTo(689.6666666666, .001));
     final timeframe = tester.widget<Text>(
       find.byKey(const Key('chart-toolbar-timeframe')),
     );
@@ -164,6 +168,7 @@ void main() {
     final painter =
         tester.widget<CustomPaint>(canvasFinder).painter! as Mt5CandlePainter;
     expect(painter.referenceTextFamily, AppTypography.plainFamily);
+    expect(painter.priceGridRect.top * 1.5, closeTo(118, .01));
 
     await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
     await tester.pump();
@@ -177,8 +182,10 @@ void main() {
       tester.widget<Text>(find.byKey(const Key('chart-plot-subtitle'))).style,
       AppTypography.chartAnnotation.copyWith(
         color: ChartReferenceTheme.light.foreground,
+        fontFamily: AppTypography.tabPlainFamily,
         fontSize: 12.5,
-        fontWeight: FontWeight.w400,
+        fontWeight: FontWeight.w200,
+        fontVariations: const [FontVariation('wght', 225)],
         letterSpacing: .4,
       ),
     );
@@ -1143,9 +1150,12 @@ void main() {
 
     expect(find.text('Cặp ngoại tệ'), findsNothing);
     expect(find.byKey(const Key('market-manage-edit-icon')), findsOneWidget);
-    expect(find.text('4104.09'), findsOneWidget);
+    expect(find.byKey(const ValueKey('market-bid-XAUUSD+')), findsOneWidget);
     expect(
-      tester.widget<Text>(find.text('4104.09')).style?.color,
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-bid-XAUUSD+')))
+          .style
+          ?.color,
       AppColors.primary,
     );
 
@@ -1163,9 +1173,7 @@ void main() {
       tester.widget<Text>(find.text('4104.09')).style?.color,
       AppColors.textPrimary,
     );
-    final unchangedPercentLabels = tester.widgetList<Text>(
-      find.text('0.00%'),
-    );
+    final unchangedPercentLabels = tester.widgetList<Text>(find.text('0.00%'));
     expect(unchangedPercentLabels, isNotEmpty);
     expect(
       unchangedPercentLabels.every(
@@ -2962,6 +2970,8 @@ void main() {
       bullish: Color(0xFF147D64),
       bearish: Color(0xFFB61F48),
       tradeBlue: Color(0xFF7257D7),
+      plotTitleBlue: Color(0xFF684FC9),
+      ticketBlue: Color(0xFF0A6CE0),
       axisBorder: Color(0xFF8E6F9E),
       priceLine: Color(0xFF0F6D99),
     );
@@ -3303,11 +3313,19 @@ void main() {
     expect(painter.hitTargets.priceHeight, originalPriceHeight);
 
     final panel = find.byKey(const Key('chart-one-click-panel'));
+    expect(
+      tester.widget<Material>(find.byKey(const Key('chart-ticket-sell'))).color,
+      ChartReferenceTheme.light.ticketBlue,
+    );
+    expect(
+      tester.widget<Material>(find.byKey(const Key('chart-ticket-buy'))).color,
+      ChartReferenceTheme.light.ticketBlue,
+    );
     final buyLabel = find.descendant(of: panel, matching: find.text('Buy'));
     final buyLabelWidget = tester.widget<Text>(buyLabel);
     expect(buyLabelWidget.style?.fontFamily, AppTypography.tabPlainFamily);
     expect(buyLabelWidget.style?.fontSize, 7);
-    expect(buyLabelWidget.style?.letterSpacing, 1.35);
+    expect(buyLabelWidget.style?.letterSpacing, 1.75);
     expect(
       physical(tester.getRect(buyLabel)).left,
       closeTo(407, .01),
@@ -3398,7 +3416,7 @@ void main() {
       expect(priceAxis.width, closeTo(67 + 1 / 3, .01), reason: timeframe);
       expect(
         painter.hitTargets.priceTop as double,
-        closeTo(64 / 3, .01),
+        closeTo(timeframe == 'M1' ? 78 + 2 / 3 : 64 / 3, .01),
         reason: timeframe,
       );
       expect(timeAxis.height, closeTo(22, .01), reason: timeframe);

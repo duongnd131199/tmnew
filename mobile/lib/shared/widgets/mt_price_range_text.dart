@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 /// Renders the price-transition arrow without relying on a platform fallback
@@ -36,17 +34,12 @@ class MtPriceRangeText extends StatelessWidget {
               child: SizedBox(
                 width: 21,
                 height: 14,
-                child: Center(
-                  child: Transform.rotate(
-                    angle: math.pi / 2,
-                    child: Text(
-                      '↑',
-                      style: style.copyWith(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        height: 1,
-                      ),
-                    ),
+                child: CustomPaint(
+                  key: const Key('mt-price-range-arrow'),
+                  painter: _PriceRangeArrowPainter(
+                    color:
+                        style.color ??
+                        DefaultTextStyle.of(context).style.color!,
                   ),
                 ),
               ),
@@ -58,4 +51,28 @@ class MtPriceRangeText extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PriceRangeArrowPainter extends CustomPainter {
+  const _PriceRangeArrowPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.15
+      ..strokeCap = StrokeCap.square
+      ..strokeJoin = StrokeJoin.miter;
+    final centerY = size.height / 2;
+    canvas.drawLine(Offset(3.5, centerY), Offset(17.5, centerY), paint);
+    canvas.drawLine(Offset(13.5, centerY - 3.5), Offset(17.5, centerY), paint);
+    canvas.drawLine(Offset(13.5, centerY + 3.5), Offset(17.5, centerY), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PriceRangeArrowPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

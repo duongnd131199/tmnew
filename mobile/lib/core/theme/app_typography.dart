@@ -13,7 +13,6 @@ abstract final class AppTypography {
   static const _weight400 = <FontVariation>[FontVariation('wght', 400)];
   static const _weight450 = <FontVariation>[FontVariation('wght', 450)];
   static const _weight500 = <FontVariation>[FontVariation('wght', 500)];
-  static const _weight600 = <FontVariation>[FontVariation('wght', 600)];
   static const _iosTabColorWeight = 400.0;
   static const _iosTabEmphasizedColorWeight = 450.0;
 
@@ -106,6 +105,15 @@ abstract final class AppTypography {
     letterSpacing: -.5,
     height: 1,
   );
+  static const pricesToolbarTitle = TextStyle(
+    color: AppColors.textPrimary,
+    fontFamily: tabPlainFamily,
+    fontSize: 16.5,
+    fontWeight: FontWeight.w400,
+    fontVariations: <FontVariation>[FontVariation('wght', 430)],
+    letterSpacing: -.5,
+    height: 1,
+  );
   static const toolbarControl = TextStyle(
     color: AppColors.textPrimary,
     fontFamily: plainFamily,
@@ -130,7 +138,7 @@ abstract final class AppTypography {
   );
   static const quoteChange = TextStyle(
     fontFamily: tabCondensedFamily,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: FontWeight.w300,
     fontVariations: _weight300,
     letterSpacing: .1,
@@ -141,12 +149,12 @@ abstract final class AppTypography {
     fontFamily: tabCondensedFamily,
     fontSize: 16.5,
     fontWeight: FontWeight.w500,
-    fontVariations: _weight400,
+    fontVariations: <FontVariation>[FontVariation('wght', 380)],
     letterSpacing: -1.15,
     height: 1,
   );
   static const quoteMeta = TextStyle(
-    color: AppColors.textSecondary,
+    color: AppColors.pricesSecondary,
     fontFamily: tabCondensedFamily,
     fontSize: 13.2,
     fontWeight: FontWeight.w300,
@@ -155,7 +163,7 @@ abstract final class AppTypography {
     height: 1,
   );
   static const quoteTimeMeta = TextStyle(
-    color: AppColors.textSecondary,
+    color: AppColors.pricesSecondary,
     fontFamily: tabCondensedFamily,
     fontSize: 13.2,
     fontWeight: FontWeight.w300,
@@ -164,7 +172,7 @@ abstract final class AppTypography {
     height: 1,
   );
   static const quoteRangeMeta = TextStyle(
-    color: AppColors.textSecondary,
+    color: AppColors.pricesSecondary,
     fontFamily: tabCondensedFamily,
     fontSize: 13.2,
     fontWeight: FontWeight.w400,
@@ -172,22 +180,42 @@ abstract final class AppTypography {
     letterSpacing: .55,
     height: 1,
   );
+  static const quoteRangeLabel = TextStyle(
+    color: AppColors.pricesSecondary,
+    fontFamily: tabCondensedFamily,
+    fontSize: 13.2,
+    fontWeight: FontWeight.w400,
+    fontVariations: _weight350,
+    letterSpacing: .55,
+    height: 1,
+  );
+  static const quoteRangeValue = TextStyle(
+    color: AppColors.pricesSecondary,
+    fontFamily: tabCondensedFamily,
+    fontSize: 13.2,
+    fontWeight: FontWeight.w400,
+    fontVariations: _weight350,
+    letterSpacing: .55,
+    height: 1,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+  // Legacy compatibility token; Prices now uses [quoteRangeValue].
+  static const quoteBtcHighMeta = TextStyle(
+    color: AppColors.pricesSecondary,
+    fontFamily: tabCondensedFamily,
+    fontSize: 13.2,
+    fontWeight: FontWeight.w400,
+    fontVariations: _weight350,
+    letterSpacing: -.1,
+    height: 1,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
   static const quotePriceMajor = TextStyle(
     fontFamily: tabCondensedFamily,
     fontSize: 16.5,
     fontWeight: FontWeight.w400,
     fontVariations: _weight350,
     letterSpacing: .35,
-    height: 1,
-    fontFeatures: [FontFeature.tabularFigures()],
-  );
-  static const quoteBtcHighMeta = TextStyle(
-    color: AppColors.textSecondary,
-    fontFamily: tabCondensedFamily,
-    fontSize: 13.2,
-    fontWeight: FontWeight.w400,
-    fontVariations: _weight350,
-    letterSpacing: .15,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
   );
@@ -277,9 +305,10 @@ abstract final class AppTypography {
   );
   static const tradeMetricValue = TextStyle(
     color: AppColors.textPrimary,
-    fontFamily: condensedFamily,
+    fontFamily: tabCondensedFamily,
     fontSize: 16,
-    fontWeight: FontWeight.w400,
+    fontWeight: FontWeight.w300,
+    fontVariations: [FontVariation('wght', 370)],
     letterSpacing: .5,
     height: 1.15,
     fontFeatures: [FontFeature.tabularFigures()],
@@ -289,7 +318,7 @@ abstract final class AppTypography {
     fontFamily: tabCondensedFamily,
     fontSize: 13,
     fontWeight: FontWeight.w600,
-    fontVariations: _weight600,
+    fontVariations: [FontVariation('wght', 650)],
     letterSpacing: .32,
     height: 1,
   );
@@ -302,11 +331,11 @@ abstract final class AppTypography {
     height: 1,
   );
   static const tradePositionSecondary = TextStyle(
-    color: AppColors.textSecondary,
+    color: Color(0xFF201F21),
     fontFamily: tabCondensedFamily,
     fontSize: 16,
     fontWeight: FontWeight.w300,
-    fontVariations: _weight300,
+    fontVariations: <FontVariation>[FontVariation('wght', 250)],
     letterSpacing: .98,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
@@ -350,7 +379,7 @@ abstract final class AppTypography {
     fontFamily: tabCondensedFamily,
     fontSize: 16,
     fontWeight: FontWeight.w400,
-    fontVariations: _weight350,
+    fontVariations: <FontVariation>[FontVariation('wght', 326)],
     letterSpacing: -.1,
     height: 1,
   );
@@ -358,7 +387,7 @@ abstract final class AppTypography {
     fontFamily: tabCondensedFamily,
     fontSize: 16,
     fontWeight: FontWeight.w400,
-    fontVariations: _weight350,
+    fontVariations: <FontVariation>[FontVariation('wght', 370)],
     letterSpacing: -.2,
     height: 1,
   );
@@ -377,7 +406,7 @@ abstract final class AppTypography {
     fontFamily: tabCondensedFamily,
     fontSize: 14,
     fontWeight: FontWeight.w300,
-    fontVariations: _weight300,
+    fontVariations: <FontVariation>[FontVariation('wght', 270)],
     letterSpacing: .16,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
@@ -397,7 +426,7 @@ abstract final class AppTypography {
     fontFamily: tabPlainFamily,
     fontSize: 14.5,
     fontWeight: FontWeight.w400,
-    fontVariations: _weight350,
+    fontVariations: <FontVariation>[FontVariation('wght', 315)],
     letterSpacing: .25,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
@@ -407,7 +436,7 @@ abstract final class AppTypography {
     fontFamily: tabPlainFamily,
     fontSize: 14.5,
     fontWeight: FontWeight.w300,
-    fontVariations: _weight300,
+    fontVariations: <FontVariation>[FontVariation('wght', 340)],
     letterSpacing: .22,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
@@ -417,7 +446,7 @@ abstract final class AppTypography {
     fontFamily: tabPlainFamily,
     fontSize: 14.5,
     fontWeight: FontWeight.w400,
-    fontVariations: _weight400,
+    fontVariations: <FontVariation>[FontVariation('wght', 420)],
     letterSpacing: .63,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],

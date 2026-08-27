@@ -128,3 +128,17 @@ The masks use physical-pixel rectangles wholly inside the JPEG canvas. They
 are evaluated against required static control/label rectangles so future
 updates cannot accidentally hide a regression in UI structure.
 Task 2 navigation certification is verification-deferred, not PASS. The manifest owns every navigation pixel hierarchically through opaque foreground leaves, explicit capsule and selected-pill surface leaves, dedicated shadow leaves, and seven integrated composites. Current JPEG-derived atomic and pill evidence stays strict FAIL with `reference-evidence-deferred: lossless shared navigation source required; restore in Task 7`; Task 7 must provide the lossless shared source and remove that deferral. Tasks 3–6 may rely on the implemented ownership structure but may not promote these rows to PASS.
+
+## 2026-08-27 final gate status
+
+All seven deterministic candidates and 14 overlay/heatmap artifacts were
+regenerated from the final widgets. The CSV has exactly 22 columns and 280
+rows. Its per-case PASS/FAIL/SKIP counts are recorded in
+`docs/screenshots/tab-typography-parity/README.md`.
+
+The strict comparator exits 1. Exactly 67 FAIL rows retain the required
+lossless-navigation deferral, and additional broad JPEG/control rows remain
+red rather than being hidden by masks or threshold changes. The supplied
+reference directory contains only seven progressive JPEG inputs; therefore
+Task 7 cannot truthfully remove the deferral or certify exit 0 until genuine
+lossless reference captures are supplied.

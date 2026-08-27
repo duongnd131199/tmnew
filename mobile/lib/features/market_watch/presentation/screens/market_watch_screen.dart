@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_shadows.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
@@ -241,8 +242,8 @@ class _QuotesHeader extends StatelessWidget {
       child: Stack(
         children: [
           Positioned(
-            left: 15.3,
-            top: 30,
+            left: 17.3,
+            top: 30.6666666667,
             child: _RoundToolbarButton(
               key: const Key('market-toggle-view'),
               tooltip: 'View',
@@ -258,7 +259,7 @@ class _QuotesHeader extends StatelessWidget {
               child: const Text(
                 'Gia',
                 textAlign: TextAlign.center,
-                style: AppTypography.toolbarTitle,
+                style: AppTypography.pricesToolbarTitle,
               ),
             ),
           ),
@@ -277,21 +278,22 @@ class _QuotesHeader extends StatelessWidget {
                       size: 19,
                     )
                   : Transform.translate(
-                      offset: const Offset(-1.3333333333, -.5),
+                      offset: const Offset(-2.3333333333, -1.1666666667),
                       child: Transform.scale(
+                        scaleX: 1.04,
                         scaleY: .94,
                         child: const MtToolbarIcon(
                           MtToolbarIconKind.edit,
                           key: Key('market-manage-edit-icon'),
                           color: AppColors.textPrimary,
-                          size: 20,
+                          size: 18,
                         ),
                       ),
                     ),
             ),
           ),
           Positioned(
-            right: 13.3,
+            right: 16.6333333333,
             top: 30,
             child: _RoundToolbarButton(
               key: const Key('market-search-button'),
@@ -311,7 +313,7 @@ class _MarketListIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Transform.translate(
-    offset: const Offset(0, -1),
+    offset: const Offset(0, -1.6666666667),
     child: Transform.scale(
       scaleY: .95,
       child: const CustomPaint(
@@ -333,13 +335,13 @@ class _MarketListIconPainter extends CustomPainter {
     final rule = Paint()
       ..color = AppColors.textPrimary
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
+      ..strokeWidth = 1.6
       ..strokeCap = StrokeCap.square;
     const rows = [3.0, 7.25, 11.0, 14.5];
     for (var index = 0; index < rows.length; index++) {
       final y = rows[index];
       canvas.drawRect(
-        Rect.fromCenter(center: Offset(2.5, y), width: 2.2, height: 2.2),
+        Rect.fromCenter(center: Offset(2.5, y), width: 2, height: 2),
         bullet,
       );
       canvas.drawLine(
@@ -359,9 +361,9 @@ class _MarketSearchIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Transform.translate(
-    offset: Offset.zero,
+    offset: const Offset(-.3333333333, -.6666666667),
     child: Transform.scale(
-      scale: .91,
+      scale: .88,
       child: const CustomPaint(
         size: Size.square(29),
         painter: _MarketSearchIconPainter(),
@@ -378,7 +380,7 @@ class _MarketSearchIconPainter extends CustomPainter {
     final paint = Paint()
       ..color = AppColors.textPrimary
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.3
+      ..strokeWidth = 2
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     canvas.drawCircle(const Offset(12.65, 12.35), 8.35, paint);
@@ -406,16 +408,25 @@ class _RoundToolbarButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: AppColors.surface,
-        shape: const CircleBorder(
-          side: BorderSide(color: AppColors.divider, width: .6),
-        ),
+        color: AppColors.transparent,
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: SizedBox.square(
-            dimension: 42.6666666667,
-            child: Center(child: child),
+            dimension: 42.667,
+            child: Center(
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  shape: BoxShape.circle,
+                  boxShadow: AppShadows.navigation,
+                ),
+                child: SizedBox.square(
+                  dimension: 40,
+                  child: Center(child: child),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -986,33 +997,43 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
                 child: _QuoteCorner(color: AppColors.primary),
               ),
             Positioned(
-              left: 8,
-              top: 5.3333333333,
-              child: Text.rich(
-                key: ValueKey('market-change-${live.symbol}'),
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: meta.points > 0
-                          ? '+${meta.points} '
-                          : '${meta.points} ',
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                    TextSpan(
-                      text: meta.percent,
-                      style: AppTypography.tabColorInk(
-                        context,
-                        TextStyle(color: dailyColor),
+              left: isBtcUsd ? 7.3333333333 : 6.6666666667,
+              top: isBtcUsd ? 8.6666666667 : 8,
+              child: Transform.scale(
+                scaleX: 1.1,
+                scaleY: isBtcUsd ? .87 : 1,
+                alignment: Alignment.topLeft,
+                child: Text.rich(
+                  key: ValueKey('market-change-${live.symbol}'),
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: meta.points > 0
+                            ? '+${meta.points} '
+                            : '${meta.points} ',
+                        style: const TextStyle(
+                          color: AppColors.pricesSecondary,
+                        ),
                       ),
-                    ),
-                  ],
+                      TextSpan(
+                        text: meta.percent,
+                        style: AppTypography.tabColorInk(
+                          context,
+                          TextStyle(
+                            color: dailyColor,
+                            letterSpacing: isBtcUsd ? .65 : .8,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  style: AppTypography.quoteChange,
                 ),
-                style: AppTypography.quoteChange,
               ),
             ),
             Positioned(
               left: 8,
-              top: isBtcUsd ? 24.0666666667 : 25.4,
+              top: 25.4,
               child: Text(
                 _marketWatchDisplaySymbol(live.symbol),
                 key: ValueKey('market-symbol-${live.symbol}'),
@@ -1023,36 +1044,57 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
             ),
             Positioned(
               left: 7.3333333333,
-              top: isBtcUsd
-                  ? TabReferenceMetrics.quoteBtcMetaTop
-                  : 47.3333333333,
+              top: 48,
               child: Transform.scale(
-                scaleY: .86,
+                scaleY: .93,
                 alignment: Alignment.topLeft,
                 child: Row(
                   children: [
                     if (isBtcUsd)
                       const SizedBox(
                         key: ValueKey('market-delay-BTCUSD'),
-                        width: 11.3333333333,
-                        child: Icon(
-                          CupertinoIcons.clock,
-                          color: AppColors.textSecondary,
-                          size: 11.3333333333,
+                        width: 13.3333333333,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Icon(
+                            CupertinoIcons.clock,
+                            color: AppColors.pricesSecondary,
+                            size: 11.3333333333,
+                          ),
                         ),
                       ),
-                    Text(
-                      meta.time,
-                      key: ValueKey('market-time-${live.symbol}'),
-                      style: AppTypography.quoteTimeMeta,
+                    Transform.translate(
+                      offset: Offset(-.6666666667, isBtcUsd ? 1.3333333333 : 0),
+                      child: Transform.scale(
+                        scaleX: isBtcUsd ? 1.13 : 1.11,
+                        alignment: Alignment.topLeft,
+                        child: Text(
+                          meta.time,
+                          key: ValueKey('market-time-${live.symbol}'),
+                          style: AppTypography.quoteTimeMeta,
+                        ),
+                      ),
                     ),
-                    SizedBox(width: isBtcUsd ? 1.3333333333 : 5.6666666667),
-                    const _SpreadGlyph(),
+                    SizedBox(width: isBtcUsd ? 7.3333333333 : 6.3333333333),
+                    Transform.translate(
+                      offset: Offset(0, isBtcUsd ? .6666666667 : 0),
+                      child: const _SpreadGlyph(),
+                    ),
                     const SizedBox(width: 4),
-                    Text(
-                      meta.spread,
-                      key: ValueKey('market-spread-${live.symbol}'),
-                      style: AppTypography.quoteTimeMeta,
+                    Transform.translate(
+                      offset: Offset(
+                        isBtcUsd ? -.6666666667 : 0,
+                        isBtcUsd ? .6666666667 : 0,
+                      ),
+                      child: Transform.scale(
+                        scaleX: isBtcUsd ? 1 : 1.15,
+                        alignment: Alignment.topLeft,
+                        child: Text(
+                          meta.spread,
+                          key: ValueKey('market-spread-${live.symbol}'),
+                          style: AppTypography.quoteTimeMeta,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1092,39 +1134,34 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
             ),
             Positioned(
               right: 86.8,
-              top: isBtcUsd
-                  ? TabReferenceMetrics.quoteBtcMetaTop + 2
-                  : 49.3333333333,
+              top:
+                  49.3333333333 +
+                  (isBtcUsd ? TabReferenceMetrics.quoteBtcRangeOffsetY : 0),
               child: Transform.scale(
                 scaleY: .86,
                 alignment: Alignment.topRight,
-                child: Text(
-                  'L: ${meta.low}',
-                  key: ValueKey('market-low-${live.symbol}'),
-                  style: AppTypography.quoteRangeMeta,
+                child: _QuoteRange(
+                  label: 'L:',
+                  value: meta.low,
+                  labelKey: ValueKey('market-low-label-${live.symbol}'),
+                  valueKey: ValueKey('market-low-${live.symbol}'),
                 ),
               ),
             ),
             Positioned(
-              right: 7.3333333333,
-              top: isBtcUsd
-                  ? TabReferenceMetrics.quoteBtcMetaTop + 2
-                  : 49.3333333333,
-              child: Transform.translate(
-                offset: Offset(
-                  isBtcUsd ? TabReferenceMetrics.quoteBtcHighOffsetX : 0,
-                  0,
-                ),
-                child: Transform.scale(
-                  scaleY: .86,
-                  alignment: Alignment.topRight,
-                  child: Text(
-                    'H: ${meta.high}',
-                    key: ValueKey('market-high-${live.symbol}'),
-                    style: isBtcUsd
-                        ? AppTypography.quoteBtcHighMeta
-                        : AppTypography.quoteRangeMeta,
-                  ),
+              right: isBtcUsd ? 6.6666666667 : 7.3333333333,
+              top: 49.3333333333 + (isBtcUsd ? .6666666667 : 0),
+              child: Transform.scale(
+                scaleY: isBtcUsd ? .93 : .86,
+                alignment: Alignment.topRight,
+                child: _QuoteRange(
+                  label: 'H:',
+                  value: meta.high,
+                  labelKey: ValueKey('market-high-label-${live.symbol}'),
+                  valueKey: ValueKey('market-high-${live.symbol}'),
+                  valueStyle: isBtcUsd
+                      ? AppTypography.quoteBtcHighMeta
+                      : AppTypography.quoteRangeValue,
                 ),
               ),
             ),
@@ -1149,14 +1186,32 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
 }
 
 Widget _quotePriceInk({required bool isBtcUsd, required Widget child}) {
-  if (!isBtcUsd) return child;
-  return Transform.translate(
-    offset: const Offset(0, TabReferenceMetrics.quoteBtcPriceOffsetY),
-    child: Transform.scale(
-      scaleY: TabReferenceMetrics.quoteBtcPriceScaleY,
-      alignment: Alignment.bottomRight,
-      child: child,
-    ),
+  return child;
+}
+
+class _QuoteRange extends StatelessWidget {
+  const _QuoteRange({
+    required this.label,
+    required this.value,
+    required this.labelKey,
+    required this.valueKey,
+    this.valueStyle = AppTypography.quoteRangeValue,
+  });
+
+  final String label;
+  final String value;
+  final Key labelKey;
+  final Key valueKey;
+  final TextStyle valueStyle;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(label, key: labelKey, style: AppTypography.quoteRangeLabel),
+      const SizedBox(width: 4),
+      Text(value, key: valueKey, style: valueStyle),
+    ],
   );
 }
 
@@ -1324,7 +1379,7 @@ class _SpreadGlyphPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppColors.textSecondary
+      ..color = AppColors.pricesSecondary
       ..strokeWidth = 1.15
       ..strokeCap = StrokeCap.square;
     canvas.drawLine(const Offset(1, 1), const Offset(1, 4), paint);

@@ -17,8 +17,6 @@ import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
 import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
 
-const _tradeSecondaryPrice = Color(0xFFB8B8BD);
-
 enum _PositionMenuResult { bulk }
 
 String _formatTradeNumber(double value, {int fractionDigits = 2}) {
@@ -43,6 +41,13 @@ class TradeScreen extends ConsumerStatefulWidget {
 
 class _TradeScreenState extends ConsumerState<TradeScreen> {
   String? revealedPositionId;
+  final ScrollController _positionsScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _positionsScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -98,144 +103,179 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                 ),
               ),
               Expanded(
-                child: ListView.builder(
-                  physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics(),
-                  ),
-                  padding: EdgeInsets.zero,
-                  itemCount: positions.length + pendingOrders.length + 3,
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return InkWell(
-                        key: const Key('trade-account-metrics'),
-                        onTap: () => _showBalanceDialog(context),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                            6,
-                            9.3333333333,
-                            6,
-                            1.3333333333,
-                          ),
-                          child: Column(
-                            children: [
-                              _AccountMetric(
-                                label: 'Số dư:',
-                                value: _formatAccount(account.balance),
-                              ),
-                              _AccountMetric(
-                                label: 'Von:',
-                                value: _formatAccount(account.equity),
-                              ),
-                              if (positions.isNotEmpty)
-                                _AccountMetric(
-                                  label: 'Tien ky quy:',
-                                  value: _formatAccount(account.margin),
-                                ),
-                              _AccountMetric(
-                                label: 'Ky quy du:',
-                                value: _formatAccount(account.freeMargin),
-                              ),
-                              if (positions.isNotEmpty)
-                                _AccountMetric(
-                                  label: 'Muc ky quy (%):',
-                                  value: _formatAccount(account.marginLevel),
-                                ),
-                            ],
-                          ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => RawScrollbar(
+                    key: const Key('trade-position-scrollbar'),
+                    controller: _positionsScrollController,
+                    thumbVisibility: true,
+                    interactive: false,
+                    fadeDuration: Duration.zero,
+                    thickness: 3.3333333333,
+                    crossAxisMargin: 2.6666666667,
+                    padding: const EdgeInsets.only(
+                      top: TabReferenceMetrics.tradeScrollbarTopInset,
+                      bottom: TabReferenceMetrics.tradeScrollbarBottomInset,
+                    ),
+                    minThumbLength:
+                        TabReferenceMetrics.tradeScrollbarThumbExtentFor(
+                          constraints.maxHeight,
                         ),
-                      );
-                    }
-                    if (index == 1) {
-                      if (positions.isNotEmpty || pendingOrders.isNotEmpty) {
-                        return Container(
-                          height: TabReferenceMetrics.tradeSectionHeight,
-                          width: double.infinity,
-                          color: AppColors.surfaceElevated,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5.3333333333,
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                'Lenh co trang thai',
-                                key: const Key('trade-section-label'),
-                                style: AppTypography.platformInk(
-                                  context,
-                                  AppTypography.tradeSection,
-                                  iosWeight: 850,
-                                ),
+                    radius: const Radius.circular(1.4),
+                    thumbColor: AppColors.tradeScrollbarThumb,
+                    child: ListView.builder(
+                      controller: _positionsScrollController,
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      padding: EdgeInsets.zero,
+                      itemCount: positions.length + pendingOrders.length + 3,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return InkWell(
+                            key: const Key('trade-account-metrics'),
+                            onTap: () => _showBalanceDialog(context),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                6,
+                                9.3333333333,
+                                6,
+                                1.3333333333,
                               ),
-                              const Spacer(),
-                              Semantics(
-                                label: 'Hoạt động hàng loạt',
-                                button: true,
-                                child: InkWell(
-                                  key: const Key('trade-bulk-menu'),
-                                  onTap: () => _showBulkActions(context, ref),
-                                  child: SizedBox(
-                                    width: 35,
-                                    height:
-                                        TabReferenceMetrics.tradeSectionHeight,
-                                    child: Center(
-                                      child: Transform.translate(
-                                        offset: const Offset(3.3333333333, 0),
-                                        child: const _TradeEllipsisIcon(),
+                              child: Column(
+                                children: [
+                                  _AccountMetric(
+                                    label: 'Số dư:',
+                                    value: _formatAccount(account.balance),
+                                  ),
+                                  _AccountMetric(
+                                    label: 'Von:',
+                                    value: _formatAccount(account.equity),
+                                  ),
+                                  if (positions.isNotEmpty)
+                                    _AccountMetric(
+                                      label: 'Tien ky quy:',
+                                      value: _formatAccount(account.margin),
+                                    ),
+                                  _AccountMetric(
+                                    label: 'Ky quy du:',
+                                    value: _formatAccount(account.freeMargin),
+                                  ),
+                                  if (positions.isNotEmpty)
+                                    _AccountMetric(
+                                      label: 'Muc ky quy (%):',
+                                      value: _formatAccount(
+                                        account.marginLevel,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+                        if (index == 1) {
+                          if (positions.isNotEmpty ||
+                              pendingOrders.isNotEmpty) {
+                            return Container(
+                              height: TabReferenceMetrics.tradeSectionHeight,
+                              width: double.infinity,
+                              color: AppColors.surfaceElevated,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5.3333333333,
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    'Lenh co trang thai',
+                                    key: const Key('trade-section-label'),
+                                    style: AppTypography.platformInk(
+                                      context,
+                                      AppTypography.tradeSection,
+                                      iosWeight: 850,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Semantics(
+                                    label: 'Hoạt động hàng loạt',
+                                    button: true,
+                                    child: InkWell(
+                                      key: const Key('trade-bulk-menu'),
+                                      onTap: () =>
+                                          _showBulkActions(context, ref),
+                                      child: SizedBox(
+                                        width: 35,
+                                        height: TabReferenceMetrics
+                                            .tradeSectionHeight,
+                                        child: Center(
+                                          child: Transform.translate(
+                                            offset: const Offset(
+                                              3.3333333333,
+                                              0,
+                                            ),
+                                            child: const _TradeEllipsisIcon(),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
-                        );
-                      }
-                      return const _EmptyTradeState();
-                    }
-                    final positionIndex = index - 2;
-                    if (positionIndex < positions.length) {
-                      final position = positions[positionIndex];
-                      return _PositionRow(
-                        key: ValueKey('trade-position-${position.id}'),
-                        position: position,
-                        priceDigits: tradePriceDigitsForSymbol(position.symbol),
-                        revealed: revealedPositionId == position.id,
-                        onTap: () =>
-                            _showPositionActions(context, ref, position),
-                        onReveal: () =>
-                            setState(() => revealedPositionId = position.id),
-                        onConceal: () {
-                          if (revealedPositionId == position.id) {
-                            setState(() => revealedPositionId = null);
+                            );
                           }
-                        },
-                        onLongPress: () =>
-                            _showPositionActions(context, ref, position),
-                        onMore: () =>
-                            _showPositionActions(context, ref, position),
-                        onModify: () =>
-                            context.push('/position/${position.id}'),
-                        onClose: () => context.push(
-                          '/order?symbol=${Uri.encodeQueryComponent(position.symbol)}'
-                          '&positionId=${position.id}',
-                        ),
-                      );
-                    }
-                    final pendingOrderIndex = positionIndex - positions.length;
-                    if (pendingOrderIndex < pendingOrders.length) {
-                      final order = pendingOrders[pendingOrderIndex];
-                      return _PendingOrderRow(
-                        key: ValueKey('trade-pending-${order.id}'),
-                        order: order,
-                        priceDigits: tradePriceDigitsForSymbol(order.symbol),
-                        onTap: () =>
-                            _showPendingOrderActions(context, ref, order),
-                      );
-                    }
-                    return const SizedBox(
-                      key: Key('trade-bottom-safe-gap'),
-                      height: 104,
-                    );
-                  },
+                          return const _EmptyTradeState();
+                        }
+                        final positionIndex = index - 2;
+                        if (positionIndex < positions.length) {
+                          final position = positions[positionIndex];
+                          return _PositionRow(
+                            key: ValueKey('trade-position-${position.id}'),
+                            position: position,
+                            priceDigits: tradePriceDigitsForSymbol(
+                              position.symbol,
+                            ),
+                            revealed: revealedPositionId == position.id,
+                            onTap: () =>
+                                _showPositionActions(context, ref, position),
+                            onReveal: () => setState(
+                              () => revealedPositionId = position.id,
+                            ),
+                            onConceal: () {
+                              if (revealedPositionId == position.id) {
+                                setState(() => revealedPositionId = null);
+                              }
+                            },
+                            onLongPress: () =>
+                                _showPositionActions(context, ref, position),
+                            onMore: () =>
+                                _showPositionActions(context, ref, position),
+                            onModify: () =>
+                                context.push('/position/${position.id}'),
+                            onClose: () => context.push(
+                              '/order?symbol=${Uri.encodeQueryComponent(position.symbol)}'
+                              '&positionId=${position.id}',
+                            ),
+                          );
+                        }
+                        final pendingOrderIndex =
+                            positionIndex - positions.length;
+                        if (pendingOrderIndex < pendingOrders.length) {
+                          final order = pendingOrders[pendingOrderIndex];
+                          return _PendingOrderRow(
+                            key: ValueKey('trade-pending-${order.id}'),
+                            order: order,
+                            priceDigits: tradePriceDigitsForSymbol(
+                              order.symbol,
+                            ),
+                            onTap: () =>
+                                _showPendingOrderActions(context, ref, order),
+                          );
+                        }
+                        return const SizedBox(
+                          key: Key('trade-bottom-safe-gap'),
+                          height: 104,
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -254,7 +294,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
       context: context,
       barrierColor: AppColors.dimBarrier,
       builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 38.7),
         child: Transform.translate(
           offset: const Offset(1.3, 3.9666666667),
@@ -346,7 +386,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.transparent,
         insetPadding: const EdgeInsets.fromLTRB(17.3, 0, 15.3333333333, 0),
         child: Transform.translate(
           offset: const Offset(0, 4.3666666667),
@@ -921,22 +961,48 @@ class _TradeHeader extends StatelessWidget {
             right: 0,
             top: 40,
             child: IgnorePointer(
-              child: Text(
-                empty ? 'USD' : '${_formatTradeNumber(totalProfit)} USD',
-                key: const Key('trade-header-profit'),
-                textAlign: TextAlign.center,
-                style: profitStyle.copyWith(
-                  color: empty
-                      ? AppColors.textPrimary
-                      : totalProfit >= 0
-                      ? AppColors.primary
-                      : AppColors.negative,
+              child: Semantics(
+                label: empty ? 'USD' : '${_formatTradeNumber(totalProfit)} USD',
+                child: ExcludeSemantics(
+                  child: Transform.translate(
+                    offset: const Offset(.6666666667, 0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          empty ? '' : _formatTradeNumber(totalProfit),
+                          key: const Key('trade-header-profit'),
+                          style: profitStyle.copyWith(
+                            color: empty
+                                ? AppColors.textPrimary
+                                : totalProfit >= 0
+                                ? AppColors.primary
+                                : AppColors.negative,
+                          ),
+                        ),
+                        if (!empty) const SizedBox(width: 3.3333333333),
+                        Text(
+                          'USD',
+                          key: const Key('trade-header-currency'),
+                          style: profitStyle.copyWith(
+                            color: empty
+                                ? AppColors.textPrimary
+                                : totalProfit >= 0
+                                ? AppColors.tradeHeaderCurrency
+                                : AppColors.negative,
+                            fontVariations: const [FontVariation('wght', 370)],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
           Positioned(
-            right: 13.3333333333,
+            right: 16.6666666667,
             top: 30.3333333333,
             child: _TradeCircleButton(
               key: const Key('trade-add-button'),
@@ -991,7 +1057,7 @@ class _TradeAddIconPainter extends CustomPainter {
     final paint = Paint()
       ..color = AppColors.textPrimary
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
+      ..strokeWidth = 2
       ..strokeCap = StrokeCap.butt;
     canvas.drawLine(const Offset(3, 12), const Offset(20, 12), paint);
     canvas.drawLine(const Offset(12, 3), const Offset(12, 20), paint);
@@ -1058,7 +1124,7 @@ class _EmptyTradePainter extends CustomPainter {
     canvas.save();
     canvas.scale(scale);
     final paint = Paint()
-      ..color = const Color(0xFFF4F4F6)
+      ..color = AppColors.tradeEmptyIllustration
       ..style = PaintingStyle.stroke
       ..strokeWidth = 10 / scale
       ..strokeCap = StrokeCap.round
@@ -1125,7 +1191,7 @@ class _AccountMetric extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerRight,
               child: Transform.translate(
-                offset: const Offset(0, .6666666667),
+                offset: const Offset(.3333333333, .6666666667),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerRight,
@@ -1274,7 +1340,7 @@ class _PositionRowState extends State<_PositionRow> {
       const TextStyle(
         color: AppColors.textPrimary,
         fontWeight: FontWeight.w500,
-        fontVariations: <FontVariation>[FontVariation('wght', 450)],
+        fontVariations: <FontVariation>[FontVariation('wght', 425)],
       ),
       iosWeight: 500,
     );
@@ -1318,10 +1384,10 @@ class _PositionRowState extends State<_PositionRow> {
                             key: ValueKey('trade-menu-${position.id}'),
                             icon: const Icon(
                               CupertinoIcons.ellipsis,
-                              color: Colors.white,
+                              color: AppColors.tradeSwipeActionGlyph,
                               size: 22,
                             ),
-                            color: const Color(0xFF929FB2),
+                            color: AppColors.tradeSwipeMenu,
                             onTap: widget.onMore,
                           ),
                         ),
@@ -1332,7 +1398,7 @@ class _PositionRowState extends State<_PositionRow> {
                             key: ValueKey('trade-modify-${position.id}'),
                             icon: const Icon(
                               CupertinoIcons.pencil,
-                              color: Colors.white,
+                              color: AppColors.tradeSwipeActionGlyph,
                               size: 22,
                             ),
                             color: AppColors.primary,
@@ -1346,7 +1412,7 @@ class _PositionRowState extends State<_PositionRow> {
                             key: ValueKey('trade-close-${position.id}'),
                             icon: const Icon(
                               CupertinoIcons.xmark,
-                              color: Colors.white,
+                              color: AppColors.tradeSwipeActionGlyph,
                               size: 23,
                             ),
                             color: AppColors.negative,
@@ -1540,7 +1606,7 @@ class _PendingOrderRow extends StatelessWidget {
                   Text(
                     order.price.toStringAsFixed(priceDigits),
                     style: const TextStyle(
-                      color: _tradeSecondaryPrice,
+                      color: AppColors.tradePendingPrice,
                       fontSize: 13.5,
                       height: 1,
                       fontFeatures: [FontFeature.tabularFigures()],

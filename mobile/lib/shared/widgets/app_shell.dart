@@ -94,45 +94,49 @@ class _AppShellState extends ConsumerState<AppShell>
       _lastAccountGeneration = accountGeneration;
     }
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
-    final mediaQuery = MediaQuery.of(context);
-    final bodyPadding = mediaQuery.padding;
-    final bodyViewPadding = mediaQuery.viewPadding;
-    final referenceMediaQuery = mediaQuery.copyWith(
-      padding: EdgeInsets.fromLTRB(
-        bodyPadding.left,
-        math.min(bodyPadding.top, TabReferenceMetrics.topSafeInset),
-        bodyPadding.right,
-        bodyPadding.bottom,
-      ),
-      viewPadding: EdgeInsets.fromLTRB(
-        bodyViewPadding.left,
-        math.min(bodyViewPadding.top, TabReferenceMetrics.topSafeInset),
-        bodyViewPadding.right,
-        bodyViewPadding.bottom,
-      ),
-    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
       extendBody: true,
-      body: MediaQuery(
-        data: referenceMediaQuery,
-        child: FadeTransition(
-          key: const Key('app-shell-tab-fade'),
-          opacity: _tabFade,
-          child: _resettingAccountScope
-              ? const ColoredBox(
-                  key: Key('account-scope-resetting'),
-                  color: AppColors.background,
-                )
-              : KeyedSubtree(
-                  key: ValueKey(accountGeneration.value),
-                  child: AppTabScope(
-                    index: widget.navigationShell.currentIndex,
-                    child: widget.navigationShell,
-                  ),
-                ),
-        ),
+      body: Builder(
+        builder: (bodyContext) {
+          // Read MediaQuery below Scaffold's extendBody boundary. Scaffold
+          // injects the bottom-navigation clearance here; only the oversized
+          // device top inset is calibrated to the visual reference.
+          final bodyMediaQuery = MediaQuery.of(bodyContext);
+          final bodyPadding = bodyMediaQuery.padding;
+          final bodyViewPadding = bodyMediaQuery.viewPadding;
+          final referenceMediaQuery = bodyMediaQuery.copyWith(
+            padding: bodyPadding.copyWith(
+              top: math.min(bodyPadding.top, TabReferenceMetrics.topSafeInset),
+            ),
+            viewPadding: bodyViewPadding.copyWith(
+              top: math.min(
+                bodyViewPadding.top,
+                TabReferenceMetrics.topSafeInset,
+              ),
+            ),
+          );
+          return MediaQuery(
+            data: referenceMediaQuery,
+            child: FadeTransition(
+              key: const Key('app-shell-tab-fade'),
+              opacity: _tabFade,
+              child: _resettingAccountScope
+                  ? const ColoredBox(
+                      key: Key('account-scope-resetting'),
+                      color: AppColors.background,
+                    )
+                  : KeyedSubtree(
+                      key: ValueKey(accountGeneration.value),
+                      child: AppTabScope(
+                        index: widget.navigationShell.currentIndex,
+                        child: widget.navigationShell,
+                      ),
+                    ),
+            ),
+          );
+        },
       ),
       bottomNavigationBar: keyboardVisible
           ? null

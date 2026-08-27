@@ -9,6 +9,8 @@ final class ChartReferenceTheme {
     required this.bullish,
     required this.bearish,
     required this.tradeBlue,
+    required this.plotTitleBlue,
+    required this.ticketBlue,
     required this.axisBorder,
     required this.priceLine,
   });
@@ -20,6 +22,8 @@ final class ChartReferenceTheme {
     bullish: Color(0xFF26A69A),
     bearish: Color(0xFFEF5350),
     tradeBlue: Color(0xFF3183FF),
+    plotTitleBlue: Color(0xFF3985E9),
+    ticketBlue: Color(0xFF007AFF),
     axisBorder: Color(0xFFD8D8D8),
     priceLine: Color(0xFF26A69A),
   );
@@ -34,6 +38,8 @@ final class ChartReferenceTheme {
   final Color bullish;
   final Color bearish;
   final Color tradeBlue;
+  final Color plotTitleBlue;
+  final Color ticketBlue;
   final Color axisBorder;
   final Color priceLine;
 

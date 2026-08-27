@@ -432,7 +432,7 @@ void main() {
   });
 
   testWidgets(
-    'latest Bid draws the active candle when source timestamps lag its bucket',
+    'source-before-clock stays authoritative while Bid remains visible',
     (tester) async {
       final quotes = StreamController<DemoQuote>(sync: true);
       addTearDown(quotes.close);
@@ -493,6 +493,14 @@ void main() {
       expect(painter.currentPrice, 4668);
       expect(active.high, 4668);
       expect(active.close, 4668);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChartScreen)),
+      );
+      const request = MarketDataRequest('XAUUSD+', 'M30');
+      expect(
+        container.read(liveMarketCandlesProvider(request)).lastTickAt,
+        isNull,
+      );
 
       quotes.add(
         DemoQuote(
@@ -514,9 +522,13 @@ void main() {
               as dynamic;
       active = (painter.debugResolvedCandles as List<MarketCandle>).last;
       expect(painter.currentPrice, 4648);
-      expect(active.high, 4668);
+      expect(active.high, 4665);
       expect(active.low, 4648);
       expect(active.close, 4648);
+      expect(
+        container.read(liveMarketCandlesProvider(request)).lastTickAt,
+        isNull,
+      );
     },
   );
 

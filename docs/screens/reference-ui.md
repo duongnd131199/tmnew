@@ -113,3 +113,16 @@
   màu đen với icon sáng, không giả mạo status bar iOS.
 - Giá và thời gian trong ảnh/video thay đổi theo tick; layout, typography và
   trạng thái màu là chuẩn so sánh, còn giá trị realtime được phép biến đổi.
+
+## Trạng thái triển khai 2026-08-27
+
+- Giá, Biểu đồ, Giao dịch và bốn trạng thái Lịch sử đã được hiệu chỉnh trong
+  production widgets; không dùng ảnh mẫu làm widget.
+- AppShell giữ đúng clearance của bottom navigation trên route production;
+  chart không còn vẽ trục thời gian bên dưới navigation.
+- Full Flutter suite: 754 pass, 1 platform skip, 0 fail; analyze, debug APK,
+  backend build và 17 backend tests đều pass.
+- Bản tích hợp cuối đang chạy trực tiếp trên iPhone 17 với tên MetaTrader 5.
+- Chứng nhận comparator tuyệt đối vẫn cần ảnh tham chiếu lossless. Bảy đầu vào
+  hiện tại đều là progressive JPEG; không chuyển đuôi JPEG thành PNG và không
+  nới ngưỡng để tạo kết quả PASS giả.

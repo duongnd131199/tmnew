@@ -77,7 +77,9 @@ abstract final class TabReferenceMetrics {
   static const bottomNavigationQuotesIconScaleY = .94;
 
   static const quoteHeaderHeight = 78.6666666667;
-  static const quoteRowHeight = 69.3333333333;
+  static const quoteRowHeight = 66.6666666667;
+  static const quoteBtcRangeOffsetY = 1.3333333333;
+  // Legacy compatibility values are no longer consumed by Prices.
   static const quoteBtcMetaTop = 46.0;
   static const quoteBtcPriceScaleY = 1.07;
   static const quoteBtcPriceOffsetY = -1.3333333333;
@@ -89,8 +91,26 @@ abstract final class TabReferenceMetrics {
   static const tradeHeaderHeight = 72.6666666667;
   static const tradeMetricRowHeight = 22.0;
   static const tradeSectionHeight = 25.0;
-  static const tradePositionRowHeight = 53.3333333333;
+  static const tradePositionRowHeight = 53.1111111111;
   static const tradePositionSecondaryTop = 22.0;
+  static const tradeScrollbarTopInset = 115.3333333333;
+  static const tradeScrollbarBottomInset = 24.0;
+  static const tradeScrollbarThumbExtent = 526.6666666667;
+
+  static double tradeScrollbarThumbExtentFor(double viewportExtent) {
+    final trackExtent = math.max(
+      0,
+      viewportExtent - tradeScrollbarTopInset - tradeScrollbarBottomInset,
+    );
+    const referenceViewportExtent =
+        viewportHeight - topSafeInset - tradeHeaderHeight;
+    const referenceTrackExtent =
+        referenceViewportExtent -
+        tradeScrollbarTopInset -
+        tradeScrollbarBottomInset;
+    return tradeScrollbarThumbExtent *
+        math.min(1, trackExtent / referenceTrackExtent);
+  }
 
   static ({
     double offsetX,
@@ -130,12 +150,20 @@ abstract final class TabReferenceMetrics {
   static const historySecondaryTop = 26.0;
   static const historyPriceRangeTop = 26.6666666667;
   static const historyDealSecondaryTop = 27.3333333333;
-  static const historyDealSecondaryScaleY = .9;
+  static const historyDealSecondaryScaleY = .99;
+  static const historyDealSecondaryOffsetY = -.6666666667;
   static const historyActionOffsetY = .6666666667;
   static const historyOrderStatusScaleY = .85;
   static const historyOrderStatusOffsetX = -.6666666667;
   static const historyOrderStatusOffsetY = .6666666667;
   static const historyOrderSummaryTotalOffsetY = -.6666666667;
+  static const historyScrollbarBottomInset = 78.6666666667;
+  static const historyScrollbarWidth = 3.3333333333;
+  static const historyScrollbarRightInset = 2.6666666667;
+  static const historyOrdersThumbExtent = 457.3333333333;
+  static const historyOrdersEndThumbGrowth = 1.3333333333;
+  static const historyDealsThumbExtent = 424.6666666667;
+  static const historyScrollbarEndEdgeInset = .48;
 
   static const _historyPrimaryFontSize = 16.0;
   static const _historySecondaryFontSize = 14.0;

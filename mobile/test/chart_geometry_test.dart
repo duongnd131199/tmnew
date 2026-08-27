@@ -8,6 +8,16 @@ void main() {
 
     expect(geometry.priceAxisWidth * 1.5, closeTo(114, .01));
     expect(geometry.targetGridPitch * 1.5, closeTo(42, .01));
+    expect(geometry.gridOriginInset * 1.5, closeTo(1, .01));
+    expect(geometry.timeLabelInset * 1.5, closeTo(1, .01));
+    expect(geometry.timeLabelPitch * 1.5, closeTo(63, .01));
+    expect(geometry.m1PriceAxisWidth * 1.5, closeTo(83, .01));
+    expect(geometry.m1HeaderHeight * 1.5, closeTo(118, .01));
+    expect(geometry.m1TargetGridPitch * 1.5, closeTo(55, .01));
+    expect(geometry.m1GridOriginInset * 1.5, closeTo(27, .01));
+    expect(geometry.m1TimeLabelInset * 1.5, closeTo(28, .01));
+    expect(geometry.m1TimeLabelPitch * 1.5, closeTo(132, .01));
+    expect(geometry.m1AxisLabelInset * 1.5, closeTo(7, .01));
     expect(geometry.newestCandleRightPadding * 1.5, closeTo(12, .01));
     expect(geometry.candleBodyRatio, closeTo(.64, .001));
     expect(ChartViewport.defaultBarSpacing * 1.5, closeTo(42, .01));
@@ -34,6 +44,19 @@ void main() {
     expect(
       ChartGeometry.canonical.priceAxisWidthFor(590 / 1.5) * 1.5,
       closeTo(114, .01),
+    );
+    expect(
+      ChartGeometry.canonical.plotWidthFor(590 / 1.5) * 1.5,
+      closeTo(476, .01),
+    );
+    expect(
+      ChartGeometry.canonical.m1PriceAxisWidthFor(590 / 1.5) * 1.5,
+      closeTo(83, .01),
+    );
+    expect(
+      (590 / 1.5 - ChartGeometry.canonical.m1PriceAxisWidthFor(590 / 1.5)) *
+          1.5,
+      closeTo(507, .01),
     );
   });
 

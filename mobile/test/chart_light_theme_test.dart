@@ -27,6 +27,8 @@ const _grid = 0xFFE8E8E8;
 const _bullish = 0xFF26A69A;
 const _bearish = 0xFFEF5350;
 const _tradeBlue = 0xFF3183FF;
+const _plotTitleBlue = 0xFF3985E9;
+const _ticketBlue = 0xFF007AFF;
 const _axisBorder = 0xFFD8D8D8;
 const _priceLine = 0xFF26A69A;
 const _renderSize = Size(384, 600);
@@ -43,6 +45,8 @@ const _alternateTheme = ChartReferenceTheme(
   bullish: Color(0xFF147D64),
   bearish: Color(0xFFB61F48),
   tradeBlue: Color(0xFF7257D7),
+  plotTitleBlue: Color(0xFF684FC9),
+  ticketBlue: Color(0xFF0A6CE0),
   axisBorder: Color(0xFF8E6F9E),
   priceLine: Color(0xFF0F6D99),
 );
@@ -52,6 +56,7 @@ ChartReferenceTheme _replaceTheme(
   Color? bullish,
   Color? bearish,
   Color? tradeBlue,
+  Color? ticketBlue,
   Color? priceLine,
 }) => ChartReferenceTheme(
   background: source.background,
@@ -60,6 +65,8 @@ ChartReferenceTheme _replaceTheme(
   bullish: bullish ?? source.bullish,
   bearish: bearish ?? source.bearish,
   tradeBlue: tradeBlue ?? source.tradeBlue,
+  plotTitleBlue: source.plotTitleBlue,
+  ticketBlue: ticketBlue ?? source.ticketBlue,
   axisBorder: source.axisBorder,
   priceLine: priceLine ?? source.priceLine,
 );
@@ -627,6 +634,8 @@ void main() {
     expect(light.bullish.toARGB32(), _bullish);
     expect(light.bearish.toARGB32(), _bearish);
     expect(light.tradeBlue.toARGB32(), _tradeBlue);
+    expect(light.plotTitleBlue.toARGB32(), _plotTitleBlue);
+    expect(light.ticketBlue.toARGB32(), _ticketBlue);
     expect(light.axisBorder.toARGB32(), _axisBorder);
     expect(light.priceLine.toARGB32(), _priceLine);
   });

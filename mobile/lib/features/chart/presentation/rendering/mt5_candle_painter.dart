@@ -567,21 +567,30 @@ class Mt5CandlePainter extends CustomPainter {
         : _usesVideo2ChartChrome
         ? 67 + 1 / 3
         : 55.0;
+    final usesM1ReferenceChrome = _isXauUsdVideo2Reference && timeframe == 'M1';
     final axisWidth = _usesVideo2ChartChrome
-        ? geometry.priceAxisWidthFor(size.width)
+        ? usesM1ReferenceChrome
+              ? geometry.m1PriceAxisWidthFor(size.width)
+              : geometry.priceAxisWidthFor(size.width)
         : legacyAxisWidth;
     final bottomAxis = _usesVideo2ChartChrome ? geometry.timeAxisHeight : 20.0;
     final chartWidth = size.width - axisWidth;
     final chartHeight = size.height - bottomAxis;
+    final gridPitch = usesM1ReferenceChrome
+        ? geometry.m1TargetGridPitch
+        : geometry.targetGridPitch;
+    final priceTop = _usesVideo2ChartChrome
+        ? usesM1ReferenceChrome
+              ? geometry.m1HeaderHeight
+              : geometry.headerHeight
+        : 0.0;
     final horizontalDivisions = math.max(
       2,
-      ((chartHeight - geometry.headerHeight) / geometry.targetGridPitch)
-          .round(),
+      ((chartHeight - priceTop) / gridPitch).round(),
     );
     // The native chart keeps a header strip inside the canvas. Its visible
     // price scale starts 38 physical pixels below the frame and the final
     // (17th) interval continues below the clipped viewport.
-    final priceTop = _usesVideo2ChartChrome ? geometry.headerHeight : 0.0;
     final priceHeight = _usesVideo2ChartChrome
         ? chartHeight - priceTop
         : chartHeight;
@@ -615,10 +624,13 @@ class Mt5CandlePainter extends CustomPainter {
     final gridGap = _usesVideo2ChartChrome ? 2.5 : 4.0;
 
     final firstVerticalGrid = _usesVideo2ChartChrome
-        ? (2 / 3) / chartWidth
+        ? (usesM1ReferenceChrome
+                  ? geometry.m1GridOriginInset
+                  : geometry.gridOriginInset) /
+              chartWidth
         : .048;
     final verticalGridStep = _usesVideo2ChartChrome
-        ? geometry.targetGridPitch / chartWidth
+        ? gridPitch / chartWidth
         : .130;
     hitTargets
       ..horizontalGridYs = List<double>.unmodifiable([
@@ -1413,6 +1425,7 @@ class Mt5CandlePainter extends CustomPainter {
     double minPrice,
     double maxPrice,
   ) {
+    final usesM1ReferenceChrome = _isXauUsdVideo2Reference && timeframe == 'M1';
     canvas.drawRect(
       Rect.fromLTWH(chartWidth, 0, 80, chartHeight),
       Paint()..color = theme.background,
@@ -1430,12 +1443,25 @@ class Mt5CandlePainter extends CustomPainter {
         canvas,
         text,
         Offset(
-          chartWidth + geometry.axisLabelInset,
-          y - (_usesVideo2ChartChrome ? 7.5 : 6),
+          chartWidth +
+              (usesM1ReferenceChrome
+                  ? geometry.m1AxisLabelInset
+                  : geometry.axisLabelInset),
+          y -
+              (_usesVideo2ChartChrome
+                  ? usesM1ReferenceChrome
+                        ? 3.5
+                        : 7.5
+                  : 6),
         ),
         AppTypography.chartAxis.copyWith(
           color: _axisTextColor,
           fontSize: _usesVideo2ChartChrome ? 12.5 : 9,
+          fontWeight: usesM1ReferenceChrome ? FontWeight.w200 : null,
+          fontVariations: usesM1ReferenceChrome
+              ? const [FontVariation('wght', 200)]
+              : null,
+          letterSpacing: usesM1ReferenceChrome ? .2 : null,
         ),
       );
       labels.add((text: text, y: y));
@@ -1450,9 +1476,16 @@ class Mt5CandlePainter extends CustomPainter {
     List<MarketCandle> visible,
   ) {
     if (_usesVideo2ChartChrome) {
+      final usesM1ReferenceChrome =
+          _isXauUsdVideo2Reference && timeframe == 'M1';
+      final timeLabelInset = usesM1ReferenceChrome
+          ? geometry.m1TimeLabelInset
+          : geometry.timeLabelInset;
+      final timeLabelPitch = usesM1ReferenceChrome
+          ? geometry.m1TimeLabelPitch
+          : geometry.timeLabelPitch;
       final labelXs = <double>[
-        for (var x = 2 / 3; x < chartWidth; x += geometry.targetGridPitch * 1.5)
-          x,
+        for (var x = timeLabelInset; x < chartWidth; x += timeLabelPitch) x,
       ];
       final labels = <String>[];
       final anchors = <({double x, String text, DateTime candleTime})>[];
@@ -1465,11 +1498,15 @@ class Mt5CandlePainter extends CustomPainter {
         _text(
           canvas,
           label,
-          Offset(x, chartHeight + 2),
+          Offset(x, chartHeight + (usesM1ReferenceChrome ? 4 : 2)),
           AppTypography.chartTimeAxis.copyWith(
             color: _axisTextColor,
             fontSize: 11.5,
-            letterSpacing: .1,
+            fontWeight: usesM1ReferenceChrome ? FontWeight.w200 : null,
+            fontVariations: usesM1ReferenceChrome
+                ? const [FontVariation('wght', 200)]
+                : null,
+            letterSpacing: usesM1ReferenceChrome ? .25 : .1,
           ),
         );
       }
@@ -1636,6 +1673,10 @@ class Mt5CandlePainter extends CustomPainter {
     ];
     final month = months[displayTime.month - 1];
     if (timeframe == 'MN') return '$month ${displayTime.year}';
+    if (_isXauUsdVideo2Reference && timeframe == 'M1') {
+      return '${displayTime.day} $month '
+          '${two(displayTime.hour)}:${two(displayTime.minute)}';
+    }
     if (timeframe == 'D1' || timeframe == 'W1' || labelIndex.isOdd) {
       return '${displayTime.day} $month';
     }

@@ -1,4 +1,5 @@
 import 'dart:io' as io;
+import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -43,6 +44,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   DateTimeRange? customRange;
   String? symbolFilter;
   final ScrollController _positionsController = ScrollController();
+  final ScrollController _ordersController = ScrollController();
+  final ScrollController _dealsController = ScrollController();
   final _positionFilterCache = _HistoryFilterCache<DemoHistoryPosition>();
   final _orderFilterCache = _HistoryFilterCache<DemoOrder>();
   final _dealFilterCache = _HistoryFilterCache<DemoDeal>();
@@ -53,6 +56,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   @override
   void dispose() {
     _positionsController.dispose();
+    _ordersController.dispose();
+    _dealsController.dispose();
     super.dispose();
   }
 
@@ -143,7 +148,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     end: Alignment.bottomCenter,
                     colors: [
                       AppColors.background.withValues(alpha: .88),
-                      AppColors.background.withValues(alpha: .56),
+                      AppColors.background.withValues(alpha: .80),
                       AppColors.background.withValues(alpha: 0),
                     ],
                     stops: const [0, .72, 1],
@@ -199,6 +204,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       timeOf: (order) => order.time,
     );
     return _OrdersHistory(
+      controller: _ordersController,
       orders: orders,
       descending: descending,
       onOrderTap: _showOrderDetails,
@@ -213,6 +219,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       timeOf: (deal) => deal.time,
     );
     return _DealsHistory(
+      controller: _dealsController,
       deals: deals,
       descending: descending,
       profile: ref.watch(activeDemoAccountProvider),
@@ -827,12 +834,8 @@ class _HistoryHeader extends StatelessWidget {
                                       )
                                     : Offset.zero,
                                 child: Transform.scale(
-                                  scaleX:
-                                      io.Platform.isAndroid &&
-                                          index == 0 &&
-                                          !selected
-                                      ? 1.025
-                                      : 1,
+                                  scaleX: index == 2 ? 1 : .985,
+                                  scaleY: index == 2 ? 1 : .94,
                                   alignment: Alignment.centerLeft,
                                   child: Text(
                                     labels[index],
@@ -1013,12 +1016,14 @@ class _HistoryPeriodIconPainter extends CustomPainter {
 
 class _DealsHistory extends StatelessWidget {
   const _DealsHistory({
+    required this.controller,
     required this.deals,
     required this.descending,
     required this.profile,
     required this.onDealTap,
   });
 
+  final ScrollController controller;
   final List<DemoDeal> deals;
   final bool descending;
   final DemoAccountProfile profile;
@@ -1041,14 +1046,16 @@ class _DealsHistory extends StatelessWidget {
     final trailingSecondaryTop = stacksSecondary
         ? TabReferenceMetrics.historyTrailingSecondaryTopFor(textScaler)
         : TabReferenceMetrics.historyDealSecondaryTop;
-    return Scrollbar(
-      key: const Key('history-deals-scrollbar'),
-      interactive: true,
-      thumbVisibility: false,
-      thickness: 2,
-      radius: const Radius.circular(2),
+    return _HistoryPersistentScrollbar(
+      scrollbarKey: const Key('history-deals-scrollbar'),
+      indicatorKey: const Key('history-deals-scrollbar-indicator'),
+      controller: controller,
+      rowCount: deals.length,
+      canonicalRowCount: 20,
+      canonicalThumbExtent: TabReferenceMetrics.historyDealsThumbExtent,
       child: ListView.builder(
         key: const PageStorageKey('history-deals-list'),
+        controller: controller,
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
@@ -1056,7 +1063,7 @@ class _DealsHistory extends StatelessWidget {
           6,
           _historyListTopPadding(context),
           5.3333333333,
-          81.3333333333,
+          87.3333333333,
         ),
         itemCount: deals.length + 2,
         itemExtentBuilder: (index, _) {
@@ -1069,6 +1076,9 @@ class _DealsHistory extends StatelessWidget {
         itemBuilder: (context, index) {
           if (index < deals.length) {
             final deal = deals[descending ? index : deals.length - index - 1];
+            final showsRealizedProfit = deal.entry.toLowerCase().startsWith(
+              'out',
+            );
             return Semantics(
               button: true,
               child: Material(
@@ -1082,36 +1092,61 @@ class _DealsHistory extends StatelessWidget {
                       children: [
                         Positioned(
                           left: 0,
+                          right: 0,
                           top: TabReferenceMetrics.historyPrimaryTop,
-                          child: Text.rich(
-                            key: ValueKey('history-deals-primary-$index'),
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: displayTradingSymbol(deal.symbol),
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w400,
-                                    fontVariations: [
-                                      FontVariation('wght', 400),
-                                    ],
+                          child: _HistoryPrimaryPair(
+                            leading: Text.rich(
+                              key: ValueKey('history-deals-primary-$index'),
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: displayTradingSymbol(deal.symbol),
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w400,
+                                      fontVariations: [
+                                        FontVariation('wght', 400),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                _historyActionSpan(
-                                  context: context,
-                                  text:
-                                      ' ${deal.side.toLowerCase()}, '
-                                      '${deal.entry}',
-                                  color: _sideColor(deal.side),
-                                  key: ValueKey('history-deals-action-$index'),
-                                  inline: stacksSecondary,
-                                ),
-                              ],
+                                  _historyActionSpan(
+                                    context: context,
+                                    text:
+                                        ' ${deal.side.toLowerCase()}, '
+                                        '${deal.entry}',
+                                    color: _sideColor(deal.side),
+                                    key: ValueKey(
+                                      'history-deals-action-$index',
+                                    ),
+                                    inline: stacksSecondary,
+                                  ),
+                                ],
+                              ),
+                              style: AppTypography.historyPrimary,
+                              softWrap: false,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            style: AppTypography.historyPrimary,
-                            softWrap: false,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            trailing: showsRealizedProfit
+                                ? Text(
+                                    _formatMoney(deal.profit),
+                                    key: ValueKey(
+                                      'history-deals-trailing-primary-$index',
+                                    ),
+                                    style: AppTypography.tabColorInk(
+                                      context,
+                                      AppTypography.historyTrailingPrimary
+                                          .copyWith(
+                                            color: deal.profit < 0
+                                                ? AppColors.negative
+                                                : AppColors.primary,
+                                            fontFeatures: const [
+                                              FontFeature.tabularFigures(),
+                                            ],
+                                          ),
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
                           ),
                         ),
                         Positioned(
@@ -1169,11 +1204,13 @@ class _DealsHistory extends StatelessWidget {
 
 class _OrdersHistory extends StatelessWidget {
   const _OrdersHistory({
+    required this.controller,
     required this.orders,
     required this.descending,
     required this.onOrderTap,
   });
 
+  final ScrollController controller;
   final List<DemoOrder> orders;
   final bool descending;
   final ValueChanged<DemoOrder> onOrderTap;
@@ -1194,14 +1231,17 @@ class _OrdersHistory extends StatelessWidget {
     final trailingSecondaryTop = stacksSecondary
         ? TabReferenceMetrics.historyTrailingSecondaryTopFor(textScaler)
         : TabReferenceMetrics.historySecondaryTop;
-    return Scrollbar(
-      key: const Key('history-orders-scrollbar'),
-      interactive: true,
-      thumbVisibility: false,
-      thickness: 2,
-      radius: const Radius.circular(2),
+    return _HistoryPersistentScrollbar(
+      scrollbarKey: const Key('history-orders-scrollbar'),
+      indicatorKey: const Key('history-orders-scrollbar-indicator'),
+      controller: controller,
+      rowCount: orders.length,
+      canonicalRowCount: 19,
+      canonicalThumbExtent: TabReferenceMetrics.historyOrdersThumbExtent,
+      endThumbGrowth: TabReferenceMetrics.historyOrdersEndThumbGrowth,
       child: ListView.builder(
         key: const PageStorageKey('history-orders-list'),
+        controller: controller,
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
@@ -1338,6 +1378,154 @@ class _OrdersHistory extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _HistoryPersistentScrollbar extends StatefulWidget {
+  const _HistoryPersistentScrollbar({
+    required this.scrollbarKey,
+    required this.indicatorKey,
+    required this.controller,
+    required this.rowCount,
+    required this.canonicalRowCount,
+    required this.canonicalThumbExtent,
+    this.endThumbGrowth = 0,
+    required this.child,
+  });
+
+  final Key scrollbarKey;
+  final Key indicatorKey;
+  final ScrollController controller;
+  final int rowCount;
+  final int canonicalRowCount;
+  final double canonicalThumbExtent;
+  final double endThumbGrowth;
+  final Widget child;
+
+  @override
+  State<_HistoryPersistentScrollbar> createState() =>
+      _HistoryPersistentScrollbarState();
+}
+
+class _HistoryPersistentScrollbarState
+    extends State<_HistoryPersistentScrollbar> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleScroll);
+    _scheduleMetricsRefresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant _HistoryPersistentScrollbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_handleScroll);
+      widget.controller.addListener(_handleScroll);
+    }
+    _scheduleMetricsRefresh();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleScroll);
+    super.dispose();
+  }
+
+  void _scheduleMetricsRefresh() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _handleScroll() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        RawScrollbar(
+          key: widget.scrollbarKey,
+          controller: widget.controller,
+          interactive: false,
+          thumbVisibility: true,
+          fadeDuration: Duration.zero,
+          thickness: TabReferenceMetrics.historyScrollbarWidth,
+          crossAxisMargin: TabReferenceMetrics.historyScrollbarRightInset,
+          radius: Radius.zero,
+          thumbColor: AppColors.transparent,
+          child: widget.child,
+        ),
+        if (widget.rowCount > 0 &&
+            widget.controller.hasClients &&
+            widget.controller.position.maxScrollExtent > 0)
+          _buildIndicator(context),
+      ],
+    );
+  }
+
+  Widget _buildIndicator(BuildContext context) {
+    final textScaler = MediaQuery.textScalerOf(context);
+    final rowHeight = TabReferenceMetrics.historyRowHeightFor(textScaler);
+    final trackTop =
+        MediaQuery.paddingOf(context).top +
+        TabReferenceMetrics.historyHeaderExtent;
+    final trackBottom =
+        MediaQuery.sizeOf(context).height -
+        TabReferenceMetrics.historyScrollbarBottomInset;
+    final trackExtent = (trackBottom - trackTop).clamp(0.0, double.infinity);
+    final referenceScale =
+        widget.canonicalRowCount *
+        TabReferenceMetrics.historyRowHeight /
+        (widget.rowCount * rowHeight);
+    final rowScrollExtent = math.max(
+      widget.rowCount * rowHeight - trackExtent,
+      0.0,
+    );
+    final fraction = rowScrollExtent == 0
+        ? 0.0
+        : (widget.controller.position.pixels / rowScrollExtent).clamp(0.0, 1.0);
+    final thumbExtent = math.min(
+      trackExtent,
+      math.max(
+        24.0,
+        (widget.canonicalThumbExtent + widget.endThumbGrowth * fraction) *
+            referenceScale,
+      ),
+    );
+    final thumbTop = trackTop + (trackExtent - thumbExtent) * fraction;
+    final leadingEdgeInset = fraction >= .999
+        ? TabReferenceMetrics.historyScrollbarEndEdgeInset
+        : 0.0;
+    return Positioned(
+      key: widget.indicatorKey,
+      top: thumbTop + leadingEdgeInset,
+      right: TabReferenceMetrics.historyScrollbarRightInset,
+      width: TabReferenceMetrics.historyScrollbarWidth,
+      height: thumbExtent - leadingEdgeInset,
+      child: const IgnorePointer(child: _HistoryScrollbarInk()),
+    );
+  }
+}
+
+class _HistoryScrollbarInk extends StatelessWidget {
+  const _HistoryScrollbarInk();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: ColoredBox(color: Color(0x15000000))),
+        Expanded(child: ColoredBox(color: Color(0x5A000000))),
+        Expanded(child: ColoredBox(color: Color(0x57000000))),
+        Expanded(child: ColoredBox(color: Color(0xFFB1B1B1))),
+        Expanded(child: ColoredBox(color: Color(0xFFB1B1B1))),
+      ],
     );
   }
 }
@@ -1481,10 +1669,17 @@ class _HistoryPositionRow extends StatelessWidget {
                         children: [
                           TextSpan(
                             text: displayTradingSymbol(entry.title),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w400,
-                              fontVariations: [FontVariation('wght', 400)],
+                              fontWeight: entry.isBalance
+                                  ? FontWeight.w300
+                                  : FontWeight.w400,
+                              fontVariations: <FontVariation>[
+                                FontVariation(
+                                  'wght',
+                                  entry.isBalance ? 349 : 400,
+                                ),
+                              ],
                             ),
                           ),
                           if (!entry.isBalance)
@@ -1597,10 +1792,13 @@ class _HistoryDealSecondaryInk extends StatelessWidget {
   final bool trailing;
 
   @override
-  Widget build(BuildContext context) => Transform.scale(
-    scaleY: TabReferenceMetrics.historyDealSecondaryScaleY,
-    alignment: trailing ? Alignment.topRight : Alignment.topLeft,
-    child: child,
+  Widget build(BuildContext context) => Transform.translate(
+    offset: const Offset(0, TabReferenceMetrics.historyDealSecondaryOffsetY),
+    child: Transform.scale(
+      scaleY: TabReferenceMetrics.historyDealSecondaryScaleY,
+      alignment: trailing ? Alignment.topRight : Alignment.topLeft,
+      child: child,
+    ),
   );
 }
 

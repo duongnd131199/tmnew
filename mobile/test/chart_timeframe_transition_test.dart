@@ -157,6 +157,11 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      expect(
+        container.read(liveMarketCandlesProvider(h4Request)).lastTickAt,
+        DateTime.utc(2026, 8, 24, 11, 30),
+        reason: 'A quote without source time must fall back to marketClock.',
+      );
       final painter = _painter(tester);
       expect(painter.timeframe, 'H4');
       expect(painter.debugResolvedCandles, hasLength(48));

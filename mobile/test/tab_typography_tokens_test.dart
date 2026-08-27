@@ -26,7 +26,7 @@ void main() {
     expect(AppTypography.quoteMeta.letterSpacing, .2);
     expect(AppTypography.quoteTimeMeta.letterSpacing, .05);
     expect(AppTypography.quoteRangeMeta.letterSpacing, .55);
-    expect(AppTypography.quoteBtcHighMeta.letterSpacing, .15);
+    expect(AppTypography.quoteBtcHighMeta.letterSpacing, -.1);
     expect(AppTypography.quotePriceMajor.fontSize, 16.5);
     expect(AppTypography.quotePriceMajor.letterSpacing, .35);
     expect(AppTypography.quotePriceMinor.fontSize, 26);
@@ -42,23 +42,49 @@ void main() {
     expect(AppTypography.tradePositionPrimary.fontSize, 15.3);
     expect(AppTypography.tradePositionSecondary.fontSize, 16);
     expect(AppTypography.tradePositionSecondary.letterSpacing, .98);
-    expect(AppTypography.tradePositionSecondary.color, AppColors.textSecondary);
+    expect(AppTypography.tradePositionSecondary.color, const Color(0xFF201F21));
+    expect(
+      AppTypography.tradePositionSecondary.fontVariations,
+      const <FontVariation>[FontVariation('wght', 250)],
+    );
     expect(AppTypography.tradePositionProfit.fontSize, 21);
     expect(AppTypography.tradePositionProfit.letterSpacing, .17);
     expect(AppTypography.historyPrimary.fontSize, 16);
     expect(AppTypography.historyDealsSegment.fontSize, 14);
     expect(AppTypography.historyDealsSegment.letterSpacing, .235);
     expect(AppTypography.historyAction.letterSpacing, -.1);
+    expect(AppTypography.historyAction.fontVariations, const <FontVariation>[
+      FontVariation('wght', 326),
+    ]);
     expect(AppTypography.historyTrailingPrimary.letterSpacing, -.2);
+    expect(
+      AppTypography.historyTrailingPrimary.fontVariations,
+      const <FontVariation>[FontVariation('wght', 370)],
+    );
     expect(AppTypography.historySecondary.fontSize, 14);
     expect(AppTypography.historySecondary.letterSpacing, .22);
     expect(AppTypography.historyPriceRange.letterSpacing, .16);
+    expect(
+      AppTypography.historyPriceRange.fontVariations,
+      const <FontVariation>[FontVariation('wght', 270)],
+    );
     expect(AppTypography.historyTrailingSecondary.letterSpacing, .4);
     expect(AppTypography.historySummary.fontSize, 14.5);
     expect(AppTypography.historySummary.fontWeight, FontWeight.w400);
+    expect(AppTypography.historySummary.fontVariations, const <FontVariation>[
+      FontVariation('wght', 315),
+    ]);
     expect(AppTypography.historySummaryValue.fontWeight, FontWeight.w400);
+    expect(
+      AppTypography.historySummaryValue.fontVariations,
+      const <FontVariation>[FontVariation('wght', 420)],
+    );
     expect(AppTypography.historySummaryValue.letterSpacing, .63);
     expect(AppTypography.historyOrderSummaryTotal.letterSpacing, .22);
+    expect(
+      AppTypography.historyOrderSummaryTotal.fontVariations,
+      const <FontVariation>[FontVariation('wght', 340)],
+    );
   });
 
   test('canonical tab geometry remains explicit', () {
@@ -69,7 +95,7 @@ void main() {
       TabReferenceMetrics.bottomNavigationContentHorizontalInset,
       7.3333333333,
     );
-    expect(TabReferenceMetrics.quoteRowHeight, 69.3333333333);
+    expect(TabReferenceMetrics.quoteRowHeight, 66.6666666667);
     expect(TabReferenceMetrics.quoteBtcMetaTop, 46);
     expect(TabReferenceMetrics.quoteBtcPriceScaleY, 1.07);
     expect(TabReferenceMetrics.quoteBtcPriceOffsetY, -1.3333333333);
@@ -78,8 +104,11 @@ void main() {
     expect(TabReferenceMetrics.quoteCornerHeight, 9.6666666667);
     expect(TabReferenceMetrics.quoteCornerOffsetY, .6666666667);
     expect(TabReferenceMetrics.tradeMetricRowHeight, 22);
-    expect(TabReferenceMetrics.tradePositionRowHeight, 53.3333333333);
+    expect(TabReferenceMetrics.tradePositionRowHeight, 53.1111111111);
     expect(TabReferenceMetrics.tradePositionSecondaryTop, 22);
+    expect(TabReferenceMetrics.tradeScrollbarTopInset, 115.3333333333);
+    expect(TabReferenceMetrics.tradeScrollbarBottomInset, 24);
+    expect(TabReferenceMetrics.tradeScrollbarThumbExtent, 526.6666666667);
     expect(TabReferenceMetrics.historyRowHeight, 52);
     expect(TabReferenceMetrics.historySelectedSideInset, 3);
     expect(TabReferenceMetrics.historyDealsSelectedRightInset, 1);
@@ -89,7 +118,8 @@ void main() {
     expect(TabReferenceMetrics.historySecondaryTop, 26);
     expect(TabReferenceMetrics.historyPriceRangeTop, 26.6666666667);
     expect(TabReferenceMetrics.historyDealSecondaryTop, 27.3333333333);
-    expect(TabReferenceMetrics.historyDealSecondaryScaleY, .9);
+    expect(TabReferenceMetrics.historyDealSecondaryScaleY, .99);
+    expect(TabReferenceMetrics.historyDealSecondaryOffsetY, -.6666666667);
     expect(TabReferenceMetrics.historyActionOffsetY, .6666666667);
     expect(TabReferenceMetrics.historyOrderStatusScaleY, .85);
     expect(TabReferenceMetrics.historyOrderStatusOffsetX, -.6666666667);

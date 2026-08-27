@@ -33,18 +33,23 @@ import 'package:trading_mobile/shared/widgets/trading_drawer.dart';
 const _chartToolbarReferenceWidth = 384.0;
 const _chartToolbarHeight = 70.6666666667;
 const _oneClickPanelHeight = 38.6666666667;
+const _chartNavigationOverlap = 10.0;
+
+enum ChartLayoutProfile { standard, tabReferenceCapture }
 
 class ChartScreen extends ConsumerStatefulWidget {
   const ChartScreen({
     this.symbol = 'XAUUSD+',
     this.initialTimeframe = 'H4',
     this.theme = ChartReferenceTheme.light,
+    this.layoutProfile = ChartLayoutProfile.standard,
     super.key,
   });
 
   final String symbol;
   final String initialTimeframe;
   final ChartReferenceTheme theme;
+  final ChartLayoutProfile layoutProfile;
 
   @override
   ConsumerState<ChartScreen> createState() => _ChartScreenState();
@@ -316,8 +321,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _sellQuoteColor = widget.theme.tradeBlue;
-    _buyQuoteColor = widget.theme.tradeBlue;
+    _sellQuoteColor = widget.theme.ticketBlue;
+    _buyQuoteColor = widget.theme.ticketBlue;
     timeframe = widget.initialTimeframe;
     _chartViewSessionController = ref.read(
       chartTimeframeSessionProvider.notifier,
@@ -1383,7 +1388,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
             request != _selectedRequest) {
           return;
         }
-        final receivedAt = ref.read(marketClockProvider)();
+        final receivedAt =
+            liveQuote.sourceTimestamp ?? ref.read(marketClockProvider)();
         ref
             .read(liveMarketCandlesProvider(request).notifier)
             .applyTick(price: liveQuote.bid, receivedAt: receivedAt);
@@ -1459,14 +1465,14 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     _latestMarketPrice = marketPrice;
     if (_previousBid != null && quote.bid != _previousBid) {
       _sellQuoteColor = quote.bid > _previousBid!
-          ? _theme.tradeBlue
+          ? _theme.ticketBlue
           : _theme.bearish;
     }
     if (_previousAsk == null) {
       _buyQuoteColor = _sellQuoteColor;
     } else if (quote.ask != _previousAsk) {
       _buyQuoteColor = quote.ask > _previousAsk!
-          ? _theme.tradeBlue
+          ? _theme.ticketBlue
           : _theme.bearish;
     }
     _previousBid = quote.bid;
@@ -1594,8 +1600,19 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
       chartPainter.debugResolvedCandles.length,
     );
     _viewportCandleCount = viewportCandleCount;
+    final usesM1ReferenceTypography =
+        _normaliseSymbol(widget.symbol) == 'XAUUSD' && frameTimeframe == 'M1';
+    final navigationOverlap =
+        widget.layoutProfile == ChartLayoutProfile.tabReferenceCapture
+        ? _chartNavigationOverlap
+        : 0.0;
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      padding: EdgeInsets.only(
+        bottom: math.max(
+          0,
+          MediaQuery.paddingOf(context).bottom - navigationOverlap,
+        ),
+      ),
       child: Stack(
         children: [
           if (showOneClickTrading && !showTimeframes)
@@ -1911,9 +1928,11 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                     )
                   else ...[
                     Positioned(
-                      left: 4,
+                      left: usesM1ReferenceTypography ? 2 : 4,
                       top:
-                          2.3333333333 +
+                          (usesM1ReferenceTypography
+                              ? 1.6666666667
+                              : 2.3333333333) +
                           (showOneClickTrading && !showTimeframes
                               ? _oneClickPanelHeight
                               : 0),
@@ -1924,14 +1943,23 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                             TextSpan(
                               text: displayTradingSymbol(widget.symbol),
                               style: TextStyle(
-                                color: _theme.tradeBlue,
-                                fontWeight: FontWeight.w500,
-                                fontVariations: const [
-                                  FontVariation('wght', 500),
-                                ],
+                                color: usesM1ReferenceTypography
+                                    ? _theme.plotTitleBlue
+                                    : _theme.tradeBlue,
+                                fontFamily: usesM1ReferenceTypography
+                                    ? AppTypography.tabPlainFamily
+                                    : null,
+                                fontWeight: usesM1ReferenceTypography
+                                    ? FontWeight.w300
+                                    : FontWeight.w500,
+                                fontVariations: usesM1ReferenceTypography
+                                    ? const [FontVariation('wght', 250)]
+                                    : const [FontVariation('wght', 500)],
                                 fontSize: _usesVideo2ChartLayout ? 13 : null,
                                 letterSpacing: _usesVideo2ChartLayout
-                                    ? .5
+                                    ? usesM1ReferenceTypography
+                                          ? 1.2
+                                          : .5
                                     : null,
                               ),
                             ),
@@ -1966,18 +1994,32 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                     Positioned(
                       left: 3.3333333333,
                       top:
-                          16 +
+                          (usesM1ReferenceTypography ? 17.3333333333 : 16) +
                           (showOneClickTrading && !showTimeframes
                               ? _oneClickPanelHeight
                               : 0),
-                      child: Text(
-                        chartSubtitle,
-                        key: const Key('chart-plot-subtitle'),
-                        style: AppTypography.chartAnnotation.copyWith(
-                          color: _theme.foreground,
-                          fontSize: _usesVideo2ChartLayout ? 12.5 : 10.5,
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: _usesVideo2ChartLayout ? .4 : null,
+                      child: Transform.scale(
+                        alignment: Alignment.topLeft,
+                        scaleX: usesM1ReferenceTypography ? 1.035 : 1,
+                        scaleY: usesM1ReferenceTypography ? .85 : 1,
+                        transformHitTests: false,
+                        child: Text(
+                          chartSubtitle,
+                          key: const Key('chart-plot-subtitle'),
+                          style: AppTypography.chartAnnotation.copyWith(
+                            color: _theme.foreground,
+                            fontFamily: usesM1ReferenceTypography
+                                ? AppTypography.tabPlainFamily
+                                : null,
+                            fontSize: _usesVideo2ChartLayout ? 12.5 : 10.5,
+                            fontWeight: usesM1ReferenceTypography
+                                ? FontWeight.w200
+                                : FontWeight.w400,
+                            fontVariations: usesM1ReferenceTypography
+                                ? const [FontVariation('wght', 225)]
+                                : null,
+                            letterSpacing: _usesVideo2ChartLayout ? .4 : null,
+                          ),
                         ),
                       ),
                     ),
@@ -4093,6 +4135,7 @@ class _TradeQuote extends StatelessWidget {
     final leading = price.substring(0, price.length - 2);
     final trailing = price.substring(price.length - 2);
     return Material(
+      key: ValueKey('chart-ticket-${label.toLowerCase()}'),
       color: color,
       child: InkWell(
         onTap: onTap,
@@ -4112,16 +4155,26 @@ class _TradeQuote extends StatelessWidget {
                                 fontVariations: const [
                                   FontVariation('wght', 250),
                                 ],
-                                letterSpacing: 1.35,
+                                letterSpacing: 1.75,
                               )
-                            : AppTypography.chartTicketLabel)
+                            : AppTypography.chartTicketLabel.copyWith(
+                                fontWeight: FontWeight.w200,
+                                fontVariations: const [
+                                  FontVariation('wght', 200),
+                                ],
+                                letterSpacing: .42,
+                              ))
                         .copyWith(
                           color: theme.background,
                           fontWeight: io.Platform.isAndroid
-                              ? FontWeight.w500
+                              ? label == 'Buy'
+                                    ? FontWeight.w500
+                                    : FontWeight.w200
                               : null,
                           fontVariations: io.Platform.isAndroid
-                              ? const [FontVariation('wght', 500)]
+                              ? label == 'Buy'
+                                    ? const [FontVariation('wght', 500)]
+                                    : const [FontVariation('wght', 200)]
                               : null,
                         ),
               ),

@@ -26,6 +26,12 @@ abstract final class AppColors {
   static const orderTicketQuote = Color(0xFF007FFF);
   static const orderTicketSell = Color(0xFFDD5E4F);
   static const orderTicketBuy = Color(0xFF4A92F4);
+  static const tradeHeaderCurrency = Color(0xFF0074FF);
+  static const tradePendingPrice = Color(0xFFB8B8BD);
+  static const tradeScrollbarThumb = Color(0xFFB1B1B1);
+  static const tradeEmptyIllustration = Color(0xFFF4F4F6);
+  static const tradeSwipeMenu = Color(0xFF929FB2);
+  static const tradeSwipeActionGlyph = Color(0xFFFFFFFF);
   static const warning = Color(0xFFFF9F0A);
   static const savePasswordEnabled = Color(0xFF30D158);
   static const brokerExness = Color(0xFFF8DF09);
@@ -40,6 +46,7 @@ abstract final class AppColors {
   static const connectedIndicatorGlyph = Color(0xFFC8F0FF);
   static const textPrimary = Color(0xFF000000);
   static const textSecondary = Color(0xFF3C3C43);
+  static const pricesSecondary = Color(0xFF545454);
   static const textTertiary = Color(0xFF9A9A9F);
   static const divider = Color(0xFFD9D9DE);
   static const chartGrid = Color(0xFFE8E8E8);

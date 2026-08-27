@@ -662,7 +662,6 @@ void main() {
     tester.view.physicalSize = const Size(393, 430);
     final container = createContainer();
     addTearDown(container.dispose);
-    final account = container.read(demoAccountProvider);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -673,7 +672,7 @@ void main() {
     await tester.pump();
 
     final section = find.text('Lenh co trang thai');
-    final profit = find.text('${account.profit.toStringAsFixed(2)} USD');
+    final profit = find.byKey(const Key('trade-header-profit'));
     final sectionBefore = tester.getTopLeft(section).dy;
     final profitBefore = tester.getTopLeft(profit).dy;
 

@@ -1,143 +1,95 @@
-# Tab Typography Parity Evidence
+# Seven-state reference parity evidence
 
-Verification date: 2026-08-26 (Asia/Ho_Chi_Minh).
+Verification date: 2026-08-27 (Asia/Ho_Chi_Minh).
 
-## References
+## Inputs and deterministic outputs
 
-The implementation is calibrated against the seven 590 x 1280 JPEG files in
-`iconMau/anhmau`:
+The only supplied references are the seven progressive JPEG files in
+`iconMau/anhmau`. Every reference is 590 x 1280. No lossless PNG, WebP, TIFF,
+BMP, or HEIC source exists under `iconMau`.
 
-- `photo_2026-08-25_22-30-10.jpg` — Prices
-- `photo_2026-08-25_22-30-17.jpg` — Chart
-- `photo_2026-08-25_22-30-20.jpg` — Trade
-- `photo_2026-08-25_22-30-23.jpg` — History positions
-- `photo_2026-08-25_22-30-26.jpg` — History orders
-- `photo_2026-08-25_22-30-29.jpg` — History orders summary
-- `photo_2026-08-25_22-30-34.jpg` — History deals
+The seven production-widget candidates are stored in
+`mobile/test/goldens/tab-typography` and use a 393.3333333333 x
+853.3333333333 logical viewport, DPR 1.5, and text scale 1.0. The final golden
+test passed all seven cases, the exact History scrollbar check, the Chart M1
+time-label check, and the responsive-width matrix: 10/10 tests passed.
 
-The canonical Flutter viewport is 393.333 x 853.333 logical pixels at DPR 1.5.
-The seven deterministic candidate PNGs are stored in
-`mobile/test/goldens/tab-typography`.
+## Strict comparator result
 
-## Static acceptance
+The comparator contract remains strict: text edge <= 1 physical pixel,
+semantic RGB <= 4/channel, density delta <= 5%; static controls use RGB <= 4,
+edge <= 1, and residual ratio <= 0.5%. These limits were not loosened and
+dynamic masks were not enlarged.
 
-- Bundled deterministic families: `Mt5Roboto`, `Mt5RobotoCondensed`,
-  `Mt5RobotoVariable`, and `Mt5RobotoCondensedVariable`. The covered tab roles
-  use calibrated variable axes from 250 through 600 where the static families
-  were visibly too dense.
-- Covered semantic roles lock font size, line height, weight, letter spacing,
-  baseline offsets, and row pitch.
-- Calibrated inks: primary `#000000`, secondary `#3C3C43`, buy/selected
-  `#007AFF`, and sell/negative `#E42D30`.
-- Static comparison tolerance: every ink-bound edge must be within 1 physical
-  pixel; candidate semantic RGB must be within 6 per channel; optical ink
-  density must be within 30 percent for regions where the source JPEG provides
-  a reliable sample. Semantic color is estimated from the most opaque candidate
-  pixels against the local background and is compared directly with the
-  manifest color; it is never snapped to the expected value.
-- Regression tests recolor the Prices blue ink and dilate a black quote symbol
-  without changing its outer bounds. The comparator rejects both color drift
-  and a visibly heavier font with unchanged geometry.
+The final 22-column CSV and 14 non-empty overlay/heatmap images are in:
 
-`dart run tool/compare_tab_typography.dart` passed with these worst results:
+`.superpowers/sdd/2026-08-27-seven-state-visual-parity-completion/final-evidence`
 
-| Case | Maximum edge delta | Maximum semantic ink delta | Maximum density delta |
+The comparator correctly exits 1 against the lossy JPEG inputs:
+
+| Case | PASS | FAIL | Dynamic SKIP |
 | --- | ---: | ---: | ---: |
-| Prices | 1 px | 0 | 21.9% |
-| Chart | 1 px | 0 | 14.0% |
-| Trade | 1 px | 0 | 13.7% |
-| History positions | 1 px | 0 | 17.8% |
-| History orders | 1 px | 0 | 13.4% |
-| History orders summary | 1 px | 0 | 15.1% |
-| History deals | 1 px | 0 | 14.4% |
+| Prices | 6 | 35 | 12 |
+| Chart | 5 | 30 | 4 |
+| Trade | 9 | 26 | 4 |
+| History positions | 11 | 24 | 4 |
+| History orders | 7 | 27 | 2 |
+| History orders summary | 7 | 28 | 2 |
+| History deals | 8 | 27 | 2 |
 
-## Android renderer verification
+Sixty-seven FAIL rows retain the explicit detail
+`reference-evidence-deferred: lossless shared navigation source required;
+restore in Task 7`. Other red aggregate/control rows include JPEG edge noise,
+thin-glyph semantic sampling, and dynamic content inside broad crops. They are
+not relabelled PASS or SKIP.
 
-The seven states were also rendered by the Flutter Android engine on
-`emulator-5554` after setting the emulator to 590 x 1280 physical pixels and
-240 dpi (DPR 1.5). Each state ran in an isolated integration-test process and
-the emulator was restored to 1080 x 2400 at 420 dpi afterward. Captures:
+This means the implementation and regression gate are complete, but a
+mathematical claim of 100% reference identity is not certified from the
+current inputs. Re-encoding the JPEG files as PNG is not a valid substitute.
 
-- `android-prices-590x1280.png`
-- `android-chart-590x1280.png`
-- `android-trade-590x1280.png`
-- `android-history-positions-590x1280.png`
-- `android-history-orders-590x1280.png`
-- `android-history-orders-summary-590x1280.png`
-- `android-history-deals-590x1280.png`
+## Verified implementation changes
 
-Android uses a separate, explicit rasterizer allowance of 2 physical pixels
-for ink bounds, 12 RGB levels for thin anti-aliased glyphs, and 40 percent for
-optical ink density. The ticket labels, Trade metric labels, and the first
-History segment have small Android-only raster corrections so the production
-device output remains aligned with the iOS reference. The final device
-comparison passed with these worst results:
+- Prices: reference-width row pitch, toolbar geometry, change text, metadata,
+  spread, price typography, and L/H label/value spacing. The four L/H semantic
+  RGB deltas are zero in the final focused evidence.
+- Chart: M1 title/ticket/axis geometry and deterministic session fixture;
+  production AppShell now preserves the full bottom-navigation clearance, so
+  the chart no longer paints beneath the navigation bar.
+- Trade: calibrated header, metrics, rows, and exact 590 x 1280 scrollbar;
+  short viewports scale the minimum thumb length instead of showing a
+  full-track thumb.
+- History: all four states share calibrated segment, row, summary, and
+  persistent scrollbar geometry. Orders, orders-summary, and deals scrollbar
+  bounds exactly match their manifest rectangles.
 
-| Case | Maximum edge delta | Maximum semantic ink delta | Maximum density delta |
-| --- | ---: | ---: | ---: |
-| Prices | 2 px | 0 | 28.3% |
-| Chart | 2 px | 0 | 39.2% |
-| Trade | 2 px | 0 | 38.4% |
-| History positions | 2 px | 0 | 38.0% |
-| History orders | 2 px | 0 | 30.8% |
-| History orders summary | 2 px | 0 | 38.4% |
-| History deals | 2 px | 0 | 37.7% |
+## Device state
 
-The comparator checks named static regions for the Prices title/symbol/nav,
-Chart timeframe/Sell/nav, Trade metrics/section/position, and History
-segments/rows/summaries/nav. It does not use non-text pixels to pass or fail
-this typography task.
+The final integrated Flutter process is running directly on the existing
+iPhone 17 simulator `5AD1B6AA-5814-4EAA-A573-4B9C561BABA4` as bundle
+`com.tradingdemo.tradingMobile`, display name `MetaTrader 5`. The final hot
+restart completed successfully.
 
-## Dynamic masks
+Seven Android-engine captures in this directory were refreshed during the
+gate at 590 x 1280 and the emulator was restored to 1080 x 2400 at 420 dpi.
+They predate the final Prices and AppShell live checkpoints and therefore are
+renderer diagnostics, not final strict-certification artifacts. The user then
+directed all further deployment to the already-running iPhone 17; no second
+simulator was kept open.
 
-Rectangles below are physical-pixel `[left, top, width, height]` values. They
-cover only status content, changing numbers/timestamps/P&L, or the candle plot.
+## Final regression/build results
 
-- Prices: `[0,0,590,70]`, `[0,150,590,34]`, `[330,178,260,180]`.
-- Chart: `[0,0,590,68]`, `[62,140,528,60]`, `[0,200,590,950]`.
-- Trade: `[0,0,590,75]`, `[190,80,400,245]`, `[450,365,140,790]`.
-- History positions: `[0,0,590,70]`, `[185,155,405,390]`,
-  `[185,550,405,170]`.
-- History orders: `[0,0,590,70]`, `[150,130,440,1025]`.
-- History orders summary: `[0,0,590,70]`, `[150,130,440,930]`,
-  `[380,1060,210,100]`.
-- History deals: `[0,0,590,70]`, `[150,130,440,830]`,
-  `[185,995,405,170]`.
+- `flutter analyze`: no issues.
+- `flutter test`: 754 passed, 1 platform skip, 0 failed.
+- `flutter build apk --debug`: passed.
+- APK: `mobile/build/app/outputs/flutter-apk/app-debug.apk`, 202,032,360 bytes,
+  SHA-256 `b1e64cab1af6ba1f024471cc72c27c2bb102cff144e376e94517b60c390d6d82`.
+- `.NET 8.0.421` build: passed with 0 warnings and 0 errors.
+- Backend tests: 17 passed (1 architecture, 7 unit, 9 integration), 0 failed.
+- `git diff --check`: passed; the index remained empty during verification.
 
-## Responsive checks
+## Remaining input requirement
 
-Prices, Trade, and all three History modes were pumped at 360, 384, 393.333,
-and 430 logical pixels. All states completed without overflow. Chart retains
-its dedicated geometry, viewport, gesture, repaint, and multi-timeframe tests.
-
-## Verification
-
-- `flutter analyze`: passed, no issues.
-- Final typography golden/comparator run passed. The deterministic
-  comparator passed every named region across all seven states with a maximum
-  edge delta of 1 physical pixel, zero semantic color delta, and a maximum
-  optical density delta of 21.9 percent.
-- The complete Flutter suite passed 639 assertions. The three remaining
-  failures were reproduced unchanged on the pre-task baseline:
-  the two Chart data assertions (40 vs 41 candles; H4 active high 4425 vs quote
-  4429) and the Windows-only PowerShell capture preflight on macOS
-  (`powershell.exe` unavailable). They are not regressions from this task.
-- `flutter build apk --debug`: passed. Output:
-  `mobile/build/app/outputs/flutter-apk/app-debug.apk` (200,213,736 bytes).
-- `dotnet build Trading.sln` and `dotnet test Trading.sln --no-build`: blocked
-  by SDK resolution. The repository requests .NET SDK 8.0.421; only 10.0.203 is
-  installed. `global.json` was intentionally not changed.
-- Android integration capture: passed all 7 isolated states with no Flutter
-  exception or overflow. The Android-mode comparator passed all seven final
-  captured PNGs with a maximum edge delta of 2 physical pixels, zero semantic
-  color delta, and a maximum optical density delta of 39.2 percent. The normal
-  debug APK was installed after the capture, launched successfully, and the
-  emulator was verified restored to 1080 x 2400 at 420 dpi.
-
-## Reference gaps
-
-The Settings body and routes absent from the seven source screenshots remain
-unverified. Platform-owned status-bar glyphs, dynamic trading values, and
-candle contours are not claimed as pixel-identical; the requested static tab
-typography, colors, and spacing are covered by the deterministic and Android
-checks above.
+To close the strict comparator at exit 0 without weakening it, obtain genuine
+lossless captures of the seven reference states, especially the shared bottom
+navigation. Platform-owned status values and live market values remain the
+typed, reasoned exclusions already declared in the manifest.

@@ -467,6 +467,7 @@ void main() {
     'trade quote tick updates six rows and all derived account metrics',
     (tester) async {
       useVideoViewport(tester);
+      final semantics = tester.ensureSemantics();
       final quoteController = StreamController<DemoQuote>();
       addTearDown(quoteController.close);
       final container = createVideoReferenceContainer(
@@ -553,7 +554,7 @@ void main() {
       }
 
       expect(
-        find.text('${account.profit.toStringAsFixed(2)} USD'),
+        find.bySemanticsLabel('${account.profit.toStringAsFixed(2)} USD'),
         findsOneWidget,
       );
       for (final value in [
@@ -564,6 +565,7 @@ void main() {
       ]) {
         expect(find.text(formatAccount(value)), findsOneWidget);
       }
+      semantics.dispose();
     },
   );
 

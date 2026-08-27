@@ -85,10 +85,10 @@ void main() {
 
     expect(list.bounds, const Rect.fromLTWH(14, 14, 15, 12));
     expect(list.pixels, inInclusiveRange(50, 75));
-    expect(edit.bounds, const Rect.fromLTWH(13, 12, 16, 17));
+    expect(edit.bounds, const Rect.fromLTWH(13, 13, 15, 14));
     expect(edit.pixels, inInclusiveRange(50, 75));
-    expect(search.bounds, const Rect.fromLTWH(11, 11, 20, 20));
-    expect(search.pixels, inInclusiveRange(75, 105));
+    expect(search.bounds, const Rect.fromLTWH(12, 11, 19, 19));
+    expect(search.pixels, inInclusiveRange(70, 100));
   });
 
   double rowOffset(WidgetTester tester, String symbol) {
@@ -119,17 +119,26 @@ void main() {
       find.byKey(const Key('market-search-button')),
     );
 
-    expect(toggleRect.left, closeTo(15.3, .1));
-    expect(toggleRect.top, closeTo(54, .1));
+    expect(toggleRect.left, closeTo(17.3, .1));
+    expect(toggleRect.top, closeTo(54.6666666667, .1));
     expect(toggleRect.width, closeTo(42.6666666667, .01));
     expect(toggleRect.height, closeTo(42.6666666667, .01));
     expect(manageRect.left, closeTo(274.6333333333, .1));
     expect(manageRect.top, closeTo(54, .1));
-    expect(searchRect.left, closeTo(328.0333333333, .1));
+    expect(searchRect.left, closeTo(324.7, .1));
     expect(searchRect.top, closeTo(54, .1));
+    expect(
+      <Rect>[
+        toggleRect,
+        manageRect,
+        searchRect,
+      ].every((rect) => rect.width >= 42.6669 && rect.height >= 42.6669),
+      isTrue,
+      reason: 'Visual discs may shrink, but toolbar hit targets stay usable.',
+    );
 
     final headerTitle = tester.widget<Text>(find.text('Gia'));
-    expect(headerTitle.style, AppTypography.toolbarTitle);
+    expect(headerTitle.style, AppTypography.pricesToolbarTitle);
     final dailyChange = tester.widget<Text>(
       find.byKey(const ValueKey('market-change-XAUUSD+')),
     );
@@ -144,32 +153,64 @@ void main() {
     expect(
       tester.getTopLeft(btcSymbolFinder).dy -
           tester.getTopLeft(symbolFinder).dy,
-      closeTo(68, .01),
-      reason: 'BTC sits 2 physical pixels above the standard second-row slot.',
+      closeTo(66.6666666667, .01),
+      reason: 'Prices rows use the canonical 100-physical-pixel pitch.',
     );
     expect(tester.getTopLeft(symbolFinder).dy, closeTo(128.0666666667, .75));
     final tickTime = tester.widget<Text>(
       find.byKey(const ValueKey('market-time-XAUUSD+')),
     );
     expect(tickTime.style, AppTypography.quoteTimeMeta);
+    expect(
+      tickTime.style?.color,
+      const Color(0xFF545454),
+      reason: 'Prices metadata uses the measured reference secondary ink.',
+    );
     expect(find.byKey(const ValueKey('market-delay-BTCUSD')), findsOneWidget);
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
           .style,
-      AppTypography.quoteRangeMeta,
+      AppTypography.quoteRangeValue,
     );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
           .style,
-      AppTypography.quoteRangeMeta,
+      AppTypography.quoteRangeValue,
     );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-high-BTCUSD')))
           .style,
       AppTypography.quoteBtcHighMeta,
+      reason: 'BTC high uses the narrower reference digit spacing.',
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-low-label-XAUUSD+')))
+          .style
+          ?.color,
+      const Color(0xFF545454),
+    );
+
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-low-label-XAUUSD+')))
+          .data,
+      'L:',
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-high-label-XAUUSD+')))
+          .data,
+      'H:',
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
+          .data,
+      '4104.09',
     );
 
     final xauBid = tester.widget<Text>(
@@ -407,8 +448,8 @@ void main() {
     final high = tester
         .widget<Text>(find.byKey(const ValueKey('market-high-BTCUSD')))
         .data!;
-    expect(double.parse(low.substring(3)), greaterThan(59000));
-    expect(double.parse(high.substring(3)), greaterThan(59000));
+    expect(double.parse(low), greaterThan(59000));
+    expect(double.parse(high), greaterThan(59000));
   });
 }
 

@@ -171,7 +171,8 @@ void main() {
               (tab == 'positions'
                   ? TabReferenceMetrics.historyPriceRangeTop
                   : tab == 'deals'
-                  ? TabReferenceMetrics.historyDealSecondaryTop
+                  ? TabReferenceMetrics.historyDealSecondaryTop +
+                        TabReferenceMetrics.historyDealSecondaryOffsetY
                   : TabReferenceMetrics.historySecondaryTop) -
               TabReferenceMetrics.historyPrimaryTop,
           .1,
@@ -320,6 +321,56 @@ void main() {
     await tester.pump();
     expect(find.text('1 at 4637.05'), findsOneWidget);
     expect(find.text('1.5 at 1.23456'), findsOneWidget);
+  });
+
+  testWidgets('exit deals expose their realized profit on the primary line', (
+    tester,
+  ) async {
+    const deals = <DemoDeal>[
+      DemoDeal(
+        id: 'reference-exit-deal',
+        orderId: 'reference-exit-order',
+        symbol: 'XAUUSD+',
+        side: 'SELL',
+        volume: 1,
+        price: 4631.37,
+        profit: 814,
+        entry: 'out',
+        time: '2026.08.24 10:45:11',
+      ),
+      DemoDeal(
+        id: 'reference-entry-deal',
+        orderId: 'reference-entry-order',
+        symbol: 'XAUUSD+',
+        side: 'BUY',
+        volume: 1,
+        price: 4637.05,
+        profit: 0,
+        time: '2026.08.24 11:58:13',
+      ),
+    ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: videoReferenceOverrides,
+        child: ProviderScope(
+          overrides: [demoDealsProvider.overrideWithValue(deals)],
+          child: MaterialApp(home: const HistoryScreen()),
+        ),
+      ),
+    );
+    await pumpBottomAnchor(tester);
+    await tester.tap(find.byKey(const Key('history-tab-2')));
+    await tester.pump();
+
+    final profit = tester.widget<Text>(
+      find.byKey(const ValueKey('history-deals-trailing-primary-0')),
+    );
+    expect(profit.data, '814.00');
+    expect(profit.style?.color, AppColors.primary);
+    expect(
+      find.byKey(const ValueKey('history-deals-trailing-primary-1')),
+      findsNothing,
+    );
   });
 
   testWidgets('History toolbar icon ink matches the measured references', (
@@ -1152,7 +1203,7 @@ void main() {
       expect(selectedTab.height, closeTo(39.4666666667, .01));
       expect(
         firstLabel.center.dx,
-        closeTo(111.7666666667, .01),
+        closeTo(111.208231322, .01),
         reason: 'The first label is optically left-aligned in the reference.',
       );
       expect(find.byKey(const Key('history-header-overlay')), findsOneWidget);
@@ -1226,6 +1277,55 @@ void main() {
     );
     expect(find.byKey(const Key('history-orders-scrollbar')), findsOneWidget);
   });
+
+  testWidgets(
+    'orders and deals own persistent scrollbars while positions stays transient',
+    (tester) async {
+      await tester.pumpWidget(testApp());
+      await pumpBottomAnchor(tester);
+
+      final positionsList = tester.widget<ListView>(
+        find.byKey(const PageStorageKey('history-positions-list')),
+      );
+      final positionsScrollbar = tester.widget<Scrollbar>(
+        find.byKey(const Key('history-positions-scrollbar')),
+      );
+      expect(positionsScrollbar.thumbVisibility, isFalse);
+      expect(positionsScrollbar.controller, same(positionsList.controller));
+
+      await tester.tap(find.byKey(const Key('history-tab-1')));
+      await tester.pump();
+      final ordersList = tester.widget<ListView>(
+        find.byKey(const PageStorageKey('history-orders-list')),
+      );
+      final ordersScrollbar = tester.widget<RawScrollbar>(
+        find.byKey(const Key('history-orders-scrollbar')),
+      );
+      expect(ordersList.controller, isNotNull);
+      expect(ordersScrollbar.controller, same(ordersList.controller));
+      expect(ordersScrollbar.thumbVisibility, isTrue);
+      expect(ordersScrollbar.fadeDuration, Duration.zero);
+      expect(ordersScrollbar.thickness, 3.3333333333);
+      expect(ordersScrollbar.crossAxisMargin, 2.6666666667);
+      expect(ordersScrollbar.thumbColor, AppColors.transparent);
+
+      await tester.tap(find.byKey(const Key('history-tab-2')));
+      await tester.pump();
+      final dealsList = tester.widget<ListView>(
+        find.byKey(const PageStorageKey('history-deals-list')),
+      );
+      final dealsScrollbar = tester.widget<RawScrollbar>(
+        find.byKey(const Key('history-deals-scrollbar')),
+      );
+      expect(dealsList.controller, isNotNull);
+      expect(dealsScrollbar.controller, same(dealsList.controller));
+      expect(dealsScrollbar.thumbVisibility, isTrue);
+      expect(dealsScrollbar.fadeDuration, Duration.zero);
+      expect(dealsScrollbar.thickness, 3.3333333333);
+      expect(dealsScrollbar.crossAxisMargin, 2.6666666667);
+      expect(dealsScrollbar.thumbColor, AppColors.transparent);
+    },
+  );
 
   testWidgets(
     'deal detail opens the canonical sheet and chart returns to deals',

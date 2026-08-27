@@ -1028,6 +1028,94 @@ void main() {
     expect('$output$errors', contains('Reference parity failed'));
   });
 
+  test('Prices body acceptance adds no unapproved strict failures', () {
+    final output = StringBuffer();
+    final errors = StringBuffer();
+    final exitCode = comparator.runTabTypographyComparison(
+      const ['--case', 'prices'],
+      standardOutput: output,
+      errorOutput: errors,
+    );
+
+    expect(
+      exitCode,
+      1,
+      reason:
+          'Task 2 shared evidence remains deliberately deferred.\n'
+          '$output$errors',
+    );
+    final rows = _parseCsv(output.toString());
+    final header = rows.first;
+    final recordType = header.indexOf('recordType');
+    final regionType = header.indexOf('regionType');
+    final region = header.indexOf('region');
+    final status = header.indexOf('status');
+    final details = header.indexOf('details');
+    const deferredDetail =
+        'reference-evidence-deferred: lossless shared navigation source '
+        'required; restore in Task 7';
+    final failed = rows
+        .skip(1)
+        .where((row) => row[status] == 'FAIL')
+        .toList(growable: false);
+    final deferred = failed
+        .where((row) => row[details] == deferredDetail)
+        .toList(growable: false);
+    expect(deferred, hasLength(8));
+    expect(deferred.map((row) => row[region]).toSet(), {
+      'bottom-navigation-selected-pill-surface',
+      'navigation-chart-icon',
+      'navigation-settings-icon',
+      'navigation-prices-label',
+      'navigation-chart-label',
+      'navigation-trade-label',
+      'navigation-history-label',
+      'navigation-settings-label',
+    });
+
+    bool isShared(List<String> row) {
+      final name = row[region];
+      return name.startsWith('navigation-') ||
+          name.startsWith('bottom-navigation');
+    }
+
+    final pricesFailures = failed
+        .where((row) => !isShared(row))
+        .map((row) => '${row[recordType]}|${row[regionType]}|${row[region]}')
+        .toSet();
+    const approvedPricesFailures = {
+      'static-canvas|fullCanvas|static-audit',
+      'static-region|content|content',
+      'static-region|header|header',
+      'static-region|body|body',
+      'static-region|header|prices-header-foreground',
+      'static-region|body|prices-body-foreground',
+      'static-control|control|prices-toolbar-list',
+      'static-control|control|prices-toolbar-edit',
+      'static-control|control|prices-toolbar-search',
+      'static-control|control|prices-first-change-accent',
+      'static-control|control|prices-second-change-accent',
+      'static-control|control|prices-first-low-label',
+      'static-control|control|prices-first-high-label',
+      'static-control|control|prices-second-low-label',
+      'static-control|control|prices-second-high-label',
+      'text|staticText|quote-corner',
+      'text|staticText|quote-symbol',
+      'text|staticText|second-quote-symbol',
+      'text|staticText|first-quote-low-label',
+      'text|staticText|first-quote-high-label',
+      'text|staticText|second-quote-low-label',
+      'text|staticText|second-quote-high-label',
+    };
+    expect(
+      pricesFailures.difference(approvedPricesFailures),
+      isEmpty,
+      reason:
+          'A new Prices-owned strict FAIL needs explicit review.\n'
+          '$output$errors',
+    );
+  });
+
   test('canonical atomic deferral preserves immutable strict evidence', () {
     final root = Directory.systemTemp.createTempSync(
       'mt5-atomic-deferred-evidence-',
@@ -1069,9 +1157,12 @@ void main() {
       'reference-evidence-deferred: lossless shared navigation source '
           'required; restore in Task 7',
     });
-    expect(tabReferenceForegroundConsensusGroups, hasLength(18));
+    final navigationConsensusGroups = tabReferenceForegroundConsensusGroups
+        .where((group) => group.key.controlIdentity.startsWith('navigation-'))
+        .toList(growable: false);
+    expect(navigationConsensusGroups, hasLength(18));
     expect(
-      tabReferenceForegroundConsensusGroups.fold<int>(
+      navigationConsensusGroups.fold<int>(
         0,
         (sum, group) => sum + group.memberCaseIds.length,
       ),

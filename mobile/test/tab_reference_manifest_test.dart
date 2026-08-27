@@ -162,6 +162,54 @@ void main() {
     }
   });
 
+  test(
+    'Prices assigns every static header and body foreground a local role',
+    () {
+      final prices = tabReferenceCases.singleWhere(
+        (item) => item.id == 'prices',
+      );
+      const expectedRoles = {
+        pricesBlackRole,
+        pricesSecondaryRole,
+        pricesBlueRole,
+        pricesRedRole,
+      };
+      const expectedControls = {
+        'prices-toolbar-list',
+        'prices-toolbar-edit',
+        'prices-toolbar-search',
+        'prices-first-change-accent',
+        'prices-second-change-accent',
+      };
+
+      expect(
+        prices.foregroundRoleByRegion.values.toSet(),
+        containsAll(expectedRoles),
+      );
+      expect(
+        prices.staticControlRegions.map((control) => control.name).toSet(),
+        containsAll(expectedControls),
+      );
+      final body = prices.visualRegions.singleWhere(
+        (region) => region.name == 'prices-body-foreground',
+      );
+      expect(body.requiredForegroundRoles.toSet(), expectedRoles);
+      expect(
+        body.foregroundRegionNames,
+        containsAll({
+          'quote-corner',
+          'quote-symbol',
+          'second-quote-symbol',
+          'first-quote-low-label',
+          'first-quote-high-label',
+          'second-quote-low-label',
+          'second-quote-high-label',
+          ...expectedControls.where((name) => name.contains('change')),
+        }),
+      );
+    },
+  );
+
   test('history selected surfaces use isolated color-component audits', () {
     final historyCases = tabReferenceCases.where(
       (item) => item.state.name.startsWith('history'),
@@ -362,12 +410,24 @@ void main() {
         expected[referenceCase.id],
         reason: referenceCase.id,
       );
-      expect(referenceCase.foregroundRoleByRegion, hasLength(10));
-      expect(referenceCase.foregroundRoleByRegion.values.toSet(), {
+      final navigationRoles = Map.fromEntries(
+        referenceCase.foregroundRoleByRegion.entries.where(
+          (entry) => entry.key.startsWith('navigation-'),
+        ),
+      );
+      expect(navigationRoles, hasLength(10));
+      expect(navigationRoles.values.toSet(), {
         navigationBlackRole,
         navigationBlueRole,
       });
-      expect(referenceCase.referenceForegroundInteriors, hasLength(4));
+      expect(
+        referenceCase.referenceForegroundInteriors.where(
+          (interior) =>
+              interior.role == navigationBlackRole ||
+              interior.role == navigationBlueRole,
+        ),
+        hasLength(4),
+      );
     }
   });
 

@@ -138,6 +138,7 @@ void main() {
     final header = tester.widget<Text>(
       find.byKey(const Key('trade-header-profit')),
     );
+    expect(find.byKey(const Key('trade-header-currency')), findsOneWidget);
     expect(header.style?.color, const Color(0xFFE42D30));
 
     final winningPrimary = tester.widget<Text>(
@@ -279,9 +280,17 @@ void main() {
     );
 
     expect(priceRange, findsOneWidget);
+    expect(find.text('↑'), findsNothing);
+    expect(
+      find.descendant(
+        of: priceRange,
+        matching: find.byKey(const Key('mt-price-range-arrow')),
+      ),
+      findsOneWidget,
+    );
     expect(
       tester.widget<MtPriceRangeText>(priceRange).style.color,
-      AppColors.textSecondary,
+      AppTypography.tradePositionSecondary.color,
     );
   });
 
@@ -315,6 +324,25 @@ void main() {
     addTearDown(container.dispose);
 
     await _pumpTrade(tester, container);
+
+    final scrollbar = tester.widget<RawScrollbar>(
+      find.byKey(const Key('trade-position-scrollbar')),
+    );
+    expect(scrollbar.thumbVisibility, isTrue);
+    expect(scrollbar.thickness, 3.3333333333);
+    expect(scrollbar.fadeDuration, Duration.zero);
+    expect(scrollbar.radius, const Radius.circular(1.4));
+    expect(
+      scrollbar.padding,
+      const EdgeInsets.only(
+        top: TabReferenceMetrics.tradeScrollbarTopInset,
+        bottom: TabReferenceMetrics.tradeScrollbarBottomInset,
+      ),
+    );
+    expect(
+      scrollbar.minThumbLength,
+      TabReferenceMetrics.tradeScrollbarThumbExtent,
+    );
 
     final sliverLists = tester.widgetList<SliverList>(find.byType(SliverList));
     expect(sliverLists, isNotEmpty);

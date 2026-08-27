@@ -40,6 +40,7 @@ void main() {
     'video two account list switches zero, huge and Vantage trade states',
     (tester) async {
       useVideoViewport(tester);
+      final semantics = tester.ensureSemantics();
       final container = createStableContainer();
       addTearDown(container.dispose);
       final router = GoRouter(
@@ -71,9 +72,8 @@ void main() {
 
       expect(container.read(activeDemoAccountIdProvider), '10001001');
       expect(container.read(demoPositionsProvider), hasLength(6));
-      expect(find.text('-128.00 USD'), findsOneWidget);
+      expect(find.bySemanticsLabel('-128.00 USD'), findsOneWidget);
       expect(find.text('2 292.60'), findsOneWidget);
-
       router.push('/profile');
       await tester.pumpAndSettle();
       expect(find.text('Tài khoản'), findsOneWidget);
@@ -111,7 +111,7 @@ void main() {
       expect(container.read(demoPositionsProvider), hasLength(10));
       expect(container.read(demoHistoryPositionsProvider), hasLength(37));
       expect(container.read(demoAccountProvider).balance, 27297978.10);
-      expect(find.text('-1 013 283.20 USD'), findsOneWidget);
+      expect(find.bySemanticsLabel('-1 013 283.20 USD'), findsOneWidget);
       expect(find.text('27 297 978.10'), findsOneWidget);
       expect(
         find.byWidgetPredicate(
@@ -131,8 +131,9 @@ void main() {
       expect(container.read(activeDemoAccountIdProvider), '10001001');
       expect(container.read(demoPositionsProvider), hasLength(6));
       expect(container.read(demoAccountProvider).balance, 2292.60);
-      expect(find.text('-128.00 USD'), findsOneWidget);
+      expect(find.bySemanticsLabel('-128.00 USD'), findsOneWidget);
       expect(find.text('2 292.60'), findsOneWidget);
+      semantics.dispose();
     },
   );
 
@@ -268,9 +269,9 @@ void main() {
       final addButton = physical(
         tester.getRect(find.byKey(const Key('trade-add-button'))),
       );
-      expect(addButton.left, closeTo(492, .01));
+      expect(addButton.left, closeTo(487, .01));
       expect(addButton.top, closeTo(81.5, .01));
-      expect(addButton.right, closeTo(556, .01));
+      expect(addButton.right, closeTo(551, .01));
       expect(addButton.bottom, closeTo(145.5, .01));
       final addInk = await _tradeButtonInkMetrics(
         tester,
@@ -281,7 +282,7 @@ void main() {
       expect(addInk.bounds.top, closeTo(16.5, .01));
       expect(addInk.bounds.right, closeTo(44, .01));
       expect(addInk.bounds.bottom, closeTo(41.5, .01));
-      expect(addInk.pixels, inInclusiveRange(155, 170));
+      expect(addInk.pixels, inInclusiveRange(112, 126));
 
       final first = tester.getRect(
         find.byKey(ValueKey('trade-position-${positions[0].id}')),
