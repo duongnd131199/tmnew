@@ -137,8 +137,16 @@ void main() {
       left: 4.0,
       right: 2.6666666667,
     ));
+    expect(AppShadows.circularControl, const <BoxShadow>[
+      BoxShadow(color: Color(0x19000000), blurRadius: 30, offset: Offset(0, 4)),
+    ]);
     expect(AppShadows.navigation, const <BoxShadow>[
-      BoxShadow(color: Color(0x0D000000), blurRadius: 30, offset: Offset.zero),
+      BoxShadow(
+        color: Color(0x0D000000),
+        blurRadius: 30,
+        spreadRadius: 9.6666666667,
+        offset: Offset(0, 4),
+      ),
     ]);
   });
 

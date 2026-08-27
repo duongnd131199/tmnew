@@ -27,6 +27,7 @@ abstract final class AppColors {
   static const orderTicketSell = Color(0xFFDD5E4F);
   static const orderTicketBuy = Color(0xFF4A92F4);
   static const tradeHeaderCurrency = Color(0xFF0074FF);
+  static const tradeSectionSurface = Color(0xFFF8F8F8);
   static const tradePendingPrice = Color(0xFFB8B8BD);
   static const tradeScrollbarThumb = Color(0xFFB1B1B1);
   static const tradeEmptyIllustration = Color(0xFFF4F4F6);

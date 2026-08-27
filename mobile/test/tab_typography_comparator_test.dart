@@ -1209,7 +1209,7 @@ void main() {
       ),
       isTrue,
     );
-    expect(_fnv1a64(surfaceEvidence), '6f3fdb15f2e40d7b');
+    expect(_fnv1a64(surfaceEvidence), '3e5ed7dc9635c2ff');
   });
 
   test('canonical shared chrome exposes exact deferred evidence', () {
@@ -1296,14 +1296,59 @@ void main() {
     expect(navigationRows, hasLength(119));
     expect(
       navigationRows.where((row) => row[statusIndex] == 'PASS'),
-      hasLength(17),
+      hasLength(26),
     );
     expect(
       navigationRows.where((row) => row[statusIndex] == 'FAIL'),
-      hasLength(102),
+      hasLength(93),
     );
     expect(systemRows.where((row) => row[statusIndex] == 'PASS'), hasLength(5));
   });
+
+  test(
+    'shared shadow geometry matches all 21 reference bounds while strict residual remains reported',
+    () {
+      final output = StringBuffer();
+      final errors = StringBuffer();
+      comparator.runTabTypographyComparison(
+        const [],
+        standardOutput: output,
+        errorOutput: errors,
+      );
+
+      final rows = _parseCsv(output.toString());
+      final header = rows.first;
+      final caseIndex = header.indexOf('case');
+      final regionIndex = header.indexOf('region');
+      final referenceBoundsIndex = header.indexOf('referenceBounds');
+      final candidateBoundsIndex = header.indexOf('candidateBounds');
+      final edgeDeltaIndex = header.indexOf('edgeDelta');
+      const oracleRegions = {
+        'bottom-navigation-shadow-left',
+        'bottom-navigation-shadow-right',
+        'bottom-navigation-shadow-bottom',
+      };
+      final shadowRows = rows
+          .skip(1)
+          .where((row) => oracleRegions.contains(row[regionIndex]))
+          .toList(growable: false);
+
+      expect(shadowRows, hasLength(tabReferenceCases.length * 3));
+      expect(
+        shadowRows.map((row) => row[caseIndex]).toSet(),
+        tabReferenceCases.map((referenceCase) => referenceCase.id).toSet(),
+      );
+      expect(
+        shadowRows.every(
+          (row) =>
+              row[referenceBoundsIndex] == row[candidateBoundsIndex] &&
+              row[edgeDeltaIndex] == '0',
+        ),
+        isTrue,
+        reason: shadowRows.map((row) => row.join(',')).join('\n'),
+      );
+    },
+  );
 
   test(
     'actual seven-case reference copies have no mask-caused measurement error',

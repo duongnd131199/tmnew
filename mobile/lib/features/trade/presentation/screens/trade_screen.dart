@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_shadows.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
@@ -178,7 +179,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                             return Container(
                               height: TabReferenceMetrics.tradeSectionHeight,
                               width: double.infinity,
-                              color: AppColors.surfaceElevated,
+                              color: AppColors.tradeSectionSurface,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 5.3333333333,
                               ),
@@ -941,6 +942,7 @@ class _TradeHeader extends StatelessWidget {
     return SizedBox(
       height: TabReferenceMetrics.tradeHeaderHeight,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
           Positioned(
             left: 15.3333333333,
@@ -1084,17 +1086,23 @@ class _TradeCircleButton extends StatelessWidget {
     label: semanticLabel,
     button: true,
     child: ExcludeSemantics(
-      child: Material(
-        color: AppColors.surface,
-        shape: const CircleBorder(
-          side: BorderSide(color: AppColors.divider, width: .6),
+      child: DecoratedBox(
+        key: const Key('trade-add-surface'),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          shape: BoxShape.circle,
+          boxShadow: AppShadows.circularControl,
         ),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox.square(
-            dimension: 42.6666666667,
-            child: Center(child: child),
+        child: Material(
+          color: AppColors.surface,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox.square(
+              dimension: 42.6666666667,
+              child: Center(child: child),
+            ),
           ),
         ),
       ),

@@ -51,6 +51,65 @@ void main() {
     );
   }
 
+  testWidgets('Trade add control renders the measured diffuse halo', (
+    tester,
+  ) async {
+    final shadowsWereDisabled = debugDisableShadows;
+    debugDisableShadows = false;
+    late final ui.Image rendered;
+    try {
+      await _configureReferenceView(tester);
+      await pumpTabReference(tester, TabReferenceState.trade);
+      rendered = await _captureReferenceImage(tester);
+    } finally {
+      debugDisableShadows = shadowsWereDisabled;
+    }
+    addTearDown(rendered.dispose);
+    final bytes = await tester.runAsync(
+      () => rendered.toByteData(format: ui.ImageByteFormat.rawRgba),
+    );
+    expect(bytes, isNotNull);
+
+    // Cardinal halo samples from the Trade JPEG. Individual samples allow two
+    // levels for source compression; their aggregate locks the bounded optimum.
+    final samples = <(int, int, int)>[
+      (533, 80, 249),
+      (490, 112, 250),
+      (576, 112, 250),
+      (533, 148, 245),
+      (533, 156, 248),
+    ];
+    final actualValues = <(int, int, int)>[];
+    for (final sample in samples) {
+      final offset = (sample.$2 * rendered.width + sample.$1) * 4;
+      final red = bytes!.getUint8(offset);
+      final green = bytes.getUint8(offset + 1);
+      final blue = bytes.getUint8(offset + 2);
+      actualValues.add((red, green, blue));
+    }
+    for (var index = 0; index < samples.length; index++) {
+      final sample = samples[index];
+      final (red, green, blue) = actualValues[index];
+      expect(
+        red,
+        inInclusiveRange(sample.$3 - 2, sample.$3 + 2),
+        reason:
+            'halo sample (${sample.$1}, ${sample.$2}); '
+            'all rendered samples: $actualValues',
+      );
+      expect((red - green).abs(), lessThanOrEqualTo(1));
+      expect((red - blue).abs(), lessThanOrEqualTo(1));
+    }
+    expect(
+      List.generate(
+        samples.length,
+        (index) => (actualValues[index].$1 - samples[index].$3).abs(),
+      ).fold<int>(0, (sum, delta) => sum + delta),
+      lessThanOrEqualTo(1),
+      reason: 'aggregate halo intensity; rendered samples: $actualValues',
+    );
+  });
+
   testWidgets('History scroll indicators match the canonical physical bounds', (
     tester,
   ) async {

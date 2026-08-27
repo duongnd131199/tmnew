@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_shadows.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.dart';
@@ -152,6 +153,45 @@ void main() {
       find.byKey(const ValueKey('trade-position-profit-x-buy-loss')),
     );
     expect(losingProfit.style?.color, const Color(0xFFE42D30));
+  });
+
+  testWidgets('trade section strip renders the measured reference surface', (
+    tester,
+  ) async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+
+    final section = find.ancestor(
+      of: find.byKey(const Key('trade-section-label')),
+      matching: find.byType(Container),
+    );
+    expect(section, findsOneWidget);
+    expect(tester.widget<Container>(section).color, const Color(0xFFF8F8F8));
+  });
+
+  testWidgets('trade add button has a borderless white diffuse surface', (
+    tester,
+  ) async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+
+    final button = find.byKey(const Key('trade-add-button'));
+    expect(tester.getSize(button), const Size.square(42.6666666667));
+
+    final surface = find.descendant(
+      of: button,
+      matching: find.byKey(const Key('trade-add-surface')),
+    );
+    expect(surface, findsOneWidget);
+    final decoration = tester.widget<DecoratedBox>(surface).decoration;
+    expect(decoration, isA<BoxDecoration>());
+    final box = decoration as BoxDecoration;
+    expect(box.color, AppColors.surface);
+    expect(box.shape, BoxShape.circle);
+    expect(box.border, isNull);
+    expect(box.boxShadow, AppShadows.circularControl);
   });
 
   testWidgets('iOS trade text compensates its lighter raster coverage', (
