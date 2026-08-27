@@ -176,7 +176,8 @@ class MtBottomNavigationBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final usesChartChrome = selectedIndex == 1;
+    final selectionOverhangs =
+        TabReferenceMetrics.bottomNavigationSelectionOverhangs(selectedIndex);
     final tradeProfit = ref.watch(
       demoAccountProvider.select((account) => account.profit),
     );
@@ -186,26 +187,33 @@ class MtBottomNavigationBar extends ConsumerWidget {
         color: Colors.transparent,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
-            20,
-            2.1666666667,
-            0,
-            15.6333333333,
+            TabReferenceMetrics.bottomNavigationLeftInset,
+            TabReferenceMetrics.bottomNavigationTopInset,
+            TabReferenceMetrics.bottomNavigationRightInset,
+            TabReferenceMetrics.bottomNavigationBottomInset,
           ),
           child: Align(
             alignment: Alignment.centerLeft,
             child: SizedBox(
-              width: 353.3333333333,
+              width: TabReferenceMetrics.bottomNavigationCapsuleWidth,
               height: double.infinity,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: AppColors.navigationSurface,
-                  borderRadius: BorderRadius.circular(31),
-                  boxShadow: AppShadows.card,
+                  borderRadius: BorderRadius.circular(
+                    TabReferenceMetrics.bottomNavigationCapsuleRadius,
+                  ),
+                  boxShadow: AppShadows.navigation,
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(31),
+                  borderRadius: BorderRadius.circular(
+                    TabReferenceMetrics.bottomNavigationCapsuleRadius,
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: TabReferenceMetrics
+                          .bottomNavigationContentHorizontalInset,
+                    ),
                     child: Row(
                       key: ValueKey(selectedIndex),
                       children: List.generate(_items.length, (index) {
@@ -218,35 +226,41 @@ class MtBottomNavigationBar extends ConsumerWidget {
                             : selectedColor;
                         return Expanded(
                           child: Semantics(
+                            key: ValueKey(
+                              'bottom-nav-target-${_items[index].$1.name}',
+                            ),
                             selected: selected,
                             label: _items[index].$2,
                             button: true,
                             child: InkWell(
-                              borderRadius: BorderRadius.circular(29),
+                              borderRadius: BorderRadius.circular(
+                                TabReferenceMetrics
+                                    .bottomNavigationInteractionRadius,
+                              ),
                               onTap: () => onTap(index),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: 3.2,
+                                  vertical: TabReferenceMetrics
+                                      .bottomNavigationItemVerticalInset,
                                 ),
                                 child: Stack(
                                   clipBehavior: Clip.none,
                                   children: [
                                     if (selected)
                                       Positioned(
-                                        left: usesChartChrome
-                                            ? -3.3333333333
-                                            : -2,
-                                        right: usesChartChrome
-                                            ? -1.3333333333
-                                            : -2,
-                                        top: 0,
-                                        bottom: 0,
+                                        left: -selectionOverhangs.left,
+                                        right: -selectionOverhangs.right,
+                                        top: TabReferenceMetrics
+                                            .bottomNavigationSelectionTopInset,
+                                        bottom: TabReferenceMetrics
+                                            .bottomNavigationSelectionBottomInset,
                                         child: DecoratedBox(
                                           decoration: BoxDecoration(
                                             color: AppColors
                                                 .navigationSelectedSurface,
                                             borderRadius: BorderRadius.circular(
-                                              27,
+                                              TabReferenceMetrics
+                                                  .bottomNavigationSelectionRadius,
                                             ),
                                           ),
                                         ),
@@ -294,18 +308,31 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = selected ? selectedColor : AppColors.navigationUnselected;
+    final labelOffset = TabReferenceMetrics.bottomNavigationLabelOffset(
+      kind.index,
+      selected,
+    );
     final labelStyle =
         (selected
                 ? AppTypography.navigationLabelSelected
                 : AppTypography.navigationLabel)
             .copyWith(
               color: color,
+              fontVariations: <FontVariation>[
+                FontVariation(
+                  'wght',
+                  TabReferenceMetrics.bottomNavigationLabelWeight(
+                    kind.index,
+                    selected,
+                  ),
+                ),
+              ],
               letterSpacing: selected
                   ? switch (kind) {
-                      _MtNavKind.quotes => 0,
-                      _MtNavKind.chart => .3,
-                      _MtNavKind.trade => .2,
-                      _MtNavKind.history => .3,
+                      _MtNavKind.quotes => .4,
+                      _MtNavKind.chart => .5,
+                      _MtNavKind.trade => .5,
+                      _MtNavKind.history => .5,
                       _MtNavKind.settings => .3,
                     }
                   : kind == _MtNavKind.history
@@ -315,15 +342,16 @@ class _NavItem extends StatelessWidget {
     return Stack(
       alignment: Alignment.topCenter,
       children: [
-        Positioned(top: 12.7666666667, child: _MtNavIcon(kind, color: color)),
+        Positioned(
+          top: TabReferenceMetrics.bottomNavigationIconTop,
+          child: _MtNavIcon(kind, color: color),
+        ),
         Positioned(
           left: 0,
           right: 0,
           top: TabReferenceMetrics.bottomNavigationLabelTop,
           child: Transform.translate(
-            offset: kind == _MtNavKind.history
-                ? const Offset(-.6666666667, 0)
-                : Offset.zero,
+            offset: Offset(labelOffset.x, labelOffset.y),
             child: Text(
               label,
               key: ValueKey('bottom-nav-label-${kind.name}'),
@@ -352,15 +380,18 @@ class _MtNavIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     if (kind == _MtNavKind.settings) {
       return Transform.translate(
-        offset: const Offset(0, -.6666666667),
+        offset: const Offset(
+          0,
+          TabReferenceMetrics.bottomNavigationSettingsIconOffsetY,
+        ),
         child: Transform.scale(
-          scaleX: .98,
-          scaleY: 1.04,
+          scaleX: TabReferenceMetrics.bottomNavigationSettingsIconScaleX,
+          scaleY: TabReferenceMetrics.bottomNavigationSettingsIconScaleY,
           alignment: Alignment.topLeft,
           child: Icon(
             Icons.settings_outlined,
             key: const ValueKey('bottom-nav-icon-settings'),
-            size: 23,
+            size: TabReferenceMetrics.bottomNavigationIconSize,
             color: color,
           ),
         ),
@@ -368,37 +399,53 @@ class _MtNavIcon extends StatelessWidget {
     }
     final icon = CustomPaint(
       key: ValueKey('bottom-nav-icon-${kind.name}'),
-      size: const Size(23, 23),
+      size: const Size.square(TabReferenceMetrics.bottomNavigationIconSize),
       painter: _MtNavIconPainter(kind, color),
     );
     return switch (kind) {
       _MtNavKind.chart => Transform.translate(
-        offset: const Offset(.1666666667, 2),
+        offset: const Offset(
+          TabReferenceMetrics.bottomNavigationChartIconOffsetX,
+          TabReferenceMetrics.bottomNavigationChartIconOffsetY,
+        ),
         child: Transform.scale(
-          scaleX: .93,
-          scaleY: .83,
+          scaleX: TabReferenceMetrics.bottomNavigationChartIconScaleX,
+          scaleY: TabReferenceMetrics.bottomNavigationChartIconScaleY,
           alignment: Alignment.topCenter,
           child: icon,
         ),
       ),
       _MtNavKind.trade => Transform.translate(
-        offset: const Offset(0, -.6666666667),
+        offset: const Offset(
+          0,
+          TabReferenceMetrics.bottomNavigationTradeIconOffsetY,
+        ),
         child: Transform.scale(
-          scaleX: 1.02,
-          scaleY: 1.06,
+          scaleX: TabReferenceMetrics.bottomNavigationTradeIconScaleX,
+          scaleY: TabReferenceMetrics.bottomNavigationTradeIconScaleY,
           alignment: Alignment.topLeft,
           child: icon,
         ),
       ),
       _MtNavKind.history => Transform.translate(
-        offset: const Offset(.5, .3333333333),
-        child: icon,
+        offset: const Offset(
+          TabReferenceMetrics.bottomNavigationHistoryIconOffsetX,
+          TabReferenceMetrics.bottomNavigationHistoryIconOffsetY,
+        ),
+        child: Transform.scale(
+          scaleX: TabReferenceMetrics.bottomNavigationHistoryIconScaleX,
+          alignment: Alignment.topCenter,
+          child: icon,
+        ),
       ),
       _MtNavKind.quotes => Transform.translate(
-        offset: const Offset(1, 0),
+        offset: const Offset(
+          TabReferenceMetrics.bottomNavigationQuotesIconOffsetX,
+          0,
+        ),
         child: Transform.scale(
-          scaleX: .90,
-          scaleY: .94,
+          scaleX: TabReferenceMetrics.bottomNavigationQuotesIconScaleX,
+          scaleY: TabReferenceMetrics.bottomNavigationQuotesIconScaleY,
           alignment: Alignment.topCenter,
           child: icon,
         ),

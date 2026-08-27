@@ -63,17 +63,21 @@ keeps the `USD` suffix static while only the numeric header P/L is
 dynamic-only. Static controls independently protect those labels and suffixes
 from mask overlap.
 
-Each full-canvas, typed visual-region, and static-control row derives its
-dominant surface color, measured foreground color, and foreground bounds
-independently from the decoded reference and candidate rasters. Required
-acceptance is measured surface RGB delta `<= 4` per channel, measured
-foreground RGB delta `<= 4` per channel, and foreground edge delta `<= 1`
-physical pixel; one-sided foreground fails. The CSV has 22 columns, including
-the measured reference/candidate foreground and its delta immediately after
-the surface-color columns. The `12`-per-channel threshold is used only to
-absorb JPEG residuals when counting residual pixels and separating foreground
-from a measured local surface. It is not a semantic surface-color tolerance.
-Candidate tokens are never used as reference truth.
+Reference-only semantic roles declare exact interior rectangles on the decoded
+reference. Samples cluster at Chebyshev radius 2, and the most-frequent
+cluster's deterministic medoid is the calibrated role color. Empty or
+inconsistent samples, unassigned required foreground, and missing or extra
+composite roles fail. Manifest ink and role keys route measurements only; they
+are not RGB truth.
+
+Text and atomic controls compare the calibrated reference role with locally
+measured, raw candidate ink. Composite whole-navigation rows compare black and
+blue role maps independently and fail on the worst delta. Required acceptance
+remains surface/foreground RGB `<= 4` per channel and edge delta `<= 1`
+physical pixel; whole-canvas residual and geometry checks remain in force. The
+CSV remains exactly 22 columns. The `12`-per-channel threshold is only a JPEG
+residual-count allowance, never a semantic color tolerance. Candidate tokens
+are never used as reference truth or snapped to a calibrated value.
 
 `dynamicMaskRegions` is the typed, reasoned mask API; the legacy
 `dynamicMasks` getter continues to expose its pixel rectangles for compatible

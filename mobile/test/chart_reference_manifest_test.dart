@@ -220,6 +220,9 @@ void main() {
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
       expect(result.stdout, contains('Capture preflight passed'));
     },
+    skip: Platform.isWindows
+        ? false
+        : 'capture-chart-parity.ps1 requires Windows PowerShell',
   );
 }
 

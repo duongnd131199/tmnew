@@ -1028,6 +1028,76 @@ void main() {
     expect('$output$errors', contains('Reference parity failed'));
   });
 
+  test('all seven candidates pass shared chrome', () {
+    final output = StringBuffer();
+    final errors = StringBuffer();
+    comparator.runTabTypographyComparison(
+      const [],
+      standardOutput: output,
+      errorOutput: errors,
+    );
+
+    final rows = _parseCsv(output.toString());
+    final header = rows.first;
+    final caseIndex = header.indexOf('case');
+    final regionIndex = header.indexOf('region');
+    final regionTypeIndex = header.indexOf('regionType');
+    final statusIndex = header.indexOf('status');
+    final detailsIndex = header.indexOf('details');
+    final navigationRows = rows
+        .skip(1)
+        .where((row) {
+          final region = row[regionIndex];
+          return region.startsWith('bottom-navigation') ||
+              region.startsWith('navigation-');
+        })
+        .toList(growable: false);
+    final systemRows = rows
+        .skip(1)
+        .where((row) => row[regionIndex] == 'system')
+        .toList(growable: false);
+    const deferredSystemCases = {'history-orders-summary', 'history-deals'};
+    final deferredSystemRows = systemRows
+        .where((row) => deferredSystemCases.contains(row[caseIndex]))
+        .toList(growable: false);
+    final sharedRows = <List<String>>[
+      ...navigationRows,
+      ...systemRows.where(
+        (row) => !deferredSystemCases.contains(row[caseIndex]),
+      ),
+    ];
+
+    expect(
+      navigationRows.map((row) => row[caseIndex]).toSet(),
+      tabReferenceCases.map((referenceCase) => referenceCase.id).toSet(),
+    );
+    expect(
+      deferredSystemRows.map((row) => row[caseIndex]).toSet(),
+      deferredSystemCases,
+    );
+    expect(
+      deferredSystemRows.every((row) => row[statusIndex] == 'FAIL'),
+      isTrue,
+      reason: deferredSystemRows.map((row) => row.join(',')).join('\n'),
+    );
+    expect(
+      sharedRows.where(
+        (row) =>
+            row[regionTypeIndex] == 'dynamicText' &&
+            (row[statusIndex] != 'SKIP' || row[detailsIndex].trim().isEmpty),
+      ),
+      isEmpty,
+    );
+    expect(
+      sharedRows.where((row) => row[statusIndex] == 'FAIL'),
+      isEmpty,
+      reason: sharedRows
+          .where((row) => row[statusIndex] == 'FAIL')
+          .map((row) => row.join(','))
+          .join('\n'),
+    );
+  });
+
   test(
     'actual seven-case reference copies have no mask-caused measurement error',
     () async {
@@ -1074,7 +1144,346 @@ void main() {
       }
     },
   );
+
+  group('decoded-reference foreground role calibration', () {
+    test(
+      'one-pixel RGB5 mutation defeats the identical-raster fast path',
+      () async {
+        final reference = _blankImage();
+        _fillInkRect(reference, 10, 10, 3, 1, const ReferenceInk(11, 11, 11));
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        final candidate = image.Image.from(reference)
+          ..setPixelRgba(10, 10, 5, 5, 5, 255);
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _calibratedTextCase('black-role', referenceBlackInk),
+        );
+
+        expect(result.exitCode, 1, reason: result.diagnostics);
+        expect(result.diagnostics, contains('thin-ink'));
+        expect(result.diagnostics, contains('semantic RGB delta 11'));
+      },
+    );
+
+    test('thin JPEG black and blue pass exact raw PNG candidates', () async {
+      for (final fixture in <(String, ReferenceInk, ReferenceInk)>[
+        ('black-role', const ReferenceInk(11, 11, 11), referenceBlackInk),
+        ('blue-role', const ReferenceInk(12, 134, 246), referenceBlueInk),
+      ]) {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 10, 10, 2, 2, fixture.$2);
+        _fillInkRect(candidate, 10, 10, 2, 2, fixture.$3);
+        _fillInkRect(reference, 2, 2, 2, 1, fixture.$3);
+        _fillInkRect(candidate, 2, 2, 2, 1, fixture.$3);
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _calibratedTextCase(fixture.$1, fixture.$3),
+        );
+        expect(result.exitCode, 0, reason: result.diagnostics);
+      }
+    });
+
+    test('black RGB5 and RGB12 candidates fail calibrated semantics', () async {
+      for (final channel in <int>[5, 12]) {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 10, 10, 2, 2, const ReferenceInk(11, 11, 11));
+        _fillInkRect(
+          candidate,
+          10,
+          10,
+          2,
+          2,
+          ReferenceInk(channel, channel, channel),
+        );
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _calibratedTextCase('black-role', referenceBlackInk),
+        );
+        expect(result.exitCode, 1, reason: result.diagnostics);
+        expect(result.diagnostics, contains('semantic RGB delta $channel'));
+      }
+    });
+
+    test(
+      'blue +5 channel and hue-shift candidates fail independently',
+      () async {
+        for (final candidateInk in <ReferenceInk>[
+          const ReferenceInk(5, 122, 255),
+          const ReferenceInk(5, 117, 250),
+        ]) {
+          final reference = _blankImage();
+          final candidate = _blankImage();
+          _fillInkRect(
+            reference,
+            10,
+            10,
+            2,
+            2,
+            const ReferenceInk(12, 134, 246),
+          );
+          _fillInkRect(candidate, 10, 10, 2, 2, candidateInk);
+          _fillInkRect(reference, 2, 2, 2, 1, referenceBlueInk);
+          _fillInkRect(candidate, 2, 2, 2, 1, referenceBlueInk);
+          final result = await _runFixture(
+            reference: reference,
+            candidate: candidate,
+            referenceCase: _calibratedTextCase('blue-role', referenceBlueInk),
+          );
+          expect(result.exitCode, 1, reason: result.diagnostics);
+          expect(result.diagnostics, contains('semantic RGB delta 5'));
+        }
+      },
+    );
+
+    test(
+      'composite black and blue roles each reject +5 independently',
+      () async {
+        for (final mutateBlack in <bool>[true, false]) {
+          final reference = _blankImage();
+          final candidate = _blankImage();
+          _fillInkRect(reference, 10, 10, 2, 2, const ReferenceInk(11, 11, 11));
+          _fillInkRect(
+            reference,
+            20,
+            10,
+            2,
+            2,
+            const ReferenceInk(12, 134, 246),
+          );
+          _fillInkRect(
+            candidate,
+            10,
+            10,
+            2,
+            2,
+            mutateBlack ? const ReferenceInk(5, 5, 5) : referenceBlackInk,
+          );
+          _fillInkRect(
+            candidate,
+            20,
+            10,
+            2,
+            2,
+            mutateBlack ? referenceBlueInk : const ReferenceInk(5, 122, 255),
+          );
+          _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+          _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+          _fillInkRect(reference, 2, 4, 2, 1, referenceBlueInk);
+          _fillInkRect(candidate, 2, 4, 2, 1, referenceBlueInk);
+          final result = await _runFixture(
+            reference: reference,
+            candidate: candidate,
+            referenceCase: _fixtureCase(
+              visualRegionName: 'role-composite',
+              requiredForegroundRoles: const ['black-role', 'blue-role'],
+              staticControlRegions: const [
+                ReferenceStaticControlRegion(
+                  name: 'black-control',
+                  rect: ReferencePixelRect(8, 8, 8, 8),
+                ),
+                ReferenceStaticControlRegion(
+                  name: 'blue-control',
+                  rect: ReferencePixelRect(18, 8, 8, 8),
+                ),
+              ],
+              referenceForegroundInteriors: const [
+                ReferenceForegroundInterior(
+                  role: 'black-role',
+                  rect: ReferencePixelRect(2, 2, 2, 1),
+                ),
+                ReferenceForegroundInterior(
+                  role: 'blue-role',
+                  rect: ReferencePixelRect(2, 4, 2, 1),
+                ),
+              ],
+              foregroundRoleByRegion: const {
+                'black-control': 'black-role',
+                'blue-control': 'blue-role',
+              },
+            ),
+          );
+          expect(result.exitCode, 1, reason: result.diagnostics);
+          expect(result.diagnostics, contains('role-composite'));
+          expect(result.diagnostics, contains('foreground RGB delta 5'));
+        }
+      },
+    );
+
+    test('unassigned required composite foreground fails input', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _fixtureCase(
+          requiredForegroundRoles: const ['black-role'],
+          referenceForegroundInteriors: const [
+            ReferenceForegroundInterior(
+              role: 'black-role',
+              rect: ReferencePixelRect(2, 2, 2, 1),
+            ),
+          ],
+        ),
+      );
+      expect(result.exitCode, 2, reason: result.diagnostics);
+      expect(result.diagnostics, contains('has no assigned foreground region'));
+    });
+
+    test('composite foreground rejects an extra assigned role', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 10, 10, 2, 2, const ReferenceInk(11, 11, 11));
+      _fillInkRect(candidate, 10, 10, 2, 2, referenceBlackInk);
+      _fillInkRect(reference, 20, 10, 2, 2, const ReferenceInk(12, 134, 246));
+      _fillInkRect(candidate, 20, 10, 2, 2, referenceBlueInk);
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 2, 4, 2, 1, referenceBlueInk);
+      _fillInkRect(candidate, 2, 4, 2, 1, referenceBlueInk);
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _fixtureCase(
+          visualRegionName: 'role-composite',
+          requiredForegroundRoles: const ['black-role'],
+          staticControlRegions: const [
+            ReferenceStaticControlRegion(
+              name: 'black-control',
+              rect: ReferencePixelRect(8, 8, 8, 8),
+            ),
+            ReferenceStaticControlRegion(
+              name: 'blue-control',
+              rect: ReferencePixelRect(18, 8, 8, 8),
+            ),
+          ],
+          referenceForegroundInteriors: const [
+            ReferenceForegroundInterior(
+              role: 'black-role',
+              rect: ReferencePixelRect(2, 2, 2, 1),
+            ),
+            ReferenceForegroundInterior(
+              role: 'blue-role',
+              rect: ReferencePixelRect(2, 4, 2, 1),
+            ),
+          ],
+          foregroundRoleByRegion: const {
+            'black-control': 'black-role',
+            'blue-control': 'blue-role',
+          },
+        ),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(result.diagnostics, contains('extra foreground roles: blue-role'));
+    });
+
+    test('misleading hint preserves decoded reference RGB24 failure', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 10, 10, 2, 2, const ReferenceInk(24, 24, 24));
+      _fillInkRect(candidate, 10, 10, 2, 2, referenceBlackInk);
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _fixtureCase(
+          staticTextRegions: const [
+            StaticTextRegion(
+              name: 'misleading-hint',
+              referenceRect: ReferencePixelRect(8, 8, 8, 8),
+              candidateRect: ReferencePixelRect(8, 8, 8, 8),
+              ink: referenceBlackInk,
+            ),
+          ],
+        ),
+      );
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(result.diagnostics, contains('semantic RGB delta 24'));
+    });
+
+    test('empty and inconsistent role calibration fail input', () async {
+      for (final interiors in <List<ReferenceForegroundInterior>>[
+        const [],
+        const [
+          ReferenceForegroundInterior(
+            role: 'black-role',
+            rect: ReferencePixelRect(2, 2, 1, 1),
+          ),
+          ReferenceForegroundInterior(
+            role: 'black-role',
+            rect: ReferencePixelRect(3, 2, 1, 1),
+          ),
+        ],
+      ]) {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 10, 10, 2, 2, const ReferenceInk(11, 11, 11));
+        _fillInkRect(candidate, 10, 10, 2, 2, referenceBlackInk);
+        if (interiors.isNotEmpty) {
+          _fillInkRect(reference, 2, 2, 1, 1, referenceBlackInk);
+          _fillInkRect(reference, 3, 2, 1, 1, const ReferenceInk(24, 24, 24));
+        }
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _calibratedTextCase(
+            'black-role',
+            referenceBlackInk,
+            interiors: interiors,
+          ),
+        );
+        expect(result.exitCode, 2, reason: result.diagnostics);
+        expect(
+          result.diagnostics,
+          anyOf(contains('no decoded-reference'), contains('inconsistent')),
+        );
+      }
+    });
+  });
 }
+
+TabReferenceCase _calibratedTextCase(
+  String role,
+  ReferenceInk hint, {
+  List<ReferenceForegroundInterior>? interiors,
+}) => _fixtureCase(
+  staticTextRegions: [
+    StaticTextRegion(
+      name: 'thin-ink',
+      referenceRect: const ReferencePixelRect(8, 8, 8, 8),
+      candidateRect: const ReferencePixelRect(8, 8, 8, 8),
+      ink: hint,
+    ),
+  ],
+  referenceForegroundInteriors:
+      interiors ??
+      [
+        ReferenceForegroundInterior(
+          role: role,
+          rect: const ReferencePixelRect(2, 2, 2, 1),
+        ),
+      ],
+  foregroundRoleByRegion: {'thin-ink': role},
+);
+
+void _fillInkRect(
+  image.Image target,
+  int left,
+  int top,
+  int width,
+  int height,
+  ReferenceInk ink,
+) => _fillRect(target, left, top, width, height, ink.red, ink.green, ink.blue);
 
 TabReferenceCase _fixtureCase({
   String id = 'fixture',
@@ -1083,6 +1492,9 @@ TabReferenceCase _fixtureCase({
   List<StaticTextRegion> staticTextRegions = const [],
   List<ReferenceStaticControlRegion> staticControlRegions = const [],
   List<ReferenceDynamicMask> dynamicMaskRegions = const [],
+  List<ReferenceForegroundInterior> referenceForegroundInteriors = const [],
+  Map<String, String> foregroundRoleByRegion = const {},
+  List<String> requiredForegroundRoles = const [],
 }) => TabReferenceCase(
   id: id,
   fileName: fileName,
@@ -1099,11 +1511,14 @@ TabReferenceCase _fixtureCase({
       name: visualRegionName,
       type: ReferenceVisualRegionType.body,
       rect: _canvas,
+      requiredForegroundRoles: requiredForegroundRoles,
     ),
   ],
   staticControlRegions: staticControlRegions,
   staticTextRegions: staticTextRegions,
   dynamicMaskRegions: dynamicMaskRegions,
+  referenceForegroundInteriors: referenceForegroundInteriors,
+  foregroundRoleByRegion: foregroundRoleByRegion,
 );
 
 image.Image _blankImage() {
@@ -1277,6 +1692,41 @@ int _csvColumnCount(String row) {
     }
   }
   return columns;
+}
+
+List<List<String>> _parseCsv(String contents) {
+  final rows = <List<String>>[];
+  var row = <String>[];
+  final field = StringBuffer();
+  var inQuotes = false;
+  for (var index = 0; index < contents.length; index++) {
+    final character = contents[index];
+    if (character == '"') {
+      if (inQuotes &&
+          index + 1 < contents.length &&
+          contents[index + 1] == '"') {
+        field.write('"');
+        index++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (character == ',' && !inQuotes) {
+      row.add(field.toString());
+      field.clear();
+    } else if (character == '\n' && !inQuotes) {
+      row.add(field.toString());
+      field.clear();
+      rows.add(row);
+      row = <String>[];
+    } else if (character != '\r' || inQuotes) {
+      field.write(character);
+    }
+  }
+  if (field.isNotEmpty || row.isNotEmpty) {
+    row.add(field.toString());
+    rows.add(row);
+  }
+  return rows;
 }
 
 class _RunResult {

@@ -147,69 +147,20 @@ The SKIP row uses only the covering mask's non-empty reason.
 
 - [ ] **Step 4: Implement measured static foreground semantics**
 
-Add nullable reference/candidate foreground values to `_StaticRegionResult`.
-For each raster, collect unmasked pixels whose Chebyshev RGB distance from the
-measured surface is greater than 12, sort descending by contrast, take
-`max(1, (length / 4).ceil())`, and use the median red, green, and blue channels:
+Amendment: replace the crop-quartile estimator with explicit reference-only
+semantic roles. Each role declares decoded-reference interior rectangles;
+cluster their samples with Chebyshev radius 2 and select the most-frequent
+cluster's deterministic medoid. Reject empty or inconsistent calibration,
+required roles without assigned text/control regions, and composite maps with
+missing or extra roles. The manifest `ink` and role key are routing identities,
+not RGB truth.
 
-Add `import 'dart:math' as math;` beside the existing Dart imports.
-
-```dart
-_MeasuredInk? _measureForegroundInk(
-  image.Image source,
-  ReferencePixelRect rect,
-  _MeasuredInk surface,
-) {
-  final pixels = <_InkPixel>[];
-  for (var y = rect.top; y < rect.bottom; y++) {
-    for (var x = rect.left; x < rect.right; x++) {
-      if (masks.contains(x, y)) continue;
-      final pixel = source.getPixel(x, y);
-      final sample = _InkPixel(
-        x,
-        y,
-        pixel.r.toInt(),
-        pixel.g.toInt(),
-        pixel.b.toInt(),
-      );
-      if (sample.distanceFromMeasured(surface) >
-          _staticPixelChannelTolerance) {
-        pixels.add(sample);
-      }
-    }
-  }
-  if (pixels.isEmpty) return null;
-  pixels.sort(
-    (a, b) => b
-        .distanceFromMeasured(surface)
-        .compareTo(a.distanceFromMeasured(surface)),
-  );
-  final core = pixels.take(math.max(1, (pixels.length / 4).ceil())).toList();
-  return _MeasuredInk.channelMedian(core);
-}
-```
-
-Implement the median constructor without reusing candidate tokens:
-
-```dart
-factory _MeasuredInk.channelMedian(List<_InkPixel> pixels) {
-  int median(Iterable<int> source) {
-    final values = source.toList()..sort();
-    final lower = values[(values.length - 1) ~/ 2];
-    final upper = values[values.length ~/ 2];
-    return (lower + upper) ~/ 2;
-  }
-
-  return _MeasuredInk(
-    median(pixels.map((pixel) => pixel.red)),
-    median(pixels.map((pixel) => pixel.green)),
-    median(pixels.map((pixel) => pixel.blue)),
-  );
-}
-```
-
-Add `foregroundColorDelta` and one-sided foreground-color failure diagnostics.
-Keep feature bounds and residual checks independent.
+Measure candidate text and atomic-control ink locally from the raw candidate;
+never snap it to the reference role. Composite regions compare an independent
+per-role map and use the worst role delta. Preserve whole-canvas and
+whole-navigation residual/geometry rows, all existing thresholds, and exact
+decoded-raster invariance. Add adversarial black, blue, misleading-hint,
+empty/inconsistent, missing/extra-role, and one-pixel-mutation regressions.
 
 - [ ] **Step 5: Extend the CSV and focused CLI contract**
 

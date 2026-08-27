@@ -112,18 +112,20 @@ reference and candidate rectangles. Intersection alone is invalid. Static
 text/control overlap validation continues to prevent masks from hiding labels,
 icons, axes, scrollbars, borders, or selected surfaces.
 
-Every static canvas/region/control measurement adds an independently derived
-foreground semantic sample. The estimator:
+Reference-only semantic calibration uses explicit role keys and interior
+rectangles measured on the decoded reference. Samples are grouped with a
+Chebyshev radius of 2; the most-frequent cluster's deterministic medoid is the
+reference role color. Empty roles, inconsistent samples, missing assignments,
+and missing or extra composite roles are input/comparison failures. Manifest
+ink values and role names route measurements only and are never RGB oracles.
 
-1. measures the modal unmasked local surface;
-2. collects unmasked pixels more than 12 RGB levels from that surface;
-3. orders them by contrast to the surface;
-4. takes the highest-contrast quartile, with at least one pixel;
-5. uses per-channel medians as the foreground sample.
-
-Surface, foreground, geometry, and residual checks fail independently and are
-reported as separate CSV fields. Tight control regions are used when one
-larger region contains multiple principal colors.
+Static text and atomic controls compare their locally measured, unsnapped
+candidate ink with the calibrated reference role. A composite region compares
+an independent per-role map and fails on its worst RGB delta. Exact decoded
+raster equality retains the raw pair so a reference copy remains invariant;
+any pixel mutation returns to calibrated comparison. Surface, foreground,
+geometry, and residual checks remain independent and use the existing limits.
+The CSV remains 22 columns, and whole-navigation rows remain mandatory.
 
 ### Capture and evidence flow
 

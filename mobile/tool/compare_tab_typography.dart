@@ -89,6 +89,10 @@ int runTabTypographyComparison(
       final referenceCase = decodedCase.referenceCase;
       final reference = decodedCase.reference;
       final candidate = decodedCase.candidate;
+      final calibratedRoles = _calibrateReferenceForegroundRoles(
+        referenceCase,
+        reference,
+      );
 
       final masks = _MaskMap(
         width: reference.width,
@@ -101,6 +105,16 @@ int runTabTypographyComparison(
         masks: masks,
         createArtifacts: artifactDirectory != null,
       );
+      final identicalRaster = _imagesEqual(reference, candidate);
+      final candidateRoleSamples = identicalRaster
+          ? const <String, _MeasuredInk>{}
+          : _measureCandidateRoleSamples(
+              referenceCase,
+              candidate,
+              masks,
+              calibratedRoles,
+              configuration.renderer,
+            );
 
       final canvasResult = staticAudit.resultFor(
         referenceCase.staticAuditRegion,
@@ -116,6 +130,18 @@ int runTabTypographyComparison(
       );
 
       for (final region in referenceCase.visualRegions) {
+        if (region.requiredForegroundRoles.isNotEmpty && !identicalRaster) {
+          failed |= _writeCompositeRoleResult(
+            report,
+            configuration,
+            referenceCase,
+            region: region,
+            result: staticAudit.resultFor(region.rect),
+            calibratedRoles: calibratedRoles,
+            candidateRoles: candidateRoleSamples,
+          );
+          continue;
+        }
         failed |= _writeStaticResult(
           report,
           configuration,
@@ -127,6 +153,21 @@ int runTabTypographyComparison(
         );
       }
       for (final control in referenceCase.staticControlRegions) {
+        final role = referenceCase.foregroundRoleByRegion[control.name];
+        if (role != null && !identicalRaster) {
+          failed |= _writeCalibratedControlResult(
+            report,
+            configuration,
+            referenceCase,
+            control: control,
+            rawResult: staticAudit.resultFor(control.rect),
+            referenceRole: calibratedRoles[role]!,
+            reference: reference,
+            candidate: candidate,
+            masks: masks,
+          );
+          continue;
+        }
         failed |= _writeStaticResult(
           report,
           configuration,
@@ -189,7 +230,11 @@ int runTabTypographyComparison(
           final edgeDelta = referenceSample.bounds.edgeDelta(
             candidateSample.bounds,
           );
-          final semanticInkDelta = referenceSample.semanticInk.edgeDelta(
+          final role = referenceCase.foregroundRoleByRegion[region.name];
+          final measuredReferenceInk = role == null || identicalRaster
+              ? referenceSample.semanticInk
+              : calibratedRoles[role]!;
+          final semanticInkDelta = measuredReferenceInk.edgeDelta(
             candidateSample.semanticInk,
           );
           final densityDelta = referenceSample.inkDensityDeltaPercent(
@@ -221,7 +266,7 @@ int runTabTypographyComparison(
             candidateBounds: candidateSample.bounds.toString(),
             edgeDelta: '$edgeDelta',
             manifestInkHint: _MeasuredInk.fromReference(region.ink).toString(),
-            measuredReferenceInk: referenceSample.semanticInk.toString(),
+            measuredReferenceInk: measuredReferenceInk.toString(),
             candidateInk: candidateSample.semanticInk.toString(),
             semanticInkDelta: '$semanticInkDelta',
             inkDensityDeltaPercent: densityDelta.toStringAsFixed(3),
@@ -371,6 +416,254 @@ bool _writeStaticResult(
   return regionFailed;
 }
 
+Map<String, _MeasuredInk> _calibrateReferenceForegroundRoles(
+  TabReferenceCase referenceCase,
+  image.Image reference,
+) {
+  final samples = <String, List<_MeasuredInk>>{};
+  for (final interior in referenceCase.referenceForegroundInteriors) {
+    final roleSamples = samples.putIfAbsent(
+      interior.role,
+      () => <_MeasuredInk>[],
+    );
+    for (var y = interior.rect.top; y < interior.rect.bottom; y++) {
+      for (var x = interior.rect.left; x < interior.rect.right; x++) {
+        final pixel = reference.getPixel(x, y);
+        roleSamples.add(
+          _MeasuredInk(pixel.r.toInt(), pixel.g.toInt(), pixel.b.toInt()),
+        );
+      }
+    }
+  }
+  final requiredRoles = <String>{
+    ...referenceCase.foregroundRoleByRegion.values,
+    for (final region in referenceCase.visualRegions)
+      ...region.requiredForegroundRoles,
+  };
+  final result = <String, _MeasuredInk>{};
+  for (final role in requiredRoles) {
+    final roleSamples = samples[role] ?? const <_MeasuredInk>[];
+    if (roleSamples.isEmpty) {
+      throw _ComparisonInputError(
+        '${referenceCase.id}: foreground role $role has no decoded-reference '
+        'interior samples.',
+      );
+    }
+    var largestCluster = <_MeasuredInk>[];
+    for (final center in roleSamples) {
+      final cluster = roleSamples
+          .where((sample) => sample.edgeDelta(center) <= 2)
+          .toList(growable: false);
+      if (cluster.length > largestCluster.length) largestCluster = cluster;
+    }
+    if (largestCluster.length != roleSamples.length) {
+      throw _ComparisonInputError(
+        '${referenceCase.id}: foreground role $role has inconsistent '
+        'decoded-reference interior samples (cluster '
+        '${largestCluster.length}/${roleSamples.length}, radius 2).',
+      );
+    }
+    final medoids = [...largestCluster]
+      ..sort((left, right) {
+        int cost(_MeasuredInk candidate) => largestCluster.fold(
+          0,
+          (sum, sample) => sum + candidate.edgeDelta(sample),
+        );
+        final costDelta = cost(left).compareTo(cost(right));
+        if (costDelta != 0) return costDelta;
+        return left.rgbKey.compareTo(right.rgbKey);
+      });
+    result[role] = medoids.first;
+  }
+  return result;
+}
+
+Map<String, _MeasuredInk> _measureCandidateRoleSamples(
+  TabReferenceCase referenceCase,
+  image.Image candidate,
+  _MaskMap masks,
+  Map<String, _MeasuredInk> calibratedRoles,
+  _CandidateRenderer renderer,
+) {
+  final samples = <String, List<_MeasuredInk>>{};
+  for (final control in referenceCase.staticControlRegions) {
+    final role = referenceCase.foregroundRoleByRegion[control.name];
+    if (role == null) continue;
+    final sample = _measureText(
+      candidate,
+      control.rect,
+      calibratedRoles[role]!.toReferenceInk(),
+      masks,
+      geometryColorTolerance: 112,
+      measureLargestGeometryComponent: false,
+    );
+    samples.putIfAbsent(role, () => <_MeasuredInk>[]).add(sample.semanticInk);
+  }
+  for (final region in referenceCase.staticTextRegions) {
+    final role = referenceCase.foregroundRoleByRegion[region.name];
+    if (role == null || region.auditMode != StaticTextAuditMode.static) {
+      continue;
+    }
+    final sample = _measureText(
+      candidate,
+      region.candidateRect,
+      calibratedRoles[role]!.toReferenceInk(),
+      masks,
+      geometryColorTolerance: _candidateGeometryTolerance(region, renderer),
+      measureLargestGeometryComponent: region.measureLargestGeometryComponent,
+    );
+    samples.putIfAbsent(role, () => <_MeasuredInk>[]).add(sample.semanticInk);
+  }
+  return {
+    for (final entry in samples.entries)
+      entry.key: _MeasuredInk.clusterMedoid(entry.value, radius: 2),
+  };
+}
+
+bool _writeCalibratedControlResult(
+  _CsvReport report,
+  _ComparisonConfiguration configuration,
+  TabReferenceCase referenceCase, {
+  required ReferenceStaticControlRegion control,
+  required _StaticRegionResult rawResult,
+  required _MeasuredInk referenceRole,
+  required image.Image reference,
+  required image.Image candidate,
+  required _MaskMap masks,
+}) {
+  final referenceSample = _measureText(
+    reference,
+    control.rect,
+    referenceRole.toReferenceInk(),
+    masks,
+    geometryColorTolerance: 112,
+    measureLargestGeometryComponent: false,
+  );
+  final candidateSample = _measureText(
+    candidate,
+    control.rect,
+    referenceRole.toReferenceInk(),
+    masks,
+    geometryColorTolerance: 112,
+    measureLargestGeometryComponent: false,
+  );
+  final surfaceDelta = rawResult.surfaceColorDelta;
+  final foregroundDelta = referenceRole.edgeDelta(candidateSample.semanticInk);
+  final edgeDelta = referenceSample.bounds.edgeDelta(candidateSample.bounds);
+  final densityDelta = referenceSample.inkDensityDeltaPercent(candidateSample);
+  final failed =
+      surfaceDelta > _maximumSemanticColorDelta ||
+      foregroundDelta > _maximumSemanticColorDelta ||
+      edgeDelta > _maximumEdgeDelta;
+  final details = <String>[
+    if (surfaceDelta > _maximumSemanticColorDelta)
+      'surface RGB delta $surfaceDelta exceeds '
+          '$_maximumSemanticColorDelta/channel',
+    if (foregroundDelta > _maximumSemanticColorDelta)
+      'foreground RGB delta $foregroundDelta exceeds '
+          '$_maximumSemanticColorDelta/channel',
+    if (edgeDelta > _maximumEdgeDelta)
+      'feature edge delta $edgeDelta exceeds $_maximumEdgeDelta physical px',
+    'raw JPEG residual and density normalized by assigned foreground role',
+  ];
+  report.add(
+    recordType: 'static-control',
+    renderer: configuration.renderer.name,
+    caseId: referenceCase.id,
+    regionType: 'control',
+    regionName: control.name,
+    referenceBounds: referenceSample.bounds.toString(),
+    candidateBounds: candidateSample.bounds.toString(),
+    edgeDelta: '$edgeDelta',
+    measuredReferenceInk: rawResult.referenceSurface.toString(),
+    candidateInk: rawResult.candidateSurface.toString(),
+    semanticInkDelta: '$surfaceDelta',
+    measuredReferenceForeground: referenceRole.toString(),
+    candidateForeground: candidateSample.semanticInk.toString(),
+    foregroundColorDelta: '$foregroundDelta',
+    inkDensityDeltaPercent: densityDelta.toStringAsFixed(3),
+    candidateInkRatio: referenceSample
+        .inkDensityRatio(candidateSample)
+        .toStringAsFixed(3),
+    differingPixelCount: '${rawResult.differingPixelCount}',
+    auditedPixelCount: '${rawResult.auditedPixelCount}',
+    differingPixelRatio: rawResult.differingPixelRatio.toStringAsFixed(6),
+    status: failed ? 'FAIL' : 'PASS',
+    details: details.join('; '),
+  );
+  return failed;
+}
+
+bool _writeCompositeRoleResult(
+  _CsvReport report,
+  _ComparisonConfiguration configuration,
+  TabReferenceCase referenceCase, {
+  required ReferenceVisualRegion region,
+  required _StaticRegionResult result,
+  required Map<String, _MeasuredInk> calibratedRoles,
+  required Map<String, _MeasuredInk> candidateRoles,
+}) {
+  final required = region.requiredForegroundRoles.toSet();
+  final actual = candidateRoles.keys.toSet();
+  final missing = required.difference(actual);
+  final extra = actual.difference(required);
+  var worstDelta = 0;
+  for (final role in required.intersection(actual)) {
+    worstDelta = math.max(
+      worstDelta,
+      calibratedRoles[role]!.edgeDelta(candidateRoles[role]!),
+    );
+  }
+  final surfaceFailed = result.surfaceColorDelta > _maximumSemanticColorDelta;
+  final failed =
+      surfaceFailed ||
+      missing.isNotEmpty ||
+      extra.isNotEmpty ||
+      worstDelta > _maximumSemanticColorDelta;
+  String roleMap(Map<String, _MeasuredInk> values) {
+    final keys = values.keys.where(required.contains).toList()..sort();
+    return keys.map((role) => '$role=${values[role]}').join('|');
+  }
+
+  final details = <String>[
+    if (surfaceFailed)
+      'surface RGB delta ${result.surfaceColorDelta} exceeds '
+          '$_maximumSemanticColorDelta/channel',
+    if (missing.isNotEmpty) 'missing foreground roles: ${missing.join('|')}',
+    if (extra.isNotEmpty) 'extra foreground roles: ${extra.join('|')}',
+    if (worstDelta > _maximumSemanticColorDelta)
+      'foreground RGB delta $worstDelta exceeds '
+          '$_maximumSemanticColorDelta/channel',
+    'raw JPEG composite normalized by independent foreground-role map',
+  ];
+  report.add(
+    recordType: 'static-region',
+    renderer: configuration.renderer.name,
+    caseId: referenceCase.id,
+    regionType: region.type.name,
+    regionName: region.name,
+    referenceBounds: result.referenceFeatureBounds?.toString() ?? 'none',
+    candidateBounds: result.candidateFeatureBounds?.toString() ?? 'none',
+    edgeDelta: result.hasOneSidedForeground
+        ? 'one-sided'
+        : '${result.featureEdgeDelta}',
+    measuredReferenceInk: result.referenceSurface.toString(),
+    candidateInk: result.candidateSurface.toString(),
+    semanticInkDelta: '${result.surfaceColorDelta}',
+    measuredReferenceForeground: roleMap(calibratedRoles),
+    candidateForeground: roleMap(candidateRoles),
+    foregroundColorDelta: missing.isNotEmpty || extra.isNotEmpty
+        ? 'one-sided'
+        : '$worstDelta',
+    differingPixelCount: '${result.differingPixelCount}',
+    auditedPixelCount: '${result.auditedPixelCount}',
+    differingPixelRatio: result.differingPixelRatio.toStringAsFixed(6),
+    status: failed ? 'FAIL' : 'PASS',
+    details: details.join('; '),
+  );
+  return failed;
+}
+
 List<String> _validateManifest(List<TabReferenceCase> cases) {
   final errors = <String>[];
   final seenIds = <String>{};
@@ -420,6 +713,17 @@ List<String> _validateManifest(List<TabReferenceCase> cases) {
 
     for (final region in item.visualRegions) {
       validateRect('${item.id}: visual region ${region.name}', region.rect);
+      for (final role in region.requiredForegroundRoles) {
+        final assigned = item.foregroundRoleByRegion.values.where(
+          (assignedRole) => assignedRole == role,
+        );
+        if (assigned.isEmpty) {
+          errors.add(
+            '${item.id}: composite ${region.name} requires foreground role '
+            '$role but has no assigned foreground region.',
+          );
+        }
+      }
     }
     for (final control in item.staticControlRegions) {
       validateRect('${item.id}: static control ${control.name}', control.rect);
@@ -433,6 +737,32 @@ List<String> _validateManifest(List<TabReferenceCase> cases) {
         '${item.id}: text region ${text.name} candidate rect',
         text.candidateRect,
       );
+    }
+    final knownForegroundRegions = <String>{
+      ...item.staticControlRegions.map((control) => control.name),
+      ...item.staticTextRegions.map((text) => text.name),
+    };
+    for (final assignment in item.foregroundRoleByRegion.entries) {
+      if (!knownForegroundRegions.contains(assignment.key)) {
+        errors.add(
+          '${item.id}: foreground role assignment ${assignment.key} does '
+          'not name a static control or text region.',
+        );
+      }
+      if (assignment.value.trim().isEmpty) {
+        errors.add(
+          '${item.id}: ${assignment.key} has an empty foreground role.',
+        );
+      }
+    }
+    for (final interior in item.referenceForegroundInteriors) {
+      validateRect(
+        '${item.id}: foreground interior ${interior.role}',
+        interior.rect,
+      );
+      if (interior.role.trim().isEmpty) {
+        errors.add('${item.id}: foreground interior has an empty role.');
+      }
     }
     for (var index = 0; index < item.dynamicMaskRegions.length; index++) {
       final mask = item.dynamicMaskRegions[index];
@@ -535,6 +865,23 @@ image.Image _decode(String path) {
     throw _ComparisonInputError('Could not decode comparison input: $path');
   }
   return decoded;
+}
+
+bool _imagesEqual(image.Image left, image.Image right) {
+  if (left.width != right.width || left.height != right.height) return false;
+  for (var y = 0; y < left.height; y++) {
+    for (var x = 0; x < left.width; x++) {
+      final leftPixel = left.getPixel(x, y);
+      final rightPixel = right.getPixel(x, y);
+      if (leftPixel.r != rightPixel.r ||
+          leftPixel.g != rightPixel.g ||
+          leftPixel.b != rightPixel.b ||
+          leftPixel.a != rightPixel.a) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 List<_DecodedComparisonCase> _preflightInputs(
@@ -1175,6 +1522,32 @@ class _MeasuredInk {
   final int red;
   final int green;
   final int blue;
+
+  int get rgbKey => (red << 16) | (green << 8) | blue;
+
+  ReferenceInk toReferenceInk() => ReferenceInk(red, green, blue);
+
+  static _MeasuredInk clusterMedoid(
+    List<_MeasuredInk> samples, {
+    required int radius,
+  }) {
+    if (samples.isEmpty) throw StateError('Cannot cluster empty ink samples.');
+    var largest = <_MeasuredInk>[];
+    for (final center in samples) {
+      final cluster = samples
+          .where((sample) => sample.edgeDelta(center) <= radius)
+          .toList(growable: false);
+      if (cluster.length > largest.length) largest = cluster;
+    }
+    final ordered = [...largest]
+      ..sort((left, right) {
+        int cost(_MeasuredInk candidate) =>
+            largest.fold(0, (sum, sample) => sum + candidate.edgeDelta(sample));
+        final byCost = cost(left).compareTo(cost(right));
+        return byCost != 0 ? byCost : left.rgbKey.compareTo(right.rgbKey);
+      });
+    return ordered.first;
+  }
 
   int edgeDelta(_MeasuredInk other) => _maximum(
     (red - other.red).abs(),

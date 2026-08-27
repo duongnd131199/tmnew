@@ -73,10 +73,19 @@ class ReferenceVisualRegion {
     required this.name,
     required this.type,
     required this.rect,
+    this.requiredForegroundRoles = const <String>[],
   });
 
   final String name;
   final ReferenceVisualRegionType type;
+  final ReferencePixelRect rect;
+  final List<String> requiredForegroundRoles;
+}
+
+class ReferenceForegroundInterior {
+  const ReferenceForegroundInterior({required this.role, required this.rect});
+
+  final String role;
   final ReferencePixelRect rect;
 }
 
@@ -159,6 +168,8 @@ const referenceHistorySegmentSelectedInk = ReferenceInk(237, 237, 237);
 const referenceChartToolbarInk = ReferenceInk(64, 64, 64);
 const referenceChartBlueInk = ReferenceInk(49, 131, 255);
 const referenceBlackInk = ReferenceInk(0, 0, 0);
+const navigationBlackRole = 'navigation-black';
+const navigationBlueRole = 'navigation-blue';
 
 const _geometryPrimaryInk = ReferenceInk(17, 17, 17);
 const _geometrySecondaryInk = ReferenceInk(92, 92, 96);
@@ -293,9 +304,195 @@ const _baseVisualRegions = <ReferenceVisualRegion>[
   ReferenceVisualRegion(
     name: 'bottom-navigation',
     type: ReferenceVisualRegionType.bottomNavigation,
-    rect: ReferencePixelRect(0, 1168, 590, 112),
+    rect: ReferencePixelRect(28, 1169, 535, 93),
+    requiredForegroundRoles: <String>[navigationBlackRole, navigationBlueRole],
   ),
 ];
+
+const _pricesForegroundInteriors = <ReferenceForegroundInterior>[
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(287, 1186, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(386, 1198, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(552, 191, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(572, 192, 1, 1),
+  ),
+];
+
+const _chartForegroundInteriors = <ReferenceForegroundInterior>[
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(82, 1209, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(497, 1211, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(148, 164, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(64, 158, 1, 1),
+  ),
+];
+
+const _tradeForegroundInteriors = <ReferenceForegroundInterior>[
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(195, 1198, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(386, 1198, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(88, 384, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(130, 858, 1, 1),
+  ),
+];
+
+const _historyPositionsForegroundInteriors = <ReferenceForegroundInterior>[
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(297, 1203, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(497, 1211, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(526, 181, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(397, 1211, 1, 1),
+  ),
+];
+
+const _historyOrdersForegroundInteriors = <ReferenceForegroundInterior>[
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(288, 1202, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(498, 1194, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(117, 929, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(384, 1198, 1, 1),
+  ),
+];
+
+const _historyOrdersSummaryForegroundInteriors = <ReferenceForegroundInterior>[
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(297, 1203, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(497, 1211, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(88, 295, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(397, 1211, 1, 1),
+  ),
+];
+
+const _historyDealsForegroundInteriors = <ReferenceForegroundInterior>[
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(297, 1203, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlackRole,
+    rect: ReferencePixelRect(497, 1211, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(142, 627, 1, 1),
+  ),
+  ReferenceForegroundInterior(
+    role: navigationBlueRole,
+    rect: ReferencePixelRect(137, 628, 1, 1),
+  ),
+];
+
+const _pricesForegroundRoles = <String, String>{
+  'navigation-prices-icon': navigationBlueRole,
+  'navigation-prices-label': navigationBlueRole,
+  'navigation-chart-icon': navigationBlackRole,
+  'navigation-chart-label': navigationBlackRole,
+  'navigation-trade-icon': navigationBlackRole,
+  'navigation-trade-label': navigationBlackRole,
+  'navigation-history-icon': navigationBlackRole,
+  'navigation-history-label': navigationBlackRole,
+  'navigation-settings-icon': navigationBlackRole,
+  'navigation-settings-label': navigationBlackRole,
+};
+
+const _chartForegroundRoles = <String, String>{
+  'navigation-prices-icon': navigationBlackRole,
+  'navigation-prices-label': navigationBlackRole,
+  'navigation-chart-icon': navigationBlueRole,
+  'navigation-chart-label': navigationBlueRole,
+  'navigation-trade-icon': navigationBlackRole,
+  'navigation-trade-label': navigationBlackRole,
+  'navigation-history-icon': navigationBlackRole,
+  'navigation-history-label': navigationBlackRole,
+  'navigation-settings-icon': navigationBlackRole,
+  'navigation-settings-label': navigationBlackRole,
+};
+
+const _tradeForegroundRoles = <String, String>{
+  'navigation-prices-icon': navigationBlackRole,
+  'navigation-prices-label': navigationBlackRole,
+  'navigation-chart-icon': navigationBlackRole,
+  'navigation-chart-label': navigationBlackRole,
+  'navigation-trade-icon': navigationBlueRole,
+  'navigation-trade-label': navigationBlueRole,
+  'navigation-history-icon': navigationBlackRole,
+  'navigation-history-label': navigationBlackRole,
+  'navigation-settings-icon': navigationBlackRole,
+  'navigation-settings-label': navigationBlackRole,
+};
+
+const _historyForegroundRoles = <String, String>{
+  'navigation-prices-icon': navigationBlackRole,
+  'navigation-prices-label': navigationBlackRole,
+  'navigation-chart-icon': navigationBlackRole,
+  'navigation-chart-label': navigationBlackRole,
+  'navigation-trade-icon': navigationBlackRole,
+  'navigation-trade-label': navigationBlackRole,
+  'navigation-history-icon': navigationBlueRole,
+  'navigation-history-label': navigationBlueRole,
+  'navigation-settings-icon': navigationBlackRole,
+  'navigation-settings-label': navigationBlackRole,
+};
 
 const _tradeScrollbarRegion = ReferenceVisualRegion(
   name: 'trade-scrollbar-indicator',
@@ -323,41 +520,62 @@ const _historyDealsScrollbarRegion = ReferenceVisualRegion(
 
 const _baseStaticControls = <ReferenceStaticControlRegion>[
   ReferenceStaticControlRegion(
-    name: 'navigation-prices-label',
-    rect: ReferencePixelRect(60, 1223, 60, 21),
+    name: 'navigation-prices-icon',
+    rect: ReferencePixelRect(70, 1180, 42, 38),
   ),
   ReferenceStaticControlRegion(
-    name: 'navigation-chart-label',
-    rect: ReferencePixelRect(150, 1223, 110, 21),
+    name: 'navigation-chart-icon',
+    rect: ReferencePixelRect(175, 1180, 35, 38),
   ),
   ReferenceStaticControlRegion(
-    name: 'navigation-trade-label',
-    rect: ReferencePixelRect(255, 1223, 100, 21),
+    name: 'navigation-trade-icon',
+    rect: ReferencePixelRect(270, 1180, 45, 38),
   ),
   ReferenceStaticControlRegion(
-    name: 'navigation-history-label',
-    rect: ReferencePixelRect(350, 1223, 100, 21),
+    name: 'navigation-history-icon',
+    rect: ReferencePixelRect(375, 1180, 48, 38),
   ),
   ReferenceStaticControlRegion(
-    name: 'navigation-settings-label',
-    rect: ReferencePixelRect(470, 1223, 60, 12),
+    name: 'navigation-settings-icon',
+    rect: ReferencePixelRect(478, 1180, 42, 38),
   ),
   ReferenceStaticControlRegion(
-    name: 'bottom-navigation-surface',
-    rect: ReferencePixelRect(0, 1168, 590, 112),
+    name: 'bottom-navigation-capsule-surface',
+    rect: ReferencePixelRect(460, 1238, 8, 5),
+  ),
+  ReferenceStaticControlRegion(
+    name: 'bottom-navigation-shadow',
+    rect: ReferencePixelRect(190, 1252, 210, 2),
   ),
 ];
+
+const _pricesSelectedPillControl = ReferenceStaticControlRegion(
+  name: 'bottom-navigation-selected-pill',
+  rect: ReferencePixelRect(80, 1173, 20, 8),
+);
+const _chartSelectedPillControl = ReferenceStaticControlRegion(
+  name: 'bottom-navigation-selected-pill',
+  rect: ReferencePixelRect(184, 1173, 18, 8),
+);
+const _tradeSelectedPillControl = ReferenceStaticControlRegion(
+  name: 'bottom-navigation-selected-pill',
+  rect: ReferencePixelRect(282, 1173, 22, 8),
+);
+const _historySelectedPillControl = ReferenceStaticControlRegion(
+  name: 'bottom-navigation-selected-pill',
+  rect: ReferencePixelRect(382, 1173, 23, 8),
+);
 
 const _systemStatusMasks = <ReferenceDynamicMask>[
   ReferenceDynamicMask(
     kind: ReferenceDynamicMaskKind.systemStatusValues,
-    rect: ReferencePixelRect(62, 15, 98, 40),
+    rect: ReferencePixelRect(62, 15, 98, 41),
     reason:
         'The operating-system clock and silent indicator are capture-time values.',
   ),
   ReferenceDynamicMask(
     kind: ReferenceDynamicMaskKind.systemStatusValues,
-    rect: ReferencePixelRect(406, 15, 184, 40),
+    rect: ReferencePixelRect(406, 15, 184, 41),
     reason:
         'Carrier, signal, and battery status are supplied by the device at capture time.',
   ),
@@ -365,6 +583,7 @@ const _systemStatusMasks = <ReferenceDynamicMask>[
 
 const _pricesStaticControls = <ReferenceStaticControlRegion>[
   ..._baseStaticControls,
+  _pricesSelectedPillControl,
   ReferenceStaticControlRegion(
     name: 'toolbar-title',
     rect: ReferencePixelRect(250, 88, 90, 50),
@@ -397,6 +616,7 @@ const _pricesStaticControls = <ReferenceStaticControlRegion>[
 
 const _chartStaticControls = <ReferenceStaticControlRegion>[
   ..._baseStaticControls,
+  _chartSelectedPillControl,
   ReferenceStaticControlRegion(
     name: 'toolbar-timeframe',
     rect: ReferencePixelRect(12, 92, 52, 42),
@@ -433,6 +653,7 @@ const _chartStaticControls = <ReferenceStaticControlRegion>[
 
 const _tradeStaticControls = <ReferenceStaticControlRegion>[
   ..._baseStaticControls,
+  _tradeSelectedPillControl,
   ReferenceStaticControlRegion(
     name: 'trade-header-currency-label',
     rect: ReferencePixelRect(315, 97, 49, 27),
@@ -461,6 +682,7 @@ const _tradeStaticControls = <ReferenceStaticControlRegion>[
 
 const _historyStaticControls = <ReferenceStaticControlRegion>[
   ..._baseStaticControls,
+  _historySelectedPillControl,
   ReferenceStaticControlRegion(
     name: 'history-segment-control',
     rect: ReferencePixelRect(105, 90, 385, 49),
@@ -512,6 +734,8 @@ class TabReferenceCase {
     required this.staticControlRegions,
     this.staticTextRegions = const <StaticTextRegion>[],
     this.dynamicMaskRegions = const <ReferenceDynamicMask>[],
+    this.referenceForegroundInteriors = const <ReferenceForegroundInterior>[],
+    this.foregroundRoleByRegion = const <String, String>{},
   });
 
   final String id;
@@ -525,6 +749,8 @@ class TabReferenceCase {
   final List<ReferenceStaticControlRegion> staticControlRegions;
   final List<StaticTextRegion> staticTextRegions;
   final List<ReferenceDynamicMask> dynamicMaskRegions;
+  final List<ReferenceForegroundInterior> referenceForegroundInteriors;
+  final Map<String, String> foregroundRoleByRegion;
 
   /// Compatibility view consumed by the existing typography comparator.
   List<ReferencePixelRect> get dynamicMasks => dynamicMaskRegions
@@ -551,6 +777,8 @@ const tabReferenceCases = <TabReferenceCase>[
     staticAuditRegion: _referenceCanvas,
     visualRegions: _baseVisualRegions,
     staticControlRegions: _pricesStaticControls,
+    referenceForegroundInteriors: _pricesForegroundInteriors,
+    foregroundRoleByRegion: _pricesForegroundRoles,
     staticTextRegions: [
       StaticTextRegion(
         name: 'toolbar-title',
@@ -741,6 +969,8 @@ const tabReferenceCases = <TabReferenceCase>[
     staticAuditRegion: _referenceCanvas,
     visualRegions: _baseVisualRegions,
     staticControlRegions: _chartStaticControls,
+    referenceForegroundInteriors: _chartForegroundInteriors,
+    foregroundRoleByRegion: _chartForegroundRoles,
     staticTextRegions: [
       StaticTextRegion(
         name: 'toolbar-timeframe',
@@ -827,6 +1057,8 @@ const tabReferenceCases = <TabReferenceCase>[
     staticAuditRegion: _referenceCanvas,
     visualRegions: [..._baseVisualRegions, _tradeScrollbarRegion],
     staticControlRegions: _tradeStaticControls,
+    referenceForegroundInteriors: _tradeForegroundInteriors,
+    foregroundRoleByRegion: _tradeForegroundRoles,
     staticTextRegions: [
       StaticTextRegion(
         name: 'metric-label',
@@ -964,6 +1196,8 @@ const tabReferenceCases = <TabReferenceCase>[
     staticAuditRegion: _referenceCanvas,
     visualRegions: _baseVisualRegions,
     staticControlRegions: _historyPositionsStaticControls,
+    referenceForegroundInteriors: _historyPositionsForegroundInteriors,
+    foregroundRoleByRegion: _historyForegroundRoles,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',
@@ -1082,6 +1316,8 @@ const tabReferenceCases = <TabReferenceCase>[
     staticAuditRegion: _referenceCanvas,
     visualRegions: [..._baseVisualRegions, _historyOrdersScrollbarRegion],
     staticControlRegions: _historyOrdersStaticControls,
+    referenceForegroundInteriors: _historyOrdersForegroundInteriors,
+    foregroundRoleByRegion: _historyForegroundRoles,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',
@@ -1162,6 +1398,8 @@ const tabReferenceCases = <TabReferenceCase>[
       _historyOrdersSummaryScrollbarRegion,
     ],
     staticControlRegions: _historyOrdersSummaryStaticControls,
+    referenceForegroundInteriors: _historyOrdersSummaryForegroundInteriors,
+    foregroundRoleByRegion: _historyForegroundRoles,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',
@@ -1245,6 +1483,8 @@ const tabReferenceCases = <TabReferenceCase>[
     staticAuditRegion: _referenceCanvas,
     visualRegions: [..._baseVisualRegions, _historyDealsScrollbarRegion],
     staticControlRegions: _historyDealsStaticControls,
+    referenceForegroundInteriors: _historyDealsForegroundInteriors,
+    foregroundRoleByRegion: _historyForegroundRoles,
     staticTextRegions: [
       StaticTextRegion(
         name: 'selected-segment-surface',

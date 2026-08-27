@@ -37,14 +37,24 @@ void main() {
     for (final token in <String>[
       'family: Mt5Roboto',
       'family: Mt5RobotoCondensed',
+      'family: Mt5RobotoVariable',
+      'family: Mt5RobotoCondensedVariable',
       'assets/fonts/Roboto-Regular.ttf',
       'assets/fonts/Roboto-Medium.ttf',
       'assets/fonts/Roboto-Bold.ttf',
       'assets/fonts/RobotoCondensed-Regular.ttf',
       'assets/fonts/RobotoCondensed-Medium.ttf',
       'assets/fonts/RobotoCondensed-Bold.ttf',
+      'assets/fonts/Roboto-Variable.ttf',
+      'assets/fonts/RobotoCondensed-Variable.ttf',
     ]) {
       expect(yaml, contains(token), reason: token);
+    }
+    for (final path in <String>[
+      'assets/fonts/Roboto-Variable.ttf',
+      'assets/fonts/RobotoCondensed-Variable.ttf',
+    ]) {
+      expect(File(path).existsSync(), isTrue, reason: path);
     }
   });
 
@@ -163,6 +173,152 @@ void main() {
       expect(surface.geometryColorTolerance, 10, reason: item.id);
       expect(surface.semanticColorTolerance, 6, reason: item.id);
       expect(surface.measureLargestGeometryComponent, isTrue, reason: item.id);
+    }
+  });
+
+  test('status masks include only the measured y=55 JPEG halo', () {
+    const expected = <ReferencePixelRect>[
+      ReferencePixelRect(62, 15, 98, 41),
+      ReferencePixelRect(406, 15, 184, 41),
+    ];
+    for (final referenceCase in tabReferenceCases) {
+      final statusMasks = referenceCase.dynamicMaskRegions
+          .where(
+            (mask) => mask.kind == ReferenceDynamicMaskKind.systemStatusValues,
+          )
+          .toList(growable: false);
+      expect(statusMasks, hasLength(2), reason: referenceCase.id);
+      for (var index = 0; index < expected.length; index++) {
+        final actual = statusMasks[index].rect;
+        expect(actual.left, expected[index].left, reason: referenceCase.id);
+        expect(actual.top, expected[index].top, reason: referenceCase.id);
+        expect(actual.width, expected[index].width, reason: referenceCase.id);
+        expect(actual.height, expected[index].height, reason: referenceCase.id);
+        expect(statusMasks[index].reason.trim(), isNotEmpty);
+      }
+    }
+  });
+
+  test('navigation regions give each foreground one semantic owner', () {
+    const labelNames = <String>{
+      'navigation-prices-label',
+      'navigation-chart-label',
+      'navigation-trade-label',
+      'navigation-history-label',
+      'navigation-settings-label',
+    };
+    const expectedSharedControls = <String, ReferencePixelRect>{
+      'navigation-prices-icon': ReferencePixelRect(70, 1180, 42, 38),
+      'navigation-chart-icon': ReferencePixelRect(175, 1180, 35, 38),
+      'navigation-trade-icon': ReferencePixelRect(270, 1180, 45, 38),
+      'navigation-history-icon': ReferencePixelRect(375, 1180, 48, 38),
+      'navigation-settings-icon': ReferencePixelRect(478, 1180, 42, 38),
+      'bottom-navigation-capsule-surface': ReferencePixelRect(460, 1238, 8, 5),
+      'bottom-navigation-shadow': ReferencePixelRect(190, 1252, 210, 2),
+    };
+    const expectedSelectedPills = <ReferenceSelectedTab, ReferencePixelRect>{
+      ReferenceSelectedTab.prices: ReferencePixelRect(80, 1173, 20, 8),
+      ReferenceSelectedTab.chart: ReferencePixelRect(184, 1173, 18, 8),
+      ReferenceSelectedTab.trade: ReferencePixelRect(282, 1173, 22, 8),
+      ReferenceSelectedTab.history: ReferencePixelRect(382, 1173, 23, 8),
+    };
+
+    for (final referenceCase in tabReferenceCases) {
+      final controls = {
+        for (final control in referenceCase.staticControlRegions)
+          control.name: control.rect,
+      };
+      expect(
+        controls.keys.toSet().intersection(labelNames),
+        isEmpty,
+        reason: '${referenceCase.id}: label ink belongs to static-text rows',
+      );
+      for (final entry in expectedSharedControls.entries) {
+        expect(
+          controls[entry.key].toString(),
+          entry.value.toString(),
+          reason: '${referenceCase.id}: ${entry.key}',
+        );
+      }
+      expect(
+        controls['bottom-navigation-selected-pill'].toString(),
+        expectedSelectedPills[referenceCase.selectedTab].toString(),
+        reason: '${referenceCase.id}: selected pill',
+      );
+      expect(
+        referenceCase.staticTextRegions.map((region) => region.name).toSet(),
+        containsAll(labelNames),
+        reason: '${referenceCase.id}: all labels remain strictly audited',
+      );
+      final navigation = referenceCase.visualRegions.singleWhere(
+        (region) => region.type == ReferenceVisualRegionType.bottomNavigation,
+      );
+      expect(
+        navigation.rect.toString(),
+        const ReferencePixelRect(28, 1169, 535, 93).toString(),
+        reason: '${referenceCase.id}: capsule and measured shadow bounds',
+      );
+    }
+  });
+
+  test('all seven navigation cases pin decoded-reference role interiors', () {
+    const expected = <String, Set<String>>{
+      'prices': {
+        'navigation-black@[287:1186:288:1187]',
+        'navigation-black@[386:1198:387:1199]',
+        'navigation-blue@[552:191:553:192]',
+        'navigation-blue@[572:192:573:193]',
+      },
+      'chart': {
+        'navigation-black@[82:1209:83:1210]',
+        'navigation-black@[497:1211:498:1212]',
+        'navigation-blue@[148:164:149:165]',
+        'navigation-blue@[64:158:65:159]',
+      },
+      'trade': {
+        'navigation-black@[195:1198:196:1199]',
+        'navigation-black@[386:1198:387:1199]',
+        'navigation-blue@[88:384:89:385]',
+        'navigation-blue@[130:858:131:859]',
+      },
+      'history-positions': {
+        'navigation-black@[297:1203:298:1204]',
+        'navigation-black@[497:1211:498:1212]',
+        'navigation-blue@[526:181:527:182]',
+        'navigation-blue@[397:1211:398:1212]',
+      },
+      'history-orders': {
+        'navigation-black@[288:1202:289:1203]',
+        'navigation-black@[498:1194:499:1195]',
+        'navigation-blue@[117:929:118:930]',
+        'navigation-blue@[384:1198:385:1199]',
+      },
+      'history-orders-summary': {
+        'navigation-black@[297:1203:298:1204]',
+        'navigation-black@[497:1211:498:1212]',
+        'navigation-blue@[88:295:89:296]',
+        'navigation-blue@[397:1211:398:1212]',
+      },
+      'history-deals': {
+        'navigation-black@[297:1203:298:1204]',
+        'navigation-black@[497:1211:498:1212]',
+        'navigation-blue@[142:627:143:628]',
+        'navigation-blue@[137:628:138:629]',
+      },
+    };
+    for (final referenceCase in tabReferenceCases) {
+      expect(
+        referenceCase.referenceForegroundInteriors
+            .map((interior) => '${interior.role}@${interior.rect}')
+            .toSet(),
+        expected[referenceCase.id],
+        reason: referenceCase.id,
+      );
+      expect(referenceCase.foregroundRoleByRegion, hasLength(10));
+      expect(referenceCase.foregroundRoleByRegion.values.toSet(), {
+        navigationBlackRole,
+        navigationBlueRole,
+      });
     }
   });
 

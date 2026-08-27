@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'dart:ui' show ImageByteFormat;
+import 'dart:ui' show ImageByteFormat, Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -38,10 +38,10 @@ const _iconSearchRects = <Rect>[
 ];
 
 const _referenceBounds = <Rect>[
-  Rect.fromLTWH(52, 790, 18, 16),
-  Rect.fromLTWH(122, 790, 13, 16),
-  Rect.fromLTWH(187, 789, 20, 18),
-  Rect.fromLTWH(255, 789, 20, 19),
+  Rect.fromLTWH(51, 786, 18, 16),
+  Rect.fromLTWH(122, 786, 13, 16),
+  Rect.fromLTWH(187, 785, 19, 18),
+  Rect.fromLTWH(255, 785, 19, 19),
 ];
 
 void main() {
@@ -93,7 +93,7 @@ void main() {
 
     final bounds = await _darkInkBounds(tester, _iconSearchRects[3]);
 
-    expect(bounds, const Rect.fromLTWH(255, 789, 20, 19));
+    expect(bounds, const Rect.fromLTWH(255, 785, 19, 19));
     expect(
       bounds.width - bounds.height,
       lessThanOrEqualTo(1),
@@ -160,10 +160,52 @@ void main() {
     }
   });
 
+  testWidgets('navigation exposes five equal semantic interaction targets', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    await _pumpNavigation(tester, selectedIndex: 2);
+
+    final targetRects = <Rect>[];
+    for (final kind in <String>[
+      'quotes',
+      'chart',
+      'trade',
+      'history',
+      'settings',
+    ]) {
+      final target = find.byKey(ValueKey('bottom-nav-target-$kind'));
+      expect(target, findsOneWidget);
+      targetRects.add(tester.getRect(target));
+    }
+
+    expect(targetRects.map((rect) => rect.width).toSet(), hasLength(1));
+    expect(targetRects.map((rect) => rect.height).toSet(), hasLength(1));
+    expect(targetRects.every((rect) => rect.width >= 48), isTrue);
+    expect(targetRects.every((rect) => rect.height >= 48), isTrue);
+
+    final semantics = tester.getSemantics(
+      find.byKey(const ValueKey('bottom-nav-target-trade')),
+    );
+    expect(semantics.flagsCollection.isSelected, Tristate.isTrue);
+    expect(semantics.flagsCollection.isButton, isTrue);
+    for (final kind in <String>['quotes', 'chart', 'history', 'settings']) {
+      expect(
+        tester
+            .getSemantics(find.byKey(ValueKey('bottom-nav-target-$kind')))
+            .flagsCollection
+            .isSelected,
+        Tristate.isFalse,
+        reason: kind,
+      );
+    }
+    semanticsHandle.dispose();
+  });
+
   testWidgets('selection changes nav ink without scaling label geometry', (
     tester,
   ) async {
-    Rect? referenceRect;
+    Size? referenceSize;
     for (var selected = 0; selected < 5; selected++) {
       await _pumpNavigation(
         tester,
@@ -180,8 +222,8 @@ void main() {
           .getTransformTo(null);
       expect(transform.storage[0], closeTo(1, .0001));
       final rect = tester.getRect(label);
-      referenceRect ??= rect;
-      expect(rect, referenceRect);
+      referenceSize ??= rect.size;
+      expect(rect.size, referenceSize);
     }
   });
 
@@ -213,7 +255,43 @@ void main() {
     final selected = tester.widget<Text>(
       find.byKey(const ValueKey('bottom-nav-label-history')),
     );
-    expect(selected.style?.letterSpacing, .3);
+    expect(selected.style?.letterSpacing, .5);
+  });
+
+  testWidgets('navigation labels use measured per-tab optical weights', (
+    tester,
+  ) async {
+    const expectedUnselected = <String, double>{
+      'quotes': 333,
+      'chart': 350,
+      'trade': 335,
+      'history': 325,
+      'settings': 350,
+    };
+    const expectedSelected = <String, double>{
+      'quotes': 256,
+      'chart': 310,
+      'trade': 305,
+      'history': 250,
+      'settings': 350,
+    };
+    final kinds = expectedUnselected.keys.toList(growable: false);
+    for (var selectedIndex = 0; selectedIndex < kinds.length; selectedIndex++) {
+      await _pumpNavigation(tester, selectedIndex: selectedIndex);
+      for (var index = 0; index < kinds.length; index++) {
+        final kind = kinds[index];
+        final label = tester.widget<Text>(
+          find.byKey(ValueKey('bottom-nav-label-$kind')),
+        );
+        expect(
+          _variableWeight(label.style),
+          index == selectedIndex
+              ? expectedSelected[kind]
+              : expectedUnselected[kind],
+          reason: 'selected=$selectedIndex kind=$kind',
+        );
+      }
+    }
   });
 }
 
