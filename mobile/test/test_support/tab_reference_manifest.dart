@@ -252,7 +252,6 @@ const referenceRedInk = ReferenceInk(228, 45, 48);
 const referenceWhiteInk = ReferenceInk(255, 255, 255);
 const referenceNavigationInk = ReferenceInk(0, 0, 0);
 const referenceHistoryStatusInk = ReferenceInk(41, 70, 117);
-const referenceHistorySegmentSelectedInk = ReferenceInk(237, 237, 237);
 const referenceChartToolbarInk = ReferenceInk(64, 64, 64);
 const referenceChartBlueInk = ReferenceInk(57, 133, 233);
 const referenceBlackInk = ReferenceInk(0, 0, 0);
@@ -586,6 +585,36 @@ const _historyNavigationSurfaceRegions = <ReferenceSurfaceRegion>[
       'navigation-history-icon',
       'navigation-history-label',
     ],
+  ),
+];
+
+const _historyPositionsSurfaceRegions = <ReferenceSurfaceRegion>[
+  ..._historyNavigationSurfaceRegions,
+  ReferenceSurfaceRegion(
+    name: 'selected-segment-surface',
+    rect: ReferencePixelRect(105, 97, 130, 6),
+    surfaceRole: navigationSelectedSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
+  ),
+];
+
+const _historyOrdersSurfaceRegions = <ReferenceSurfaceRegion>[
+  ..._historyNavigationSurfaceRegions,
+  ReferenceSurfaceRegion(
+    name: 'selected-segment-surface',
+    rect: ReferencePixelRect(230, 97, 135, 6),
+    surfaceRole: navigationSelectedSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
+  ),
+];
+
+const _historyDealsSurfaceRegions = <ReferenceSurfaceRegion>[
+  ..._historyNavigationSurfaceRegions,
+  ReferenceSurfaceRegion(
+    name: 'selected-segment-surface',
+    rect: ReferencePixelRect(355, 97, 135, 6),
+    surfaceRole: navigationSelectedSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
   ),
 ];
 
@@ -1962,7 +1991,7 @@ const tabReferenceCases = <TabReferenceCase>[
     ),
     staticAuditRegion: _referenceCanvas,
     visualRegions: [..._baseVisualRegions, _historySelectedPillVisual],
-    surfaceRegions: _historyNavigationSurfaceRegions,
+    surfaceRegions: _historyPositionsSurfaceRegions,
     staticControlRegions: _historyPositionsStaticControls,
     shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _historyPositionsForegroundInteriors,
@@ -1972,16 +2001,6 @@ const tabReferenceCases = <TabReferenceCase>[
     foregroundSelectionByRegion: _historyForegroundSelections,
     staticTextRegions: [
       ..._systemStatusAuditRows,
-      StaticTextRegion(
-        name: 'selected-segment-surface',
-        referenceRect: ReferencePixelRect(105, 97, 130, 6),
-        candidateRect: ReferencePixelRect(105, 97, 130, 6),
-        ink: referenceHistorySegmentSelectedInk,
-        geometryColorTolerance: 10,
-        semanticColorTolerance: 6,
-        measureLargestGeometryComponent: true,
-        measureInkDensity: false,
-      ),
       StaticTextRegion(
         name: 'segment-orders',
         referenceRect: ReferencePixelRect(235, 91, 120, 48),
@@ -2094,7 +2113,7 @@ const tabReferenceCases = <TabReferenceCase>[
       _historySelectedPillVisual,
       _historyOrdersScrollbarRegion,
     ],
-    surfaceRegions: _historyNavigationSurfaceRegions,
+    surfaceRegions: _historyOrdersSurfaceRegions,
     staticControlRegions: _historyOrdersStaticControls,
     shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _historyOrdersForegroundInteriors,
@@ -2104,16 +2123,6 @@ const tabReferenceCases = <TabReferenceCase>[
     foregroundSelectionByRegion: _historyForegroundSelections,
     staticTextRegions: [
       ..._systemStatusAuditRows,
-      StaticTextRegion(
-        name: 'selected-segment-surface',
-        referenceRect: ReferencePixelRect(230, 97, 135, 6),
-        candidateRect: ReferencePixelRect(230, 97, 135, 6),
-        ink: referenceHistorySegmentSelectedInk,
-        geometryColorTolerance: 10,
-        semanticColorTolerance: 6,
-        measureLargestGeometryComponent: true,
-        measureInkDensity: false,
-      ),
       StaticTextRegion(
         name: 'segment-orders',
         referenceRect: ReferencePixelRect(235, 91, 120, 48),
@@ -2185,7 +2194,7 @@ const tabReferenceCases = <TabReferenceCase>[
       _historySelectedPillVisual,
       _historyOrdersSummaryScrollbarRegion,
     ],
-    surfaceRegions: _historyNavigationSurfaceRegions,
+    surfaceRegions: _historyOrdersSurfaceRegions,
     staticControlRegions: _historyOrdersSummaryStaticControls,
     shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _historyOrdersSummaryForegroundInteriors,
@@ -2195,16 +2204,6 @@ const tabReferenceCases = <TabReferenceCase>[
     foregroundSelectionByRegion: _historyForegroundSelections,
     staticTextRegions: [
       ..._systemStatusAuditRows,
-      StaticTextRegion(
-        name: 'selected-segment-surface',
-        referenceRect: ReferencePixelRect(230, 97, 135, 6),
-        candidateRect: ReferencePixelRect(230, 97, 135, 6),
-        ink: referenceHistorySegmentSelectedInk,
-        geometryColorTolerance: 10,
-        semanticColorTolerance: 6,
-        measureLargestGeometryComponent: true,
-        measureInkDensity: false,
-      ),
       StaticTextRegion(
         name: 'segment-orders',
         referenceRect: ReferencePixelRect(235, 91, 120, 48),
@@ -2282,7 +2281,7 @@ const tabReferenceCases = <TabReferenceCase>[
       _historySelectedPillVisual,
       _historyDealsScrollbarRegion,
     ],
-    surfaceRegions: _historyNavigationSurfaceRegions,
+    surfaceRegions: _historyDealsSurfaceRegions,
     staticControlRegions: _historyDealsStaticControls,
     shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _historyDealsForegroundInteriors,
@@ -2292,16 +2291,6 @@ const tabReferenceCases = <TabReferenceCase>[
     foregroundSelectionByRegion: _historyForegroundSelections,
     staticTextRegions: [
       ..._systemStatusAuditRows,
-      StaticTextRegion(
-        name: 'selected-segment-surface',
-        referenceRect: ReferencePixelRect(355, 97, 135, 6),
-        candidateRect: ReferencePixelRect(355, 97, 135, 6),
-        ink: referenceHistorySegmentSelectedInk,
-        geometryColorTolerance: 10,
-        semanticColorTolerance: 6,
-        measureLargestGeometryComponent: true,
-        measureInkDensity: false,
-      ),
       StaticTextRegion(
         name: 'segment-deals',
         referenceRect: ReferencePixelRect(350, 91, 140, 48),

@@ -1028,92 +1028,128 @@ void main() {
     expect('$output$errors', contains('Reference parity failed'));
   });
 
-  test('Prices body acceptance adds no unapproved strict failures', () {
+  test(
+    'Prices comparator exposes owned and shared failures while exiting one',
+    () {
+      final output = StringBuffer();
+      final errors = StringBuffer();
+      final exitCode = comparator.runTabTypographyComparison(
+        const ['--case', 'prices'],
+        standardOutput: output,
+        errorOutput: errors,
+      );
+
+      expect(exitCode, 1, reason: '$output$errors');
+      final rows = _parseCsv(output.toString());
+      final header = rows.first;
+      final region = header.indexOf('region');
+      final status = header.indexOf('status');
+      final details = header.indexOf('details');
+      final failed = rows
+          .skip(1)
+          .where((row) => row[status] == 'FAIL')
+          .toList(growable: false);
+
+      bool isShared(List<String> row) {
+        final name = row[region];
+        return name.startsWith('navigation-') ||
+            name.startsWith('bottom-navigation');
+      }
+
+      final sharedFailures = failed.where(isShared).toList(growable: false);
+      final ownedFailures = failed
+          .where((row) => !isShared(row))
+          .toList(growable: false);
+      expect(
+        sharedFailures,
+        isNotEmpty,
+        reason: 'Shared failures must remain visible in strict diagnostics.',
+      );
+      expect(
+        ownedFailures,
+        isNotEmpty,
+        reason: 'Prices-owned failures must remain visible, not accepted.',
+      );
+      expect(
+        failed.every((row) => row[details].trim().isNotEmpty),
+        isTrue,
+        reason: failed.map((row) => row.join(',')).join('\n'),
+      );
+      expect(output.toString().toLowerCase(), isNot(contains('approved')));
+      expect(errors.toString(), contains('Reference parity failed'));
+    },
+  );
+
+  test('History selected segments emit static-surface CSV rows only', () {
     final output = StringBuffer();
     final errors = StringBuffer();
     final exitCode = comparator.runTabTypographyComparison(
-      const ['--case', 'prices'],
+      const [],
       standardOutput: output,
       errorOutput: errors,
     );
 
-    expect(
-      exitCode,
-      1,
-      reason:
-          'Task 2 shared evidence remains deliberately deferred.\n'
-          '$output$errors',
-    );
+    expect(exitCode, 1, reason: '$output$errors');
     final rows = _parseCsv(output.toString());
     final header = rows.first;
     final recordType = header.indexOf('recordType');
+    final caseId = header.indexOf('case');
     final regionType = header.indexOf('regionType');
     final region = header.indexOf('region');
-    final status = header.indexOf('status');
+    final referenceInk = header.indexOf('measuredReferenceInk');
+    final candidateInk = header.indexOf('candidateInk');
+    final selectedColorDelta = header.indexOf('semanticInkDelta');
+    final referenceSurrounding = header.indexOf('measuredReferenceForeground');
+    final candidateSurrounding = header.indexOf('candidateForeground');
+    final surroundingColorDelta = header.indexOf('foregroundColorDelta');
+    final edgeDelta = header.indexOf('edgeDelta');
     final details = header.indexOf('details');
-    const deferredDetail =
-        'reference-evidence-deferred: lossless shared navigation source '
-        'required; restore in Task 7';
-    final failed = rows
-        .skip(1)
-        .where((row) => row[status] == 'FAIL')
-        .toList(growable: false);
-    final deferred = failed
-        .where((row) => row[details] == deferredDetail)
-        .toList(growable: false);
-    expect(deferred, hasLength(8));
-    expect(deferred.map((row) => row[region]).toSet(), {
-      'bottom-navigation-selected-pill-surface',
-      'navigation-chart-icon',
-      'navigation-settings-icon',
-      'navigation-prices-label',
-      'navigation-chart-label',
-      'navigation-trade-label',
-      'navigation-history-label',
-      'navigation-settings-label',
-    });
-
-    bool isShared(List<String> row) {
-      final name = row[region];
-      return name.startsWith('navigation-') ||
-          name.startsWith('bottom-navigation');
-    }
-
-    final pricesFailures = failed
-        .where((row) => !isShared(row))
-        .map((row) => '${row[recordType]}|${row[regionType]}|${row[region]}')
-        .toSet();
-    const approvedPricesFailures = {
-      'static-canvas|fullCanvas|static-audit',
-      'static-region|content|content',
-      'static-region|header|header',
-      'static-region|body|body',
-      'static-region|header|prices-header-foreground',
-      'static-region|body|prices-body-foreground',
-      'static-control|control|prices-toolbar-list',
-      'static-control|control|prices-toolbar-edit',
-      'static-control|control|prices-toolbar-search',
-      'static-control|control|prices-first-change-accent',
-      'static-control|control|prices-second-change-accent',
-      'static-control|control|prices-first-low-label',
-      'static-control|control|prices-first-high-label',
-      'static-control|control|prices-second-low-label',
-      'static-control|control|prices-second-high-label',
-      'text|staticText|quote-corner',
-      'text|staticText|quote-symbol',
-      'text|staticText|second-quote-symbol',
-      'text|staticText|first-quote-low-label',
-      'text|staticText|first-quote-high-label',
-      'text|staticText|second-quote-low-label',
-      'text|staticText|second-quote-high-label',
+    const historyCaseIds = {
+      'history-positions',
+      'history-orders',
+      'history-orders-summary',
+      'history-deals',
     };
-    expect(
-      pricesFailures.difference(approvedPricesFailures),
-      isEmpty,
-      reason:
-          'A new Prices-owned strict FAIL needs explicit review.\n'
-          '$output$errors',
-    );
+
+    for (final id in historyCaseIds) {
+      final selectedRows = rows
+          .skip(1)
+          .where(
+            (row) =>
+                row[caseId] == id && row[region] == 'selected-segment-surface',
+          )
+          .toList(growable: false);
+      expect(selectedRows, hasLength(1), reason: '$id\n$output$errors');
+      final selected = selectedRows.single;
+      expect(selected[recordType], 'static-surface', reason: id);
+      expect(selected[regionType], 'surface', reason: id);
+      expect(selected[referenceInk], startsWith('rgb('), reason: id);
+      expect(selected[candidateInk], 'rgb(237,237,237)', reason: id);
+      expect(
+        int.parse(selected[selectedColorDelta]),
+        lessThanOrEqualTo(4),
+        reason: id,
+      );
+      expect(selected[referenceSurrounding], startsWith('rgb('), reason: id);
+      expect(selected[candidateSurrounding], 'rgb(255,255,255)', reason: id);
+      expect(
+        int.parse(selected[surroundingColorDelta]),
+        lessThanOrEqualTo(4),
+        reason: id,
+      );
+      expect(selected[edgeDelta], isNotEmpty, reason: id);
+      expect(selected[details], contains('original coordinates'), reason: id);
+      expect(
+        rows.where(
+          (row) =>
+              row[caseId] == id &&
+              row[recordType] == 'text' &&
+              row[region] == 'selected-segment-surface',
+        ),
+        isEmpty,
+        reason: '$id must never emit text measurement for a surface fill',
+      );
+    }
   });
 
   test('canonical atomic deferral preserves immutable strict evidence', () {
@@ -2165,6 +2201,67 @@ void main() {
       );
       expect(result.diagnostics, contains('surface RGB delta 7'));
     });
+
+    test(
+      'History selected segment surface rejects an incorrect rendered fill',
+      () async {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 40, 2, 2, 1, const ReferenceInk(237, 237, 237));
+        _fillInkRect(candidate, 40, 2, 2, 1, const ReferenceInk(237, 237, 237));
+        _fillInkRect(
+          reference,
+          12,
+          12,
+          20,
+          6,
+          const ReferenceInk(237, 237, 237),
+        );
+        _fillInkRect(
+          candidate,
+          12,
+          12,
+          20,
+          6,
+          const ReferenceInk(230, 230, 230),
+        );
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _fixtureCase(
+            surfaceRegions: const [
+              ReferenceSurfaceRegion(
+                name: 'selected-segment-surface',
+                rect: ReferencePixelRect(12, 12, 20, 6),
+                surfaceRole: navigationSelectedSurfaceRole,
+                surroundingRole: navigationWhiteSurfaceRole,
+              ),
+            ],
+            referenceSurfaceInteriors: const [
+              ReferenceSurfaceInterior(
+                role: navigationWhiteSurfaceRole,
+                rect: ReferencePixelRect(2, 2, 2, 1),
+              ),
+              ReferenceSurfaceInterior(
+                role: navigationSelectedSurfaceRole,
+                rect: ReferencePixelRect(40, 2, 2, 1),
+              ),
+            ],
+          ),
+        );
+
+        expect(result.exitCode, 1, reason: result.diagnostics);
+        final row = _rowForRegion(
+          result.diagnostics,
+          'selected-segment-surface',
+        );
+        expect(row, startsWith('static-surface,'));
+        expect(row, contains(',surface,selected-segment-surface,'));
+        expect(row, contains(',FAIL,'));
+        expect(row, contains('pixels belong to neither declared surface'));
+      },
+    );
 
     test('selected pill surface rejects a changed corner radius', () async {
       final reference = _surfaceFixtureImage();

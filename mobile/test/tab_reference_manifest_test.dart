@@ -120,7 +120,6 @@ void main() {
         'position-profit',
       },
       TabReferenceState.historyPositions: {
-        'selected-segment-surface',
         'balance-value',
         'position-action',
         'position-secondary',
@@ -129,14 +128,12 @@ void main() {
         'summary-value',
       },
       TabReferenceState.historyOrders: {
-        'selected-segment-surface',
         'order-action',
         'order-secondary',
         'order-status',
         'order-timestamp',
       },
       TabReferenceState.historyOrdersSummary: {
-        'selected-segment-surface',
         'order-action',
         'order-secondary',
         'order-status',
@@ -144,7 +141,6 @@ void main() {
         'summary-value',
       },
       TabReferenceState.historyDeals: {
-        'selected-segment-surface',
         'deal-action',
         'deal-secondary',
         'deal-timestamp',
@@ -210,17 +206,47 @@ void main() {
     },
   );
 
-  test('history selected surfaces use isolated color-component audits', () {
-    final historyCases = tabReferenceCases.where(
-      (item) => item.state.name.startsWith('history'),
-    );
-    for (final item in historyCases) {
-      final surface = item.staticTextRegions.singleWhere(
-        (region) => region.name == 'selected-segment-surface',
+  test('history selected segments are strict calibrated surfaces', () {
+    const expectedRects = <String, ReferencePixelRect>{
+      'history-positions': ReferencePixelRect(105, 97, 130, 6),
+      'history-orders': ReferencePixelRect(230, 97, 135, 6),
+      'history-orders-summary': ReferencePixelRect(230, 97, 135, 6),
+      'history-deals': ReferencePixelRect(355, 97, 135, 6),
+    };
+
+    for (final entry in expectedRects.entries) {
+      final referenceCase = tabReferenceCases.singleWhere(
+        (item) => item.id == entry.key,
       );
-      expect(surface.geometryColorTolerance, 10, reason: item.id);
-      expect(surface.semanticColorTolerance, 6, reason: item.id);
-      expect(surface.measureLargestGeometryComponent, isTrue, reason: item.id);
+      final surfaces = referenceCase.surfaceRegions
+          .where((region) => region.name == 'selected-segment-surface')
+          .toList(growable: false);
+      expect(surfaces, hasLength(1), reason: entry.key);
+      final surface = surfaces.single;
+      expect(
+        surface.rect.toString(),
+        entry.value.toString(),
+        reason: entry.key,
+      );
+      expect(
+        surface.surfaceRole,
+        navigationSelectedSurfaceRole,
+        reason: entry.key,
+      );
+      expect(
+        surface.surroundingRole,
+        navigationWhiteSurfaceRole,
+        reason: entry.key,
+      );
+      expect(surface.excludedRects, isEmpty, reason: entry.key);
+      expect(surface.foregroundRegionNames, isEmpty, reason: entry.key);
+      expect(
+        referenceCase.staticTextRegions.where(
+          (region) => region.name == 'selected-segment-surface',
+        ),
+        isEmpty,
+        reason: '${entry.key}: a fill must never use text measurement',
+      );
     }
   });
 
