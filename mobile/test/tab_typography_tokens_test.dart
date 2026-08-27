@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_shadows.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 
@@ -62,6 +63,12 @@ void main() {
 
   test('canonical tab geometry remains explicit', () {
     expect(TabReferenceMetrics.viewportWidth, closeTo(393.3333333333, .0001));
+    expect(TabReferenceMetrics.bottomNavigationLeftInset, 18.6666666667);
+    expect(TabReferenceMetrics.bottomNavigationCapsuleWidth, 356.0);
+    expect(
+      TabReferenceMetrics.bottomNavigationContentHorizontalInset,
+      7.3333333333,
+    );
     expect(TabReferenceMetrics.quoteRowHeight, 69.3333333333);
     expect(TabReferenceMetrics.quoteBtcMetaTop, 46);
     expect(TabReferenceMetrics.quoteBtcPriceScaleY, 1.07);
@@ -88,6 +95,21 @@ void main() {
     expect(TabReferenceMetrics.historyOrderStatusOffsetX, -.6666666667);
     expect(TabReferenceMetrics.historyOrderStatusOffsetY, .6666666667);
     expect(TabReferenceMetrics.historyOrderSummaryTotalOffsetY, -.6666666667);
+    expect(TabReferenceMetrics.bottomNavigationSelectionOverhangs(0), (
+      left: 3.3333333333,
+      right: 4.0,
+    ));
+    expect(TabReferenceMetrics.bottomNavigationSelectionOverhangs(2), (
+      left: 3.3333333333,
+      right: 2.6666666667,
+    ));
+    expect(TabReferenceMetrics.bottomNavigationSelectionOverhangs(3), (
+      left: 4.0,
+      right: 2.6666666667,
+    ));
+    expect(AppShadows.navigation, const <BoxShadow>[
+      BoxShadow(color: Color(0x0D000000), blurRadius: 30, offset: Offset.zero),
+    ]);
   });
 
   test('Trade metric labels compensate each mobile text rasterizer', () {

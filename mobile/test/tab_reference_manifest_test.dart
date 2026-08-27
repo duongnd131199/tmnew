@@ -196,6 +196,24 @@ void main() {
         expect(actual.height, expected[index].height, reason: referenceCase.id);
         expect(statusMasks[index].reason.trim(), isNotEmpty);
       }
+      final statusAuditRows = referenceCase.staticTextRegions
+          .where(
+            (region) =>
+                region.auditMode == StaticTextAuditMode.dynamicOnly &&
+                region.name.startsWith('system-status-'),
+          )
+          .toList(growable: false);
+      expect(statusAuditRows, hasLength(2), reason: referenceCase.id);
+      expect(
+        statusAuditRows.map((region) => region.name).toSet(),
+        {'system-status-clock', 'system-status-device'},
+        reason: referenceCase.id,
+      );
+      for (var index = 0; index < expected.length; index++) {
+        final row = statusAuditRows[index];
+        expect(row.referenceRect.toString(), expected[index].toString());
+        expect(row.candidateRect.toString(), expected[index].toString());
+      }
     }
   });
 
@@ -213,14 +231,12 @@ void main() {
       'navigation-trade-icon': ReferencePixelRect(270, 1180, 45, 38),
       'navigation-history-icon': ReferencePixelRect(375, 1180, 48, 38),
       'navigation-settings-icon': ReferencePixelRect(478, 1180, 42, 38),
-      'bottom-navigation-capsule-surface': ReferencePixelRect(460, 1238, 8, 5),
-      'bottom-navigation-shadow': ReferencePixelRect(190, 1252, 210, 2),
     };
     const expectedSelectedPills = <ReferenceSelectedTab, ReferencePixelRect>{
-      ReferenceSelectedTab.prices: ReferencePixelRect(80, 1173, 20, 8),
-      ReferenceSelectedTab.chart: ReferencePixelRect(184, 1173, 18, 8),
-      ReferenceSelectedTab.trade: ReferencePixelRect(282, 1173, 22, 8),
-      ReferenceSelectedTab.history: ReferencePixelRect(382, 1173, 23, 8),
+      ReferenceSelectedTab.prices: ReferencePixelRect(34, 1171, 114, 75),
+      ReferenceSelectedTab.chart: ReferencePixelRect(136, 1171, 114, 75),
+      ReferenceSelectedTab.trade: ReferencePixelRect(238, 1171, 114, 75),
+      ReferenceSelectedTab.history: ReferencePixelRect(339, 1171, 115, 75),
     };
 
     for (final referenceCase in tabReferenceCases) {
@@ -241,9 +257,9 @@ void main() {
         );
       }
       expect(
-        controls['bottom-navigation-selected-pill'].toString(),
-        expectedSelectedPills[referenceCase.selectedTab].toString(),
-        reason: '${referenceCase.id}: selected pill',
+        controls.keys.where((name) => name.startsWith('navigation-')),
+        hasLength(5),
+        reason: referenceCase.id,
       );
       expect(
         referenceCase.staticTextRegions.map((region) => region.name).toSet(),
@@ -251,12 +267,39 @@ void main() {
         reason: '${referenceCase.id}: all labels remain strictly audited',
       );
       final navigation = referenceCase.visualRegions.singleWhere(
-        (region) => region.type == ReferenceVisualRegionType.bottomNavigation,
+        (region) => region.name == 'bottom-navigation',
       );
       expect(
         navigation.rect.toString(),
         const ReferencePixelRect(28, 1169, 535, 93).toString(),
         reason: '${referenceCase.id}: capsule and measured shadow bounds',
+      );
+      expect(navigation.requiredForegroundRoles.toSet(), {
+        navigationBlackRole,
+        navigationBlueRole,
+      });
+      expect(navigation.foregroundRegionNames, hasLength(10));
+      expect(navigation.shadowRegionNames, hasLength(3));
+      final pill = referenceCase.visualRegions.singleWhere(
+        (region) => region.name == 'bottom-navigation-selected-pill',
+      );
+      expect(
+        pill.rect.toString(),
+        expectedSelectedPills[referenceCase.selectedTab].toString(),
+      );
+      expect(pill.requiredForegroundRoles.toSet(), {navigationBlueRole});
+      expect(pill.foregroundRegionNames, hasLength(2));
+      expect(pill.shadowRegionNames, isEmpty);
+      expect(referenceCase.shadowRegions.map((region) => region.name).toSet(), {
+        'bottom-navigation-shadow-left',
+        'bottom-navigation-shadow-right',
+        'bottom-navigation-shadow-bottom',
+      });
+      expect(
+        referenceCase.shadowRegions
+            .map((region) => region.surfaceSampleRect.toString())
+            .toSet(),
+        {const ReferencePixelRect(460, 1238, 8, 5).toString()},
       );
     }
   });
@@ -309,6 +352,11 @@ void main() {
     for (final referenceCase in tabReferenceCases) {
       expect(
         referenceCase.referenceForegroundInteriors
+            .where(
+              (interior) =>
+                  interior.role == navigationBlackRole ||
+                  interior.role == navigationBlueRole,
+            )
             .map((interior) => '${interior.role}@${interior.rect}')
             .toSet(),
         expected[referenceCase.id],
@@ -319,6 +367,7 @@ void main() {
         navigationBlackRole,
         navigationBlueRole,
       });
+      expect(referenceCase.referenceForegroundInteriors, hasLength(4));
     }
   });
 
@@ -596,8 +645,10 @@ void main() {
   );
 
   test('dynamic-only text audit set is an independent exact oracle', () {
+    const systemStatus = {'system-status-clock', 'system-status-device'};
     const expected = <String, Set<String>>{
       'prices': {
+        ...systemStatus,
         'first-quote-bid',
         'first-quote-ask',
         'second-quote-bid',
@@ -609,12 +660,16 @@ void main() {
         'second-quote-low-value',
         'second-quote-high-value',
       },
-      'chart': {'ticket-sell-price', 'ticket-buy-price'},
-      'trade': {'header-profit-value', 'position-profit'},
-      'history-positions': {'position-profit', 'summary-value'},
-      'history-orders': {},
-      'history-orders-summary': {},
-      'history-deals': {},
+      'chart': {...systemStatus, 'ticket-sell-price', 'ticket-buy-price'},
+      'trade': {...systemStatus, 'header-profit-value', 'position-profit'},
+      'history-positions': {
+        ...systemStatus,
+        'position-profit',
+        'summary-value',
+      },
+      'history-orders': {...systemStatus},
+      'history-orders-summary': {...systemStatus},
+      'history-deals': {...systemStatus},
     };
     const requiredStaticMixedParts = <String, Set<String>>{
       'prices': {
@@ -648,8 +703,13 @@ void main() {
   });
 
   test('every dynamic-only rectangle exactly matches its authorized mask', () {
+    const systemStatus = <String, ReferencePixelRect>{
+      'system-status-clock': ReferencePixelRect(62, 15, 98, 41),
+      'system-status-device': ReferencePixelRect(406, 15, 184, 41),
+    };
     const expected = <String, Map<String, ReferencePixelRect>>{
       'prices': {
+        ...systemStatus,
         'first-quote-bid': ReferencePixelRect(361, 180, 109, 37),
         'first-quote-ask': ReferencePixelRect(481, 180, 100, 37),
         'second-quote-bid': ReferencePixelRect(385, 278, 90, 40),
@@ -662,17 +722,23 @@ void main() {
         'second-quote-high-value': ReferencePixelRect(536, 320, 43, 38),
       },
       'chart': {
+        ...systemStatus,
         'ticket-sell-price': ReferencePixelRect(35, 162, 120, 33),
         'ticket-buy-price': ReferencePixelRect(445, 162, 135, 33),
       },
       'trade': {
+        ...systemStatus,
         'header-profit-value': ReferencePixelRect(225, 97, 85, 27),
         'position-profit': ReferencePixelRect(494, 388, 87, 27),
       },
       'history-positions': {
+        ...systemStatus,
         'position-profit': ReferencePixelRect(505, 238, 85, 37),
         'summary-value': ReferencePixelRect(455, 552, 135, 40),
       },
+      'history-orders': {...systemStatus},
+      'history-orders-summary': {...systemStatus},
+      'history-deals': {...systemStatus},
     };
 
     for (final referenceCase in tabReferenceCases) {

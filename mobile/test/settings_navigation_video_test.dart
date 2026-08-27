@@ -266,12 +266,11 @@ void main() {
       find.byKey(const ValueKey('bottom-nav-icon-history')),
       findsOneWidget,
     );
-    expect(
-      tester
-          .widget<Icon>(find.byKey(const ValueKey('bottom-nav-icon-settings')))
-          .icon,
-      Icons.settings_outlined,
+    final settingsIcon = find.byKey(
+      const ValueKey('bottom-nav-icon-settings'),
     );
+    expect(settingsIcon, findsOneWidget);
+    expect(tester.widget(settingsIcon), isA<CustomPaint>());
     expect(selectedLabel().style?.color, AppColors.negative);
 
     container.read(activeDemoAccountIdProvider.notifier).select('10001003');

@@ -119,13 +119,34 @@ reference role color. Empty roles, inconsistent samples, missing assignments,
 and missing or extra composite roles are input/comparison failures. Manifest
 ink values and role names route measurements only and are never RGB oracles.
 
-Static text and atomic controls compare their locally measured, unsnapped
-candidate ink with the calibrated reference role. A composite region compares
-an independent per-role map and fails on its worst RGB delta. Exact decoded
-raster equality retains the raw pair so a reference copy remains invariant;
-any pixel mutation returns to calibrated comparison. Surface, foreground,
-geometry, and residual checks remain independent and use the existing limits.
-The CSV remains 22 columns, and whole-navigation rows remain mandatory.
+Uniform navigation text and atomic controls use an immutable reference-only
+consensus keyed by control identity, selected/unselected state, semantic role,
+and uniform surface. Every eligible reference belongs to exactly one
+predeclared key. Members are independently calibrated and control-normalized
+at original coordinates; support uses strict majority `floor(n / 2) + 1` and
+coverage uses deterministic median including zero for non-support. Consensus
+alone derives bounds, topology, centroid, mass, projections, and the fixed
+reference-coordinate 3x3 grid. Each row records source path/SHA-256 and exact
+membership/rule provenance.
+
+Candidate ink remains raw and unsnapped, requires a local RGB4 core and
+reconstruction error `<= 4`, and cannot influence reference calibration or
+consensus. Exact decoded raster equality retains the raw identity behavior;
+any mutation returns to calibrated comparison. Atomic foreground owns only its
+exact audited support union, not a blanket dilation; off-axis pixels remain
+parent-owned. RGB, edge, complete component topology/bijection, symmetric
+support residual, mass, centroid, and grid checks are independent hard gates.
+
+Selected-pill and whole-navigation rows are hierarchical parents: each audits
+every surface pixel outside its named exact support ownership and audited class
+boundary, then aggregates those
+already-enforced child results with its own surface counts. Whole child
+rectangles are not excluded, coordinates are not normalized, and residuals are
+not diluted into the canvas. Capsule shadow is a separate surface-relative
+darkness audit with named side and bottom regions, a local decoded white
+surface, a reference-derived noise floor, and symmetric one-physical-pixel
+matching. It is not a solid foreground role. The CSV remains 22 columns, and
+whole-navigation rows remain mandatory.
 
 ### Capture and evidence flow
 
@@ -233,3 +254,4 @@ in the task report.
 - updated screen/evidence documentation and a final debug APK;
 - a final report containing exact commands, outcomes, environment limitations,
   assumptions, and every ruling made during autonomous execution.
+The implemented navigation comparator is hierarchical: exact calibrated foreground/transition ownership feeds explicit capsule and selected-pill surface leaves, dedicated surface-relative shadow leaves, and integrated composites. JPEG-derived foreground topology and pill support remain strict evidence failures, so Task 2 is verification-deferred rather than passed. The fixed detail is `reference-evidence-deferred: lossless shared navigation source required; restore in Task 7`; Task 7 replaces the lossy source and removes the deferral without changing thresholds, masks, coordinates, or ownership.

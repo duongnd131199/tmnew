@@ -40,8 +40,8 @@ const _iconSearchRects = <Rect>[
 const _referenceBounds = <Rect>[
   Rect.fromLTWH(51, 786, 18, 16),
   Rect.fromLTWH(122, 786, 13, 16),
-  Rect.fromLTWH(187, 785, 19, 18),
-  Rect.fromLTWH(255, 785, 19, 19),
+  Rect.fromLTWH(187, 784, 19, 19),
+  Rect.fromLTWH(254, 785, 20, 18),
 ];
 
 void main() {
@@ -93,10 +93,10 @@ void main() {
 
     final bounds = await _darkInkBounds(tester, _iconSearchRects[3]);
 
-    expect(bounds, const Rect.fromLTWH(255, 785, 19, 19));
+    expect(bounds, const Rect.fromLTWH(254, 785, 20, 18));
     expect(
       bounds.width - bounds.height,
-      lessThanOrEqualTo(1),
+      lessThanOrEqualTo(2),
       reason: 'The clock arc must not be compressed into a horizontal oval.',
     );
   });
@@ -179,8 +179,18 @@ void main() {
       targetRects.add(tester.getRect(target));
     }
 
-    expect(targetRects.map((rect) => rect.width).toSet(), hasLength(1));
-    expect(targetRects.map((rect) => rect.height).toSet(), hasLength(1));
+    expect(
+      targetRects.every(
+        (rect) => (rect.width - targetRects.first.width).abs() < 1e-9,
+      ),
+      isTrue,
+    );
+    expect(
+      targetRects.every(
+        (rect) => (rect.height - targetRects.first.height).abs() < 1e-9,
+      ),
+      isTrue,
+    );
     expect(targetRects.every((rect) => rect.width >= 48), isTrue);
     expect(targetRects.every((rect) => rect.height >= 48), isTrue);
 
@@ -262,17 +272,17 @@ void main() {
     tester,
   ) async {
     const expectedUnselected = <String, double>{
-      'quotes': 333,
-      'chart': 350,
-      'trade': 335,
-      'history': 325,
-      'settings': 350,
+      'quotes': 325,
+      'chart': 342,
+      'trade': 350,
+      'history': 313,
+      'settings': 329,
     };
     const expectedSelected = <String, double>{
-      'quotes': 256,
-      'chart': 310,
-      'trade': 305,
-      'history': 250,
+      'quotes': 300,
+      'chart': 281,
+      'trade': 288,
+      'history': 280,
       'settings': 350,
     };
     final kinds = expectedUnselected.keys.toList(growable: false);

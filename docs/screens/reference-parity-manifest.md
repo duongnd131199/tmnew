@@ -70,12 +70,38 @@ inconsistent samples, unassigned required foreground, and missing or extra
 composite roles fail. Manifest ink and role keys route measurements only; they
 are not RGB truth.
 
-Text and atomic controls compare the calibrated reference role with locally
-measured, raw candidate ink. Composite whole-navigation rows compare black and
-blue role maps independently and fail on the worst delta. Required acceptance
-remains surface/foreground RGB `<= 4` per channel and edge delta `<= 1`
-physical pixel; whole-canvas residual and geometry checks remain in force. The
-CSV remains exactly 22 columns. The `12`-per-channel threshold is only a JPEG
+Uniform icon and label controls declare their selection state, semantic role,
+and explicit uniform surface. Their reference support is decoded independently
+with the fixed geometry tolerance; RGB12 is supplemental reference seed
+evidence, while the candidate remains raw with RGB4 cores and reconstruction
+error `<= 4`. The geometry tolerance discovers lossy reference support only:
+it is not a semantic color allowance and never snaps or normalizes a candidate.
+
+The reference corpus predeclares every control/state/role/surface consensus key
+and assigns every eligible reference exactly once. Each member is normalized
+once at the control level in its original coordinates. Consensus support uses
+strict majority `floor(n / 2) + 1`, and coverage is the deterministic median
+including zero for a non-supporting member. Consensus alone supplies bounds,
+component topology, centroid, mass, projections, and the fixed reference 3x3
+grid. Source path and SHA-256 provenance are emitted with every atomic row;
+candidate pixels cannot affect either membership or consensus.
+
+Each foreground child owns its exact audited support union; there is no blanket
+dilation. Off-axis colors fail the child and remain parent-owned. Atomic rows
+independently enforce raw semantic RGB `<= 4` per channel, feature edge `<= 1`
+physical pixel, complete one-to-one local component matching, symmetric
+missing-plus-extra support residual `<= 0.5%`, coverage-mass delta `<= 5%`,
+centroid x/y `<= 1`, and reference-coordinate grid variation `<= 5%`.
+
+Selected-pill and whole-navigation rows are hierarchical composites. Their
+parent surface audit covers every pixel outside the named child foreground
+ownership and explicitly audited class boundary; it never excludes whole child rectangles. The capsule's
+white-on-white fill is surface-owned. Named left, right, and bottom shadow rows
+use local decoded surface color, a reference-derived noise floor, and symmetric
+surface-relative darkness matching within one physical pixel. Shadow is not a
+solid foreground role. Composite rows aggregate the already-enforced child and
+parent-surface results without canvas dilution or coordinate rescaling. The CSV
+remains exactly 22 columns. The `12`-per-channel threshold is only a JPEG
 residual-count allowance, never a semantic color tolerance. Candidate tokens
 are never used as reference truth or snapped to a calibrated value.
 
@@ -92,7 +118,7 @@ and bottom navigation remain static audit targets.
 
 | Dynamic class | Exact exclusion reason |
 | --- | --- |
-| `systemStatusValues` | “The operating-system clock and silent indicator are capture-time values.” The left glyph mask is `[62, 15, 98, 40]`, measured around the clock/silent glyphs rather than from the canvas edge. Carrier, signal, and battery use the separate exact reason “Carrier, signal, and battery status are supplied by the device at capture time.” |
+| `systemStatusValues` | “The operating-system clock and silent indicator are capture-time values.” The left glyph mask is `[62, 15, 98, 41]`, measured around the clock/silent glyphs rather than from the canvas edge. Carrier, signal, and battery use the separate exact reason “Carrier, signal, and battery status are supplied by the device at capture time.” |
 | `livePrices` | Quote Bid/Ask values are “supplied by the live market feed”; session Low/High values are “derived from the live market session”; chart-ticket sell and buy quotes are “a live market value.” Low/High masks start after the static `L:`/`H:` glyphs. |
 | `liveTimes` | Quote timestamps are excluded because they “advance with the live market feed.” Historical transaction timestamps are not masked: they describe the captured history state. |
 | `liveProfitAndLoss` | Only the Trade header's changing numeric glyphs (`429.40` in the reference) and each visible open-position profit glyph are masked. The protected `USD` suffix, header spacing, and each Trade row's spacing and `[581, 318, 5, 790]` scrollbar remain static. The Positions-history profit summary is excluded because it “is recalculated from position outcomes.” |
@@ -101,3 +127,4 @@ and bottom navigation remain static audit targets.
 The masks use physical-pixel rectangles wholly inside the JPEG canvas. They
 are evaluated against required static control/label rectangles so future
 updates cannot accidentally hide a regression in UI structure.
+Task 2 navigation certification is verification-deferred, not PASS. The manifest owns every navigation pixel hierarchically through opaque foreground leaves, explicit capsule and selected-pill surface leaves, dedicated shadow leaves, and seven integrated composites. Current JPEG-derived atomic and pill evidence stays strict FAIL with `reference-evidence-deferred: lossless shared navigation source required; restore in Task 7`; Task 7 must provide the lossless shared source and remove that deferral. Tasks 3–6 may rely on the implemented ownership structure but may not promote these rows to PASS.

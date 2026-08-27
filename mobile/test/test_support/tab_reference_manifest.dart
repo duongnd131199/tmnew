@@ -74,12 +74,16 @@ class ReferenceVisualRegion {
     required this.type,
     required this.rect,
     this.requiredForegroundRoles = const <String>[],
+    this.foregroundRegionNames = const <String>[],
+    this.shadowRegionNames = const <String>[],
   });
 
   final String name;
   final ReferenceVisualRegionType type;
   final ReferencePixelRect rect;
   final List<String> requiredForegroundRoles;
+  final List<String> foregroundRegionNames;
+  final List<String> shadowRegionNames;
 }
 
 class ReferenceForegroundInterior {
@@ -89,11 +93,95 @@ class ReferenceForegroundInterior {
   final ReferencePixelRect rect;
 }
 
-class ReferenceStaticControlRegion {
-  const ReferenceStaticControlRegion({required this.name, required this.rect});
+class ReferenceSurfaceInterior {
+  const ReferenceSurfaceInterior({required this.role, required this.rect});
+
+  final String role;
+  final ReferencePixelRect rect;
+}
+
+class ReferenceSurfaceRegion {
+  const ReferenceSurfaceRegion({
+    required this.name,
+    required this.rect,
+    required this.surfaceRole,
+    required this.surroundingRole,
+    this.excludedRects = const <ReferencePixelRect>[],
+    this.foregroundRegionNames = const <String>[],
+  });
 
   final String name;
   final ReferencePixelRect rect;
+  final String surfaceRole;
+  final String surroundingRole;
+  final List<ReferencePixelRect> excludedRects;
+  final List<String> foregroundRegionNames;
+}
+
+enum ReferenceForegroundSelectionState { selected, unselected }
+
+class ReferenceForegroundConsensusKey {
+  const ReferenceForegroundConsensusKey({
+    required this.controlIdentity,
+    required this.selection,
+    required this.semanticRole,
+    required this.surfaceRole,
+  });
+
+  final String controlIdentity;
+  final ReferenceForegroundSelectionState selection;
+  final String semanticRole;
+  final String surfaceRole;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ReferenceForegroundConsensusKey &&
+      other.controlIdentity == controlIdentity &&
+      other.selection == selection &&
+      other.semanticRole == semanticRole &&
+      other.surfaceRole == surfaceRole;
+
+  @override
+  int get hashCode =>
+      Object.hash(controlIdentity, selection, semanticRole, surfaceRole);
+
+  @override
+  String toString() =>
+      '$controlIdentity|${selection.name}|$semanticRole|$surfaceRole';
+}
+
+class ReferenceForegroundConsensusGroup {
+  const ReferenceForegroundConsensusGroup({
+    required this.key,
+    required this.memberCaseIds,
+  });
+
+  final ReferenceForegroundConsensusKey key;
+  final List<String> memberCaseIds;
+}
+
+class ReferenceStaticControlRegion {
+  const ReferenceStaticControlRegion({
+    required this.name,
+    required this.rect,
+    this.geometryColorTolerance = 112,
+  });
+
+  final String name;
+  final ReferencePixelRect rect;
+  final int geometryColorTolerance;
+}
+
+class ReferenceShadowRegion {
+  const ReferenceShadowRegion({
+    required this.name,
+    required this.rect,
+    required this.surfaceSampleRect,
+  });
+
+  final String name;
+  final ReferencePixelRect rect;
+  final ReferencePixelRect surfaceSampleRect;
 }
 
 class ReferenceDynamicMask {
@@ -170,6 +258,9 @@ const referenceChartBlueInk = ReferenceInk(49, 131, 255);
 const referenceBlackInk = ReferenceInk(0, 0, 0);
 const navigationBlackRole = 'navigation-black';
 const navigationBlueRole = 'navigation-blue';
+const navigationWhiteSurfaceRole = 'navigation-white-surface';
+const navigationSelectedSurfaceRole = 'navigation-selected-surface';
+const navigationSurroundingWhiteRole = 'navigation-surrounding-white';
 
 const _geometryPrimaryInk = ReferenceInk(17, 17, 17);
 const _geometrySecondaryInk = ReferenceInk(92, 92, 96);
@@ -306,6 +397,157 @@ const _baseVisualRegions = <ReferenceVisualRegion>[
     type: ReferenceVisualRegionType.bottomNavigation,
     rect: ReferencePixelRect(28, 1169, 535, 93),
     requiredForegroundRoles: <String>[navigationBlackRole, navigationBlueRole],
+    foregroundRegionNames: <String>[
+      'navigation-prices-icon',
+      'navigation-prices-label',
+      'navigation-chart-icon',
+      'navigation-chart-label',
+      'navigation-trade-icon',
+      'navigation-trade-label',
+      'navigation-history-icon',
+      'navigation-history-label',
+      'navigation-settings-icon',
+      'navigation-settings-label',
+    ],
+    shadowRegionNames: <String>[
+      'bottom-navigation-shadow-left',
+      'bottom-navigation-shadow-right',
+      'bottom-navigation-shadow-bottom',
+    ],
+  ),
+];
+
+const _pricesSelectedPillVisual = ReferenceVisualRegion(
+  name: 'bottom-navigation-selected-pill',
+  type: ReferenceVisualRegionType.bottomNavigation,
+  rect: ReferencePixelRect(34, 1171, 114, 75),
+  requiredForegroundRoles: <String>[navigationBlueRole],
+  foregroundRegionNames: <String>[
+    'navigation-prices-icon',
+    'navigation-prices-label',
+  ],
+);
+const _chartSelectedPillVisual = ReferenceVisualRegion(
+  name: 'bottom-navigation-selected-pill',
+  type: ReferenceVisualRegionType.bottomNavigation,
+  rect: ReferencePixelRect(136, 1171, 114, 75),
+  requiredForegroundRoles: <String>[navigationBlueRole],
+  foregroundRegionNames: <String>[
+    'navigation-chart-icon',
+    'navigation-chart-label',
+  ],
+);
+const _tradeSelectedPillVisual = ReferenceVisualRegion(
+  name: 'bottom-navigation-selected-pill',
+  type: ReferenceVisualRegionType.bottomNavigation,
+  rect: ReferencePixelRect(238, 1171, 114, 75),
+  requiredForegroundRoles: <String>[navigationBlueRole],
+  foregroundRegionNames: <String>[
+    'navigation-trade-icon',
+    'navigation-trade-label',
+  ],
+);
+const _historySelectedPillVisual = ReferenceVisualRegion(
+  name: 'bottom-navigation-selected-pill',
+  type: ReferenceVisualRegionType.bottomNavigation,
+  rect: ReferencePixelRect(339, 1171, 115, 75),
+  requiredForegroundRoles: <String>[navigationBlueRole],
+  foregroundRegionNames: <String>[
+    'navigation-history-icon',
+    'navigation-history-label',
+  ],
+);
+
+const _allNavigationForegroundNames = <String>[
+  'navigation-prices-icon',
+  'navigation-prices-label',
+  'navigation-chart-icon',
+  'navigation-chart-label',
+  'navigation-trade-icon',
+  'navigation-trade-label',
+  'navigation-history-icon',
+  'navigation-history-label',
+  'navigation-settings-icon',
+  'navigation-settings-label',
+];
+
+const _navigationCapsuleRect = ReferencePixelRect(60, 1176, 477, 65);
+
+const _pricesNavigationSurfaceRegions = <ReferenceSurfaceRegion>[
+  ReferenceSurfaceRegion(
+    name: 'bottom-navigation-capsule-surface',
+    rect: _navigationCapsuleRect,
+    surfaceRole: navigationWhiteSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
+    excludedRects: [ReferencePixelRect(60, 1176, 88, 65)],
+    foregroundRegionNames: _allNavigationForegroundNames,
+  ),
+  ReferenceSurfaceRegion(
+    name: 'bottom-navigation-selected-pill-surface',
+    rect: ReferencePixelRect(34, 1171, 114, 75),
+    surfaceRole: navigationSelectedSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
+    foregroundRegionNames: [
+      'navigation-prices-icon',
+      'navigation-prices-label',
+    ],
+  ),
+];
+
+const _chartNavigationSurfaceRegions = <ReferenceSurfaceRegion>[
+  ReferenceSurfaceRegion(
+    name: 'bottom-navigation-capsule-surface',
+    rect: _navigationCapsuleRect,
+    surfaceRole: navigationWhiteSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
+    excludedRects: [ReferencePixelRect(136, 1176, 114, 65)],
+    foregroundRegionNames: _allNavigationForegroundNames,
+  ),
+  ReferenceSurfaceRegion(
+    name: 'bottom-navigation-selected-pill-surface',
+    rect: ReferencePixelRect(136, 1171, 114, 75),
+    surfaceRole: navigationSelectedSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
+    foregroundRegionNames: ['navigation-chart-icon', 'navigation-chart-label'],
+  ),
+];
+
+const _tradeNavigationSurfaceRegions = <ReferenceSurfaceRegion>[
+  ReferenceSurfaceRegion(
+    name: 'bottom-navigation-capsule-surface',
+    rect: _navigationCapsuleRect,
+    surfaceRole: navigationWhiteSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
+    excludedRects: [ReferencePixelRect(238, 1176, 114, 65)],
+    foregroundRegionNames: _allNavigationForegroundNames,
+  ),
+  ReferenceSurfaceRegion(
+    name: 'bottom-navigation-selected-pill-surface',
+    rect: ReferencePixelRect(238, 1171, 114, 75),
+    surfaceRole: navigationSelectedSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
+    foregroundRegionNames: ['navigation-trade-icon', 'navigation-trade-label'],
+  ),
+];
+
+const _historyNavigationSurfaceRegions = <ReferenceSurfaceRegion>[
+  ReferenceSurfaceRegion(
+    name: 'bottom-navigation-capsule-surface',
+    rect: _navigationCapsuleRect,
+    surfaceRole: navigationWhiteSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
+    excludedRects: [ReferencePixelRect(339, 1176, 115, 65)],
+    foregroundRegionNames: _allNavigationForegroundNames,
+  ),
+  ReferenceSurfaceRegion(
+    name: 'bottom-navigation-selected-pill-surface',
+    rect: ReferencePixelRect(339, 1171, 115, 75),
+    surfaceRole: navigationSelectedSurfaceRole,
+    surroundingRole: navigationWhiteSurfaceRole,
+    foregroundRegionNames: [
+      'navigation-history-icon',
+      'navigation-history-label',
+    ],
   ),
 ];
 
@@ -442,6 +684,66 @@ const _historyDealsForegroundInteriors = <ReferenceForegroundInterior>[
   ),
 ];
 
+const _pricesSurfaceInteriors = <ReferenceSurfaceInterior>[
+  ReferenceSurfaceInterior(
+    role: navigationWhiteSurfaceRole,
+    rect: ReferencePixelRect(460, 1238, 8, 5),
+  ),
+  ReferenceSurfaceInterior(
+    role: navigationSelectedSurfaceRole,
+    rect: ReferencePixelRect(80, 1173, 20, 8),
+  ),
+  ReferenceSurfaceInterior(
+    role: navigationSurroundingWhiteRole,
+    rect: ReferencePixelRect(20, 1170, 8, 8),
+  ),
+];
+
+const _chartSurfaceInteriors = <ReferenceSurfaceInterior>[
+  ReferenceSurfaceInterior(
+    role: navigationWhiteSurfaceRole,
+    rect: ReferencePixelRect(460, 1238, 8, 5),
+  ),
+  ReferenceSurfaceInterior(
+    role: navigationSelectedSurfaceRole,
+    rect: ReferencePixelRect(184, 1173, 18, 8),
+  ),
+  ReferenceSurfaceInterior(
+    role: navigationSurroundingWhiteRole,
+    rect: ReferencePixelRect(20, 1170, 8, 8),
+  ),
+];
+
+const _tradeSurfaceInteriors = <ReferenceSurfaceInterior>[
+  ReferenceSurfaceInterior(
+    role: navigationWhiteSurfaceRole,
+    rect: ReferencePixelRect(460, 1238, 8, 5),
+  ),
+  ReferenceSurfaceInterior(
+    role: navigationSelectedSurfaceRole,
+    rect: ReferencePixelRect(282, 1173, 22, 8),
+  ),
+  ReferenceSurfaceInterior(
+    role: navigationSurroundingWhiteRole,
+    rect: ReferencePixelRect(20, 1170, 8, 8),
+  ),
+];
+
+const _historySurfaceInteriors = <ReferenceSurfaceInterior>[
+  ReferenceSurfaceInterior(
+    role: navigationWhiteSurfaceRole,
+    rect: ReferencePixelRect(460, 1238, 8, 5),
+  ),
+  ReferenceSurfaceInterior(
+    role: navigationSelectedSurfaceRole,
+    rect: ReferencePixelRect(382, 1173, 23, 8),
+  ),
+  ReferenceSurfaceInterior(
+    role: navigationSurroundingWhiteRole,
+    rect: ReferencePixelRect(20, 1170, 8, 8),
+  ),
+];
+
 const _pricesForegroundRoles = <String, String>{
   'navigation-prices-icon': navigationBlueRole,
   'navigation-prices-label': navigationBlueRole,
@@ -494,6 +796,291 @@ const _historyForegroundRoles = <String, String>{
   'navigation-settings-label': navigationBlackRole,
 };
 
+const _pricesSurfaceRoles = <String, String>{
+  'navigation-prices-icon': navigationSelectedSurfaceRole,
+  'navigation-prices-label': navigationSelectedSurfaceRole,
+  'navigation-chart-icon': navigationWhiteSurfaceRole,
+  'navigation-chart-label': navigationWhiteSurfaceRole,
+  'navigation-trade-icon': navigationWhiteSurfaceRole,
+  'navigation-trade-label': navigationWhiteSurfaceRole,
+  'navigation-history-icon': navigationWhiteSurfaceRole,
+  'navigation-history-label': navigationWhiteSurfaceRole,
+  'navigation-settings-icon': navigationWhiteSurfaceRole,
+  'navigation-settings-label': navigationWhiteSurfaceRole,
+};
+
+const _chartSurfaceRoles = <String, String>{
+  'navigation-prices-icon': navigationWhiteSurfaceRole,
+  'navigation-prices-label': navigationWhiteSurfaceRole,
+  'navigation-chart-icon': navigationSelectedSurfaceRole,
+  'navigation-chart-label': navigationSelectedSurfaceRole,
+  'navigation-trade-icon': navigationWhiteSurfaceRole,
+  'navigation-trade-label': navigationWhiteSurfaceRole,
+  'navigation-history-icon': navigationWhiteSurfaceRole,
+  'navigation-history-label': navigationWhiteSurfaceRole,
+  'navigation-settings-icon': navigationWhiteSurfaceRole,
+  'navigation-settings-label': navigationWhiteSurfaceRole,
+};
+
+const _tradeSurfaceRoles = <String, String>{
+  'navigation-prices-icon': navigationWhiteSurfaceRole,
+  'navigation-prices-label': navigationWhiteSurfaceRole,
+  'navigation-chart-icon': navigationWhiteSurfaceRole,
+  'navigation-chart-label': navigationWhiteSurfaceRole,
+  'navigation-trade-icon': navigationSelectedSurfaceRole,
+  'navigation-trade-label': navigationSelectedSurfaceRole,
+  'navigation-history-icon': navigationWhiteSurfaceRole,
+  'navigation-history-label': navigationWhiteSurfaceRole,
+  'navigation-settings-icon': navigationWhiteSurfaceRole,
+  'navigation-settings-label': navigationWhiteSurfaceRole,
+};
+
+const _historySurfaceRoles = <String, String>{
+  'navigation-prices-icon': navigationWhiteSurfaceRole,
+  'navigation-prices-label': navigationWhiteSurfaceRole,
+  'navigation-chart-icon': navigationWhiteSurfaceRole,
+  'navigation-chart-label': navigationWhiteSurfaceRole,
+  'navigation-trade-icon': navigationWhiteSurfaceRole,
+  'navigation-trade-label': navigationWhiteSurfaceRole,
+  'navigation-history-icon': navigationSelectedSurfaceRole,
+  'navigation-history-label': navigationSelectedSurfaceRole,
+  'navigation-settings-icon': navigationWhiteSurfaceRole,
+  'navigation-settings-label': navigationWhiteSurfaceRole,
+};
+
+const _pricesForegroundSelections = <String, ReferenceForegroundSelectionState>{
+  'navigation-prices-icon': ReferenceForegroundSelectionState.selected,
+  'navigation-prices-label': ReferenceForegroundSelectionState.selected,
+  'navigation-chart-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-chart-label': ReferenceForegroundSelectionState.unselected,
+  'navigation-trade-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-trade-label': ReferenceForegroundSelectionState.unselected,
+  'navigation-history-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-history-label': ReferenceForegroundSelectionState.unselected,
+  'navigation-settings-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-settings-label': ReferenceForegroundSelectionState.unselected,
+};
+
+const _chartForegroundSelections = <String, ReferenceForegroundSelectionState>{
+  'navigation-prices-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-prices-label': ReferenceForegroundSelectionState.unselected,
+  'navigation-chart-icon': ReferenceForegroundSelectionState.selected,
+  'navigation-chart-label': ReferenceForegroundSelectionState.selected,
+  'navigation-trade-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-trade-label': ReferenceForegroundSelectionState.unselected,
+  'navigation-history-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-history-label': ReferenceForegroundSelectionState.unselected,
+  'navigation-settings-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-settings-label': ReferenceForegroundSelectionState.unselected,
+};
+
+const _tradeForegroundSelections = <String, ReferenceForegroundSelectionState>{
+  'navigation-prices-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-prices-label': ReferenceForegroundSelectionState.unselected,
+  'navigation-chart-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-chart-label': ReferenceForegroundSelectionState.unselected,
+  'navigation-trade-icon': ReferenceForegroundSelectionState.selected,
+  'navigation-trade-label': ReferenceForegroundSelectionState.selected,
+  'navigation-history-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-history-label': ReferenceForegroundSelectionState.unselected,
+  'navigation-settings-icon': ReferenceForegroundSelectionState.unselected,
+  'navigation-settings-label': ReferenceForegroundSelectionState.unselected,
+};
+
+const _historyForegroundSelections =
+    <String, ReferenceForegroundSelectionState>{
+      'navigation-prices-icon': ReferenceForegroundSelectionState.unselected,
+      'navigation-prices-label': ReferenceForegroundSelectionState.unselected,
+      'navigation-chart-icon': ReferenceForegroundSelectionState.unselected,
+      'navigation-chart-label': ReferenceForegroundSelectionState.unselected,
+      'navigation-trade-icon': ReferenceForegroundSelectionState.unselected,
+      'navigation-trade-label': ReferenceForegroundSelectionState.unselected,
+      'navigation-history-icon': ReferenceForegroundSelectionState.selected,
+      'navigation-history-label': ReferenceForegroundSelectionState.selected,
+      'navigation-settings-icon': ReferenceForegroundSelectionState.unselected,
+      'navigation-settings-label': ReferenceForegroundSelectionState.unselected,
+    };
+
+final tabReferenceForegroundConsensusGroups =
+    <ReferenceForegroundConsensusGroup>[
+      ReferenceForegroundConsensusGroup(
+        key: ReferenceForegroundConsensusKey(
+          controlIdentity: 'navigation-prices-icon',
+          selection: ReferenceForegroundSelectionState.selected,
+          semanticRole: navigationBlueRole,
+          surfaceRole: navigationSelectedSurfaceRole,
+        ),
+        memberCaseIds: ['prices'],
+      ),
+      ReferenceForegroundConsensusGroup(
+        key: ReferenceForegroundConsensusKey(
+          controlIdentity: 'navigation-prices-label',
+          selection: ReferenceForegroundSelectionState.selected,
+          semanticRole: navigationBlueRole,
+          surfaceRole: navigationSelectedSurfaceRole,
+        ),
+        memberCaseIds: ['prices'],
+      ),
+      ReferenceForegroundConsensusGroup(
+        key: ReferenceForegroundConsensusKey(
+          controlIdentity: 'navigation-chart-icon',
+          selection: ReferenceForegroundSelectionState.selected,
+          semanticRole: navigationBlueRole,
+          surfaceRole: navigationSelectedSurfaceRole,
+        ),
+        memberCaseIds: ['chart'],
+      ),
+      ReferenceForegroundConsensusGroup(
+        key: ReferenceForegroundConsensusKey(
+          controlIdentity: 'navigation-chart-label',
+          selection: ReferenceForegroundSelectionState.selected,
+          semanticRole: navigationBlueRole,
+          surfaceRole: navigationSelectedSurfaceRole,
+        ),
+        memberCaseIds: ['chart'],
+      ),
+      ReferenceForegroundConsensusGroup(
+        key: ReferenceForegroundConsensusKey(
+          controlIdentity: 'navigation-trade-icon',
+          selection: ReferenceForegroundSelectionState.selected,
+          semanticRole: navigationBlueRole,
+          surfaceRole: navigationSelectedSurfaceRole,
+        ),
+        memberCaseIds: ['trade'],
+      ),
+      ReferenceForegroundConsensusGroup(
+        key: ReferenceForegroundConsensusKey(
+          controlIdentity: 'navigation-trade-label',
+          selection: ReferenceForegroundSelectionState.selected,
+          semanticRole: navigationBlueRole,
+          surfaceRole: navigationSelectedSurfaceRole,
+        ),
+        memberCaseIds: ['trade'],
+      ),
+      ReferenceForegroundConsensusGroup(
+        key: ReferenceForegroundConsensusKey(
+          controlIdentity: 'navigation-history-icon',
+          selection: ReferenceForegroundSelectionState.selected,
+          semanticRole: navigationBlueRole,
+          surfaceRole: navigationSelectedSurfaceRole,
+        ),
+        memberCaseIds: [
+          'history-positions',
+          'history-orders',
+          'history-orders-summary',
+          'history-deals',
+        ],
+      ),
+      ReferenceForegroundConsensusGroup(
+        key: ReferenceForegroundConsensusKey(
+          controlIdentity: 'navigation-history-label',
+          selection: ReferenceForegroundSelectionState.selected,
+          semanticRole: navigationBlueRole,
+          surfaceRole: navigationSelectedSurfaceRole,
+        ),
+        memberCaseIds: [
+          'history-positions',
+          'history-orders',
+          'history-orders-summary',
+          'history-deals',
+        ],
+      ),
+      for (final control in <String>[
+        'navigation-prices-icon',
+        'navigation-prices-label',
+      ])
+        ReferenceForegroundConsensusGroup(
+          key: ReferenceForegroundConsensusKey(
+            controlIdentity: control,
+            selection: ReferenceForegroundSelectionState.unselected,
+            semanticRole: navigationBlackRole,
+            surfaceRole: navigationWhiteSurfaceRole,
+          ),
+          memberCaseIds: [
+            'chart',
+            'trade',
+            'history-positions',
+            'history-orders',
+            'history-orders-summary',
+            'history-deals',
+          ],
+        ),
+      for (final control in <String>[
+        'navigation-chart-icon',
+        'navigation-chart-label',
+      ])
+        ReferenceForegroundConsensusGroup(
+          key: ReferenceForegroundConsensusKey(
+            controlIdentity: control,
+            selection: ReferenceForegroundSelectionState.unselected,
+            semanticRole: navigationBlackRole,
+            surfaceRole: navigationWhiteSurfaceRole,
+          ),
+          memberCaseIds: [
+            'prices',
+            'trade',
+            'history-positions',
+            'history-orders',
+            'history-orders-summary',
+            'history-deals',
+          ],
+        ),
+      for (final control in <String>[
+        'navigation-trade-icon',
+        'navigation-trade-label',
+      ])
+        ReferenceForegroundConsensusGroup(
+          key: ReferenceForegroundConsensusKey(
+            controlIdentity: control,
+            selection: ReferenceForegroundSelectionState.unselected,
+            semanticRole: navigationBlackRole,
+            surfaceRole: navigationWhiteSurfaceRole,
+          ),
+          memberCaseIds: [
+            'prices',
+            'chart',
+            'history-positions',
+            'history-orders',
+            'history-orders-summary',
+            'history-deals',
+          ],
+        ),
+      for (final control in <String>[
+        'navigation-history-icon',
+        'navigation-history-label',
+      ])
+        ReferenceForegroundConsensusGroup(
+          key: ReferenceForegroundConsensusKey(
+            controlIdentity: control,
+            selection: ReferenceForegroundSelectionState.unselected,
+            semanticRole: navigationBlackRole,
+            surfaceRole: navigationWhiteSurfaceRole,
+          ),
+          memberCaseIds: ['prices', 'chart', 'trade'],
+        ),
+      for (final control in <String>[
+        'navigation-settings-icon',
+        'navigation-settings-label',
+      ])
+        ReferenceForegroundConsensusGroup(
+          key: ReferenceForegroundConsensusKey(
+            controlIdentity: control,
+            selection: ReferenceForegroundSelectionState.unselected,
+            semanticRole: navigationBlackRole,
+            surfaceRole: navigationWhiteSurfaceRole,
+          ),
+          memberCaseIds: [
+            'prices',
+            'chart',
+            'trade',
+            'history-positions',
+            'history-orders',
+            'history-orders-summary',
+            'history-deals',
+          ],
+        ),
+    ];
+
 const _tradeScrollbarRegion = ReferenceVisualRegion(
   name: 'trade-scrollbar-indicator',
   type: ReferenceVisualRegionType.scrollbar,
@@ -539,32 +1126,25 @@ const _baseStaticControls = <ReferenceStaticControlRegion>[
     name: 'navigation-settings-icon',
     rect: ReferencePixelRect(478, 1180, 42, 38),
   ),
-  ReferenceStaticControlRegion(
-    name: 'bottom-navigation-capsule-surface',
-    rect: ReferencePixelRect(460, 1238, 8, 5),
-  ),
-  ReferenceStaticControlRegion(
-    name: 'bottom-navigation-shadow',
-    rect: ReferencePixelRect(190, 1252, 210, 2),
-  ),
 ];
 
-const _pricesSelectedPillControl = ReferenceStaticControlRegion(
-  name: 'bottom-navigation-selected-pill',
-  rect: ReferencePixelRect(80, 1173, 20, 8),
-);
-const _chartSelectedPillControl = ReferenceStaticControlRegion(
-  name: 'bottom-navigation-selected-pill',
-  rect: ReferencePixelRect(184, 1173, 18, 8),
-);
-const _tradeSelectedPillControl = ReferenceStaticControlRegion(
-  name: 'bottom-navigation-selected-pill',
-  rect: ReferencePixelRect(282, 1173, 22, 8),
-);
-const _historySelectedPillControl = ReferenceStaticControlRegion(
-  name: 'bottom-navigation-selected-pill',
-  rect: ReferencePixelRect(382, 1173, 23, 8),
-);
+const _navigationShadowRegions = <ReferenceShadowRegion>[
+  ReferenceShadowRegion(
+    name: 'bottom-navigation-shadow-left',
+    rect: ReferencePixelRect(28, 1174, 6, 72),
+    surfaceSampleRect: ReferencePixelRect(460, 1238, 8, 5),
+  ),
+  ReferenceShadowRegion(
+    name: 'bottom-navigation-shadow-right',
+    rect: ReferencePixelRect(557, 1174, 6, 72),
+    surfaceSampleRect: ReferencePixelRect(460, 1238, 8, 5),
+  ),
+  ReferenceShadowRegion(
+    name: 'bottom-navigation-shadow-bottom',
+    rect: ReferencePixelRect(28, 1246, 535, 16),
+    surfaceSampleRect: ReferencePixelRect(460, 1238, 8, 5),
+  ),
+];
 
 const _systemStatusMasks = <ReferenceDynamicMask>[
   ReferenceDynamicMask(
@@ -581,9 +1161,25 @@ const _systemStatusMasks = <ReferenceDynamicMask>[
   ),
 ];
 
+const _systemStatusAuditRows = <StaticTextRegion>[
+  StaticTextRegion(
+    name: 'system-status-clock',
+    referenceRect: ReferencePixelRect(62, 15, 98, 41),
+    candidateRect: ReferencePixelRect(62, 15, 98, 41),
+    ink: referencePrimaryInk,
+    auditMode: StaticTextAuditMode.dynamicOnly,
+  ),
+  StaticTextRegion(
+    name: 'system-status-device',
+    referenceRect: ReferencePixelRect(406, 15, 184, 41),
+    candidateRect: ReferencePixelRect(406, 15, 184, 41),
+    ink: referencePrimaryInk,
+    auditMode: StaticTextAuditMode.dynamicOnly,
+  ),
+];
+
 const _pricesStaticControls = <ReferenceStaticControlRegion>[
   ..._baseStaticControls,
-  _pricesSelectedPillControl,
   ReferenceStaticControlRegion(
     name: 'toolbar-title',
     rect: ReferencePixelRect(250, 88, 90, 50),
@@ -616,7 +1212,6 @@ const _pricesStaticControls = <ReferenceStaticControlRegion>[
 
 const _chartStaticControls = <ReferenceStaticControlRegion>[
   ..._baseStaticControls,
-  _chartSelectedPillControl,
   ReferenceStaticControlRegion(
     name: 'toolbar-timeframe',
     rect: ReferencePixelRect(12, 92, 52, 42),
@@ -653,7 +1248,6 @@ const _chartStaticControls = <ReferenceStaticControlRegion>[
 
 const _tradeStaticControls = <ReferenceStaticControlRegion>[
   ..._baseStaticControls,
-  _tradeSelectedPillControl,
   ReferenceStaticControlRegion(
     name: 'trade-header-currency-label',
     rect: ReferencePixelRect(315, 97, 49, 27),
@@ -682,7 +1276,6 @@ const _tradeStaticControls = <ReferenceStaticControlRegion>[
 
 const _historyStaticControls = <ReferenceStaticControlRegion>[
   ..._baseStaticControls,
-  _historySelectedPillControl,
   ReferenceStaticControlRegion(
     name: 'history-segment-control',
     rect: ReferencePixelRect(105, 90, 385, 49),
@@ -725,6 +1318,7 @@ class TabReferenceCase {
   const TabReferenceCase({
     required this.id,
     required this.fileName,
+    this.referenceSha256 = '',
     required this.state,
     required this.route,
     required this.selectedTab,
@@ -732,14 +1326,21 @@ class TabReferenceCase {
     required this.staticAuditRegion,
     required this.visualRegions,
     required this.staticControlRegions,
+    this.shadowRegions = const <ReferenceShadowRegion>[],
     this.staticTextRegions = const <StaticTextRegion>[],
     this.dynamicMaskRegions = const <ReferenceDynamicMask>[],
     this.referenceForegroundInteriors = const <ReferenceForegroundInterior>[],
+    this.referenceSurfaceInteriors = const <ReferenceSurfaceInterior>[],
     this.foregroundRoleByRegion = const <String, String>{},
+    this.surfaceRoleByRegion = const <String, String>{},
+    this.surfaceRegions = const <ReferenceSurfaceRegion>[],
+    this.foregroundSelectionByRegion =
+        const <String, ReferenceForegroundSelectionState>{},
   });
 
   final String id;
   final String fileName;
+  final String referenceSha256;
   final TabReferenceState state;
   final String route;
   final ReferenceSelectedTab selectedTab;
@@ -747,10 +1348,16 @@ class TabReferenceCase {
   final ReferencePixelRect staticAuditRegion;
   final List<ReferenceVisualRegion> visualRegions;
   final List<ReferenceStaticControlRegion> staticControlRegions;
+  final List<ReferenceShadowRegion> shadowRegions;
   final List<StaticTextRegion> staticTextRegions;
   final List<ReferenceDynamicMask> dynamicMaskRegions;
   final List<ReferenceForegroundInterior> referenceForegroundInteriors;
+  final List<ReferenceSurfaceInterior> referenceSurfaceInteriors;
   final Map<String, String> foregroundRoleByRegion;
+  final Map<String, String> surfaceRoleByRegion;
+  final List<ReferenceSurfaceRegion> surfaceRegions;
+  final Map<String, ReferenceForegroundSelectionState>
+  foregroundSelectionByRegion;
 
   /// Compatibility view consumed by the existing typography comparator.
   List<ReferencePixelRect> get dynamicMasks => dynamicMaskRegions
@@ -767,6 +1374,8 @@ const tabReferenceCases = <TabReferenceCase>[
   TabReferenceCase(
     id: 'prices',
     fileName: 'photo_2026-08-25_22-30-10.jpg',
+    referenceSha256:
+        '6739a1668fa87ca745f5e43ea472c2413ef0434fa1074c3b180c7278ea658db5',
     state: TabReferenceState.prices,
     route: '/prices',
     selectedTab: ReferenceSelectedTab.prices,
@@ -775,11 +1384,17 @@ const tabReferenceCases = <TabReferenceCase>[
       scrollState: ReferenceScrollState.atTop,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: _baseVisualRegions,
+    visualRegions: [..._baseVisualRegions, _pricesSelectedPillVisual],
+    surfaceRegions: _pricesNavigationSurfaceRegions,
     staticControlRegions: _pricesStaticControls,
+    shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _pricesForegroundInteriors,
+    referenceSurfaceInteriors: _pricesSurfaceInteriors,
     foregroundRoleByRegion: _pricesForegroundRoles,
+    surfaceRoleByRegion: _pricesSurfaceRoles,
+    foregroundSelectionByRegion: _pricesForegroundSelections,
     staticTextRegions: [
+      ..._systemStatusAuditRows,
       StaticTextRegion(
         name: 'toolbar-title',
         referenceRect: ReferencePixelRect(250, 88, 90, 50),
@@ -959,6 +1574,8 @@ const tabReferenceCases = <TabReferenceCase>[
   TabReferenceCase(
     id: 'chart',
     fileName: 'photo_2026-08-25_22-30-17.jpg',
+    referenceSha256:
+        'e5d878286e76f843fec97ac2fc14de68d219fd20475a381a2bda941226854e31',
     state: TabReferenceState.chart,
     route: '/chart',
     selectedTab: ReferenceSelectedTab.chart,
@@ -967,11 +1584,17 @@ const tabReferenceCases = <TabReferenceCase>[
       scrollState: ReferenceScrollState.atTop,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: _baseVisualRegions,
+    visualRegions: [..._baseVisualRegions, _chartSelectedPillVisual],
+    surfaceRegions: _chartNavigationSurfaceRegions,
     staticControlRegions: _chartStaticControls,
+    shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _chartForegroundInteriors,
+    referenceSurfaceInteriors: _chartSurfaceInteriors,
     foregroundRoleByRegion: _chartForegroundRoles,
+    surfaceRoleByRegion: _chartSurfaceRoles,
+    foregroundSelectionByRegion: _chartForegroundSelections,
     staticTextRegions: [
+      ..._systemStatusAuditRows,
       StaticTextRegion(
         name: 'toolbar-timeframe',
         referenceRect: ReferencePixelRect(12, 92, 52, 42),
@@ -1045,6 +1668,8 @@ const tabReferenceCases = <TabReferenceCase>[
   TabReferenceCase(
     id: 'trade',
     fileName: 'photo_2026-08-25_22-30-20.jpg',
+    referenceSha256:
+        '5c619acae61c2cbf11f6210a0888fe0cd2cf5fb49917e9189015c9431769becc',
     state: TabReferenceState.trade,
     route: '/trade',
     selectedTab: ReferenceSelectedTab.trade,
@@ -1055,11 +1680,21 @@ const tabReferenceCases = <TabReferenceCase>[
       hasVisibleScrollbar: true,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: [..._baseVisualRegions, _tradeScrollbarRegion],
+    visualRegions: [
+      ..._baseVisualRegions,
+      _tradeSelectedPillVisual,
+      _tradeScrollbarRegion,
+    ],
+    surfaceRegions: _tradeNavigationSurfaceRegions,
     staticControlRegions: _tradeStaticControls,
+    shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _tradeForegroundInteriors,
+    referenceSurfaceInteriors: _tradeSurfaceInteriors,
     foregroundRoleByRegion: _tradeForegroundRoles,
+    surfaceRoleByRegion: _tradeSurfaceRoles,
+    foregroundSelectionByRegion: _tradeForegroundSelections,
     staticTextRegions: [
+      ..._systemStatusAuditRows,
       StaticTextRegion(
         name: 'metric-label',
         referenceRect: ReferencePixelRect(4, 157, 110, 38),
@@ -1185,6 +1820,8 @@ const tabReferenceCases = <TabReferenceCase>[
   TabReferenceCase(
     id: 'history-positions',
     fileName: 'photo_2026-08-25_22-30-23.jpg',
+    referenceSha256:
+        '40bfd8ddf3e24158453da32e4318e9219d02a201b09bb2fb53d6ee95a98a5924',
     state: TabReferenceState.historyPositions,
     route: '/history/positions',
     selectedTab: ReferenceSelectedTab.history,
@@ -1194,11 +1831,17 @@ const tabReferenceCases = <TabReferenceCase>[
       scrollState: ReferenceScrollState.atTop,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: _baseVisualRegions,
+    visualRegions: [..._baseVisualRegions, _historySelectedPillVisual],
+    surfaceRegions: _historyNavigationSurfaceRegions,
     staticControlRegions: _historyPositionsStaticControls,
+    shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _historyPositionsForegroundInteriors,
+    referenceSurfaceInteriors: _historySurfaceInteriors,
     foregroundRoleByRegion: _historyForegroundRoles,
+    surfaceRoleByRegion: _historySurfaceRoles,
+    foregroundSelectionByRegion: _historyForegroundSelections,
     staticTextRegions: [
+      ..._systemStatusAuditRows,
       StaticTextRegion(
         name: 'selected-segment-surface',
         referenceRect: ReferencePixelRect(105, 97, 130, 6),
@@ -1304,6 +1947,8 @@ const tabReferenceCases = <TabReferenceCase>[
   TabReferenceCase(
     id: 'history-orders',
     fileName: 'photo_2026-08-25_22-30-26.jpg',
+    referenceSha256:
+        '48dbab6778e247325222bf0e10e991f0ef4d160ecf4cb4127be1e6d1b6eb83c1',
     state: TabReferenceState.historyOrders,
     route: '/history/orders',
     selectedTab: ReferenceSelectedTab.history,
@@ -1314,11 +1959,21 @@ const tabReferenceCases = <TabReferenceCase>[
       hasVisibleScrollbar: true,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: [..._baseVisualRegions, _historyOrdersScrollbarRegion],
+    visualRegions: [
+      ..._baseVisualRegions,
+      _historySelectedPillVisual,
+      _historyOrdersScrollbarRegion,
+    ],
+    surfaceRegions: _historyNavigationSurfaceRegions,
     staticControlRegions: _historyOrdersStaticControls,
+    shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _historyOrdersForegroundInteriors,
+    referenceSurfaceInteriors: _historySurfaceInteriors,
     foregroundRoleByRegion: _historyForegroundRoles,
+    surfaceRoleByRegion: _historySurfaceRoles,
+    foregroundSelectionByRegion: _historyForegroundSelections,
     staticTextRegions: [
+      ..._systemStatusAuditRows,
       StaticTextRegion(
         name: 'selected-segment-surface',
         referenceRect: ReferencePixelRect(230, 97, 135, 6),
@@ -1384,6 +2039,8 @@ const tabReferenceCases = <TabReferenceCase>[
   TabReferenceCase(
     id: 'history-orders-summary',
     fileName: 'photo_2026-08-25_22-30-29.jpg',
+    referenceSha256:
+        '7f8d2fe5c086eacb5a8364435373645a4ba3e2ba3df7b852467b5a51d0ee45ee',
     state: TabReferenceState.historyOrdersSummary,
     route: '/history/orders',
     selectedTab: ReferenceSelectedTab.history,
@@ -1395,12 +2052,19 @@ const tabReferenceCases = <TabReferenceCase>[
     staticAuditRegion: _referenceCanvas,
     visualRegions: [
       ..._baseVisualRegions,
+      _historySelectedPillVisual,
       _historyOrdersSummaryScrollbarRegion,
     ],
+    surfaceRegions: _historyNavigationSurfaceRegions,
     staticControlRegions: _historyOrdersSummaryStaticControls,
+    shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _historyOrdersSummaryForegroundInteriors,
+    referenceSurfaceInteriors: _historySurfaceInteriors,
     foregroundRoleByRegion: _historyForegroundRoles,
+    surfaceRoleByRegion: _historySurfaceRoles,
+    foregroundSelectionByRegion: _historyForegroundSelections,
     staticTextRegions: [
+      ..._systemStatusAuditRows,
       StaticTextRegion(
         name: 'selected-segment-surface',
         referenceRect: ReferencePixelRect(230, 97, 135, 6),
@@ -1472,6 +2136,8 @@ const tabReferenceCases = <TabReferenceCase>[
   TabReferenceCase(
     id: 'history-deals',
     fileName: 'photo_2026-08-25_22-30-34.jpg',
+    referenceSha256:
+        '6fbbf3ccfc834b94052df32713a153c10518298b644844fb9482fa51a70e3bb9',
     state: TabReferenceState.historyDeals,
     route: '/history/deals',
     selectedTab: ReferenceSelectedTab.history,
@@ -1481,11 +2147,21 @@ const tabReferenceCases = <TabReferenceCase>[
       hasVisibleScrollbar: true,
     ),
     staticAuditRegion: _referenceCanvas,
-    visualRegions: [..._baseVisualRegions, _historyDealsScrollbarRegion],
+    visualRegions: [
+      ..._baseVisualRegions,
+      _historySelectedPillVisual,
+      _historyDealsScrollbarRegion,
+    ],
+    surfaceRegions: _historyNavigationSurfaceRegions,
     staticControlRegions: _historyDealsStaticControls,
+    shadowRegions: _navigationShadowRegions,
     referenceForegroundInteriors: _historyDealsForegroundInteriors,
+    referenceSurfaceInteriors: _historySurfaceInteriors,
     foregroundRoleByRegion: _historyForegroundRoles,
+    surfaceRoleByRegion: _historySurfaceRoles,
+    foregroundSelectionByRegion: _historyForegroundSelections,
     staticTextRegions: [
+      ..._systemStatusAuditRows,
       StaticTextRegion(
         name: 'selected-segment-surface',
         referenceRect: ReferencePixelRect(355, 97, 135, 6),

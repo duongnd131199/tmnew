@@ -162,6 +162,33 @@ whole-navigation residual/geometry rows, all existing thresholds, and exact
 decoded-raster invariance. Add adversarial black, blue, misleading-hint,
 empty/inconsistent, missing/extra-role, and one-pixel-mutation regressions.
 
+Initial fix-round amendment, superseded for uniform atomic rows by the
+consensus amendment below: role-aware atomic rows own their actual detected
+foreground plus at most one physical transition pixel. Independently enforce
+raw candidate semantic RGB `<= 4`, feature edge `<= 1`, and symmetric
+missing-plus-extra shape residual `<= 0.5%` at original coordinates. Composite
+parents audit every surface pixel outside named child ownership, aggregate the
+already-enforced child results, and never exclude whole child rectangles,
+dilute into the canvas, or rescale coordinates. Remove shadow from solid-role
+classification; named side/bottom rows instead compare surface-relative
+darkness beyond a reference-derived noise floor, symmetrically within one
+physical pixel, with their raw reference-derived core RGB checked separately.
+Keep the 22-column schema and all existing thresholds.
+
+Consensus amendment: for every uniform navigation icon/label, predeclare the
+complete control/state/semantic-role/surface key and immutable reference
+membership. Calibrate and normalize every decoded reference independently in
+original coordinates, then derive support by strict majority
+`floor(n / 2) + 1` and coverage by deterministic median including zero for
+non-support. Consensus alone supplies bounds, topology, centroid, mass,
+projections, and the fixed reference 3x3 grid. Candidate support remains raw,
+uses RGB4 cores and reconstruction error `<= 4`, and cannot affect consensus.
+Own the exact audited support union with no blanket dilation; off-axis colors
+remain parent-owned and fail the child. Emit deterministic source path,
+SHA-256, key, member count, majority, and aggregation provenance without
+changing the 22-column CSV. Test outlier resistance, strict-majority mutation,
+candidate invariance, and exact missing/duplicate/unexpected membership.
+
 - [ ] **Step 5: Extend the CSV and focused CLI contract**
 
 Add `measuredReferenceForeground`, `candidateForeground`, and
@@ -658,3 +685,4 @@ tracked Android captures. Commit: `test: close seven-state reference parity`.
 - Backend build/test have fresh successful results or a verbatim environment-only block that was not bypassed by changing the required stack.
 - Final whole-branch review has no unaddressed Critical or Important finding.
 - No unrelated owner work was modified, staged, reset, stashed, or cleaned.
+Task 2 implementation is complete with verification deferred. Preserve the strict 10/60 atomic and 7/7 capsule/pill surface evidence, the strict shadow evidence, and the 22-column artifacts through Tasks 3–6. Task 7 supplies the lossless shared navigation source, removes the exact evidence-deferral rows, and reruns certification; no earlier task may relabel a deferred FAIL as PASS or SKIP.

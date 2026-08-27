@@ -1028,7 +1028,100 @@ void main() {
     expect('$output$errors', contains('Reference parity failed'));
   });
 
-  test('all seven candidates pass shared chrome', () {
+  test('canonical atomic deferral preserves immutable strict evidence', () {
+    final root = Directory.systemTemp.createTempSync(
+      'mt5-atomic-deferred-evidence-',
+    );
+    addTearDown(() => root.deleteSync(recursive: true));
+    final output = StringBuffer();
+    final errors = StringBuffer();
+    final exitCode = comparator.runTabTypographyComparison(
+      ['--output-dir', root.path],
+      standardOutput: output,
+      errorOutput: errors,
+    );
+
+    expect(exitCode, 1, reason: '$output$errors');
+    final rows = _parseCsv(output.toString());
+    final header = rows.first;
+    final regionIndex = header.indexOf('region');
+    final statusIndex = header.indexOf('status');
+    final detailsIndex = header.indexOf('details');
+    final atomicRows = rows
+        .skip(1)
+        .where(
+          (row) =>
+              row[regionIndex].startsWith('navigation-') &&
+              (row[regionIndex].endsWith('-icon') ||
+                  row[regionIndex].endsWith('-label')),
+        )
+        .toList(growable: false);
+    expect(atomicRows, hasLength(70));
+    expect(
+      atomicRows.where((row) => row[statusIndex] == 'PASS'),
+      hasLength(10),
+    );
+    final deferred = atomicRows
+        .where((row) => row[statusIndex] == 'FAIL')
+        .toList(growable: false);
+    expect(deferred, hasLength(60));
+    expect(deferred.map((row) => row[detailsIndex]).toSet(), {
+      'reference-evidence-deferred: lossless shared navigation source '
+          'required; restore in Task 7',
+    });
+    expect(tabReferenceForegroundConsensusGroups, hasLength(18));
+    expect(
+      tabReferenceForegroundConsensusGroups.fold<int>(
+        0,
+        (sum, group) => sum + group.memberCaseIds.length,
+      ),
+      70,
+    );
+    expect(
+      tabReferenceCases.map((item) => item.referenceSha256).toSet(),
+      hasLength(7),
+    );
+
+    final evidence = File(
+      '${root.path}/atomic-deferred-evidence.csv',
+    ).readAsStringSync();
+    expect(_fnv1a64(evidence), '-fe9fe9695ab2bc3');
+    expect(_fnv1a64(_atomicNumericEvidence(evidence)), '050c4c5ec79384e9');
+    final evidenceRows = _parseCsv(evidence);
+    expect(evidenceRows, hasLength(71));
+    expect(
+      evidenceRows.skip(1).where((row) => row[statusIndex] == 'PASS'),
+      hasLength(10),
+    );
+    expect(
+      evidenceRows.skip(1).where((row) => row[statusIndex] == 'FAIL'),
+      hasLength(60),
+    );
+
+    final surfaceEvidence = File(
+      '${root.path}/surface-deferred-evidence.csv',
+    ).readAsStringSync();
+    final surfaceRows = _parseCsv(surfaceEvidence);
+    expect(surfaceRows, hasLength(15));
+    expect(
+      surfaceRows.skip(1).where((row) => row[statusIndex] == 'PASS'),
+      hasLength(7),
+    );
+    final deferredSurfaces = surfaceRows
+        .skip(1)
+        .where((row) => row[statusIndex] == 'FAIL')
+        .toList(growable: false);
+    expect(deferredSurfaces, hasLength(7));
+    expect(
+      deferredSurfaces.every(
+        (row) => row[regionIndex] == 'bottom-navigation-selected-pill-surface',
+      ),
+      isTrue,
+    );
+    expect(_fnv1a64(surfaceEvidence), '6f3fdb15f2e40d7b');
+  });
+
+  test('canonical shared chrome exposes exact deferred evidence', () {
     final output = StringBuffer();
     final errors = StringBuffer();
     comparator.runTabTypographyComparison(
@@ -1056,6 +1149,10 @@ void main() {
         .skip(1)
         .where((row) => row[regionIndex] == 'system')
         .toList(growable: false);
+    final platformStatusRows = rows
+        .skip(1)
+        .where((row) => row[regionIndex].startsWith('system-status-'))
+        .toList(growable: false);
     const deferredSystemCases = {'history-orders-summary', 'history-deals'};
     final deferredSystemRows = systemRows
         .where((row) => deferredSystemCases.contains(row[caseIndex]))
@@ -1080,6 +1177,23 @@ void main() {
       isTrue,
       reason: deferredSystemRows.map((row) => row.join(',')).join('\n'),
     );
+    expect(platformStatusRows, hasLength(14));
+    for (final referenceCase in tabReferenceCases) {
+      final caseRows = platformStatusRows.where(
+        (row) => row[caseIndex] == referenceCase.id,
+      );
+      expect(caseRows, hasLength(2), reason: referenceCase.id);
+      expect(
+        caseRows.every(
+          (row) =>
+              row[regionTypeIndex] == 'dynamicText' &&
+              row[statusIndex] == 'SKIP' &&
+              row[detailsIndex].trim().isNotEmpty,
+        ),
+        isTrue,
+        reason: caseRows.map((row) => row.join(',')).join('\n'),
+      );
+    }
     expect(
       sharedRows.where(
         (row) =>
@@ -1088,14 +1202,16 @@ void main() {
       ),
       isEmpty,
     );
+    expect(navigationRows, hasLength(119));
     expect(
-      sharedRows.where((row) => row[statusIndex] == 'FAIL'),
-      isEmpty,
-      reason: sharedRows
-          .where((row) => row[statusIndex] == 'FAIL')
-          .map((row) => row.join(','))
-          .join('\n'),
+      navigationRows.where((row) => row[statusIndex] == 'PASS'),
+      hasLength(17),
     );
+    expect(
+      navigationRows.where((row) => row[statusIndex] == 'FAIL'),
+      hasLength(102),
+    );
+    expect(systemRows.where((row) => row[statusIndex] == 'PASS'), hasLength(5));
   });
 
   test(
@@ -1146,6 +1262,1192 @@ void main() {
   );
 
   group('decoded-reference foreground role calibration', () {
+    test(
+      'reference consensus ignores one outlier but changes at strict majority',
+      () async {
+        final base = _blankImage();
+        _fillInkRect(base, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(base, 10, 10, 4, 4, referenceBlackInk);
+        final outlier = image.Image.from(base)
+          ..setPixelRgba(18, 18, 0, 0, 0, 255);
+        final majorityMutation = image.Image.from(base)
+          ..setPixelRgba(14, 13, 0, 0, 0, 255);
+
+        List<_FixtureInput> fixtures(bool majority) => [
+          for (var index = 0; index < 4; index++)
+            _FixtureInput(
+              reference: index < (majority ? 3 : 1)
+                  ? (majority ? majorityMutation : outlier)
+                  : image.Image.from(base),
+              candidate: image.Image.from(base),
+              referenceCase: _coverageControlCase(
+                id: 'consensus-$index',
+                fileName: 'consensus-$index.png',
+              ),
+            ),
+        ];
+        const key = ReferenceForegroundConsensusKey(
+          controlIdentity: 'coverage-control',
+          selection: ReferenceForegroundSelectionState.unselected,
+          semanticRole: 'black-role',
+          surfaceRole: 'fixture-white-surface',
+        );
+        const group = ReferenceForegroundConsensusGroup(
+          key: key,
+          memberCaseIds: [
+            'consensus-0',
+            'consensus-1',
+            'consensus-2',
+            'consensus-3',
+          ],
+        );
+
+        final outlierResult = await _runFixtures(
+          fixtures: fixtures(false),
+          foregroundConsensusGroups: const [group],
+        );
+        final majorityResult = await _runFixtures(
+          fixtures: fixtures(true),
+          foregroundConsensusGroups: const [group],
+        );
+
+        List<String> atomicStatuses(_RunResult result) {
+          final rows = _parseCsv(result.diagnostics);
+          final header = rows.first;
+          final region = header.indexOf('region');
+          final status = header.indexOf('status');
+          return rows
+              .where(
+                (row) =>
+                    row.length == header.length &&
+                    row[region] == 'coverage-control',
+              )
+              .map((row) => row[status])
+              .toList(growable: false);
+        }
+
+        expect(
+          atomicStatuses(outlierResult),
+          everyElement('PASS'),
+          reason: outlierResult.diagnostics,
+        );
+        expect(
+          atomicStatuses(majorityResult).where((status) => status == 'FAIL'),
+          hasLength(3),
+          reason: majorityResult.diagnostics,
+        );
+        expect(outlierResult.diagnostics, contains('strict-majority 3/4'));
+      },
+    );
+
+    test('candidate mutation cannot alter reference consensus', () async {
+      final reference = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 10, 10, 4, 4, referenceBlackInk);
+      final candidateMutation = image.Image.from(reference)
+        ..setPixelRgba(18, 18, 0, 0, 0, 255);
+      final passingCandidate = image.Image.from(reference)
+        ..setPixelRgba(40, 40, 254, 254, 254, 255);
+      final referenceCase = _coverageControlCase();
+
+      final passing = await _runFixture(
+        reference: reference,
+        candidate: passingCandidate,
+        referenceCase: referenceCase,
+      );
+      final failing = await _runFixture(
+        reference: reference,
+        candidate: candidateMutation,
+        referenceCase: referenceCase,
+      );
+
+      String provenance(_RunResult result) {
+        final rows = _parseCsv(result.diagnostics);
+        final header = rows.first;
+        final region = header.indexOf('region');
+        final details = header.indexOf('details');
+        final value = rows
+            .singleWhere(
+              (row) =>
+                  row.length == header.length &&
+                  row[region] == 'coverage-control',
+            )[details]
+            .split('consensus provenance ')
+            .last;
+        return value.replaceFirst(
+          RegExp(r'members=.*; count='),
+          'members=<reference-only>; count=',
+        );
+      }
+
+      expect(passing.exitCode, 0, reason: passing.diagnostics);
+      expect(failing.exitCode, 1, reason: failing.diagnostics);
+      expect(provenance(failing), provenance(passing));
+    });
+
+    test('reference consensus membership is exact and immutable', () async {
+      final source = _blankImage();
+      _fillInkRect(source, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(source, 10, 10, 4, 4, referenceBlackInk);
+      final fixture = _FixtureInput(
+        reference: source,
+        candidate: image.Image.from(source),
+        referenceCase: _coverageControlCase(),
+      );
+      const key = ReferenceForegroundConsensusKey(
+        controlIdentity: 'coverage-control',
+        selection: ReferenceForegroundSelectionState.unselected,
+        semanticRole: 'black-role',
+        surfaceRole: 'fixture-white-surface',
+      );
+      for (final scenario
+          in <(String, List<ReferenceForegroundConsensusGroup>)>[
+            ('missing', const []),
+            (
+              'duplicate',
+              const [
+                ReferenceForegroundConsensusGroup(
+                  key: key,
+                  memberCaseIds: ['fixture'],
+                ),
+                ReferenceForegroundConsensusGroup(
+                  key: key,
+                  memberCaseIds: ['fixture'],
+                ),
+              ],
+            ),
+            (
+              'unexpected',
+              const [
+                ReferenceForegroundConsensusGroup(
+                  key: key,
+                  memberCaseIds: ['fixture', 'not-a-case'],
+                ),
+              ],
+            ),
+          ]) {
+        final result = await _runFixtures(
+          fixtures: [fixture],
+          foregroundConsensusGroups: scenario.$2,
+        );
+        expect(
+          result.exitCode,
+          2,
+          reason: '${scenario.$1}\n${result.diagnostics}',
+        );
+        expect(
+          result.diagnostics,
+          contains('foreground consensus membership'),
+          reason: scenario.$1,
+        );
+      }
+    });
+
+    test(
+      'uniform coverage permits unequal supplemental core cardinality',
+      () async {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(reference, 2, 4, 2, 1, const ReferenceInk(237, 237, 237));
+        _fillInkRect(candidate, 2, 4, 2, 1, const ReferenceInk(237, 237, 237));
+        _fillInkRect(reference, 8, 8, 8, 8, const ReferenceInk(237, 237, 237));
+        _fillInkRect(candidate, 8, 8, 8, 8, const ReferenceInk(237, 237, 237));
+        reference
+          ..setPixelRgba(10, 10, 11, 11, 11, 255)
+          ..setPixelRgba(11, 10, 13, 13, 13, 255)
+          ..setPixelRgba(10, 11, 13, 13, 13, 255)
+          ..setPixelRgba(11, 11, 13, 13, 13, 255);
+        candidate
+          ..setPixelRgba(10, 10, 0, 0, 0, 255)
+          ..setPixelRgba(11, 10, 2, 2, 2, 255)
+          ..setPixelRgba(10, 11, 2, 2, 2, 255)
+          ..setPixelRgba(11, 11, 2, 2, 2, 255);
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _fixtureCase(
+            staticControlRegions: const [
+              ReferenceStaticControlRegion(
+                name: 'sparse-core-control',
+                rect: ReferencePixelRect(8, 8, 8, 8),
+              ),
+            ],
+            referenceForegroundInteriors: const [
+              ReferenceForegroundInterior(
+                role: 'black-role',
+                rect: ReferencePixelRect(2, 2, 2, 1),
+              ),
+            ],
+            referenceSurfaceInteriors: const [
+              ReferenceSurfaceInterior(
+                role: 'gray-surface',
+                rect: ReferencePixelRect(2, 4, 2, 1),
+              ),
+            ],
+            foregroundRoleByRegion: const {'sparse-core-control': 'black-role'},
+            surfaceRoleByRegion: const {'sparse-core-control': 'gray-surface'},
+          ),
+        );
+
+        expect(result.exitCode, 0, reason: result.diagnostics);
+      },
+    );
+
+    test('coverage requires a decoded-reference RGB12 role seed', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 10, 10, 3, 3, const ReferenceInk(20, 20, 20));
+      _fillInkRect(candidate, 10, 10, 3, 3, referenceBlackInk);
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _coverageControlCase(),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(
+        result.diagnostics,
+        contains('no decoded-reference RGB12 seed for role and surface'),
+      );
+    });
+
+    test('coverage rejects a tiny wrong-direction candidate color', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 10, 10, 3, 3, referenceBlackInk);
+      _fillInkRect(candidate, 10, 10, 3, 3, referenceBlackInk);
+      _fillInkRect(candidate, 17, 17, 2, 2, const ReferenceInk(0, 0, 9));
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _coverageControlCase(),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(result.diagnostics, contains('off-axis foreground colors'));
+    });
+
+    test('coverage rejects disconnected decoded-reference noise', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 10, 10, 3, 3, referenceBlackInk);
+      _fillInkRect(candidate, 10, 10, 3, 3, referenceBlackInk);
+      _fillInkRect(reference, 17, 17, 2, 2, const ReferenceInk(100, 100, 100));
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _coverageControlCase(),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(
+        result.diagnostics,
+        contains('foreground component count differs'),
+      );
+    });
+
+    test(
+      'coverage permits an AA-only component with a local control core',
+      () async {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        for (final target in <image.Image>[reference, candidate]) {
+          _fillInkRect(target, 10, 10, 3, 3, referenceBlackInk);
+          _fillInkRect(target, 17, 17, 2, 2, const ReferenceInk(100, 100, 100));
+        }
+        candidate.setPixelRgba(17, 17, 99, 99, 99, 255);
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _coverageControlCase(),
+        );
+
+        expect(result.exitCode, 0, reason: result.diagnostics);
+      },
+    );
+
+    test('coverage component bijection rejects topology mutations', () async {
+      for (final mutation in <String>[
+        'extra',
+        'omission',
+        'merge',
+        'split',
+        'translation',
+      ]) {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        if (mutation == 'merge' || mutation == 'split') {
+          for (final target in <image.Image>[reference, candidate]) {
+            _fillInkRect(target, 10, 10, 3, 3, referenceBlackInk);
+            _fillInkRect(target, 14, 10, 3, 3, referenceBlackInk);
+          }
+          _fillInkRect(
+            mutation == 'merge' ? candidate : reference,
+            13,
+            10,
+            1,
+            3,
+            referenceBlackInk,
+          );
+        } else if (mutation == 'translation') {
+          _fillInkRect(reference, 10, 10, 3, 3, referenceBlackInk);
+          _fillInkRect(candidate, 12, 10, 3, 3, referenceBlackInk);
+        } else {
+          for (final target in <image.Image>[reference, candidate]) {
+            _fillInkRect(target, 10, 10, 3, 3, referenceBlackInk);
+          }
+          _fillInkRect(
+            mutation == 'extra' ? candidate : reference,
+            17,
+            17,
+            2,
+            2,
+            const ReferenceInk(100, 100, 100),
+          );
+        }
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _coverageControlCase(),
+        );
+
+        expect(result.exitCode, 1, reason: '$mutation\n${result.diagnostics}');
+        expect(
+          result.diagnostics,
+          contains(
+            mutation == 'translation'
+                ? 'complete one-to-one local bijection'
+                : 'foreground component count differs',
+          ),
+          reason: mutation,
+        );
+      }
+    });
+
+    test('coverage requires a local raw RGB4 candidate core', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 10, 10, 3, 3, referenceBlackInk);
+      _fillInkRect(candidate, 10, 10, 3, 3, const ReferenceInk(100, 100, 100));
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _coverageControlCase(),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(result.diagnostics, contains('foreground core is missing'));
+    });
+
+    test('coverage grid rejects a localized mass shift', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 10, 10, 9, 9, const ReferenceInk(60, 60, 60));
+      _fillInkRect(candidate, 10, 10, 9, 9, const ReferenceInk(60, 60, 60));
+      _fillInkRect(candidate, 10, 10, 3, 3, const ReferenceInk(10, 10, 10));
+      _fillInkRect(candidate, 16, 10, 3, 3, const ReferenceInk(110, 110, 110));
+      _fillInkRect(candidate, 10, 16, 3, 3, const ReferenceInk(10, 10, 10));
+      _fillInkRect(candidate, 16, 16, 3, 3, const ReferenceInk(110, 110, 110));
+      reference.setPixelRgba(14, 14, 0, 0, 0, 255);
+      candidate.setPixelRgba(14, 14, 0, 0, 0, 255);
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _coverageControlCase(),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(result.diagnostics, contains('3x3 coverage grid'));
+    });
+
+    test(
+      'coverage grid rejects equal mass and centroid redistribution',
+      () async {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(reference, 10, 10, 9, 9, const ReferenceInk(60, 60, 60));
+        _fillInkRect(candidate, 10, 10, 9, 9, const ReferenceInk(60, 60, 60));
+        for (final cell in <(int, int, ReferenceInk)>[
+          (10, 10, const ReferenceInk(10, 10, 10)),
+          (16, 16, const ReferenceInk(10, 10, 10)),
+          (16, 10, const ReferenceInk(110, 110, 110)),
+          (10, 16, const ReferenceInk(110, 110, 110)),
+        ]) {
+          _fillInkRect(candidate, cell.$1, cell.$2, 3, 3, cell.$3);
+        }
+        reference.setPixelRgba(14, 14, 0, 0, 0, 255);
+        candidate.setPixelRgba(14, 14, 0, 0, 0, 255);
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _coverageControlCase(),
+        );
+
+        expect(result.exitCode, 1, reason: result.diagnostics);
+        expect(result.diagnostics, contains('3x3 coverage grid'));
+        expect(result.diagnostics, isNot(contains('coverage mass delta')));
+        expect(result.diagnostics, isNot(contains('coverage centroid delta')));
+      },
+    );
+
+    test('coverage mass rejects a uniform candidate fade', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 10, 10, 9, 9, const ReferenceInk(60, 60, 60));
+      _fillInkRect(candidate, 10, 10, 9, 9, const ReferenceInk(80, 80, 80));
+      reference.setPixelRgba(14, 14, 0, 0, 0, 255);
+      candidate.setPixelRgba(14, 14, 0, 0, 0, 255);
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _coverageControlCase(),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(result.diagnostics, contains('coverage mass delta'));
+      expect(result.diagnostics, isNot(contains('3x3 coverage grid')));
+    });
+
+    test('coverage grid rejects per-component redistribution', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      for (final left in <int>[10, 20]) {
+        _fillInkRect(reference, left, 10, 3, 9, const ReferenceInk(60, 60, 60));
+      }
+      _fillInkRect(candidate, 10, 10, 3, 9, const ReferenceInk(10, 10, 10));
+      _fillInkRect(candidate, 20, 10, 3, 9, const ReferenceInk(110, 110, 110));
+      for (final target in <image.Image>[reference, candidate]) {
+        target
+          ..setPixelRgba(11, 14, 0, 0, 0, 255)
+          ..setPixelRgba(21, 14, 0, 0, 0, 255);
+      }
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _fixtureCase(
+          staticControlRegions: const [
+            ReferenceStaticControlRegion(
+              name: 'component-coverage-control',
+              rect: ReferencePixelRect(8, 8, 17, 13),
+            ),
+          ],
+          referenceForegroundInteriors: const [
+            ReferenceForegroundInterior(
+              role: 'black-role',
+              rect: ReferencePixelRect(2, 2, 2, 1),
+            ),
+          ],
+          foregroundRoleByRegion: const {
+            'component-coverage-control': 'black-role',
+          },
+        ),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(result.diagnostics, contains('3x3 coverage grid'));
+    });
+
+    test('one-to-one core matching rejects a many-to-one collapse', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 10, 10, 2, 3, referenceBlackInk);
+      _fillInkRect(candidate, 10, 11, 2, 2, referenceBlackInk);
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _fixtureCase(
+          staticControlRegions: const [
+            ReferenceStaticControlRegion(
+              name: 'collapsed-core',
+              rect: ReferencePixelRect(8, 8, 8, 8),
+            ),
+          ],
+          referenceForegroundInteriors: const [
+            ReferenceForegroundInterior(
+              role: 'black-role',
+              rect: ReferencePixelRect(2, 2, 2, 1),
+            ),
+          ],
+          foregroundRoleByRegion: const {'collapsed-core': 'black-role'},
+        ),
+      );
+
+      final rows = _parseCsv(result.diagnostics);
+      final header = rows.first;
+      final region = header.indexOf('region');
+      final status = header.indexOf('status');
+      final details = header.indexOf('details');
+      final row = rows.singleWhere(
+        (row) => row.length == header.length && row[region] == 'collapsed-core',
+      );
+      expect(row[status], 'FAIL', reason: row.join(','));
+      expect(row[details], contains('foreground core pixels differ'));
+    });
+
+    test('one-to-one core matching permits a one-pixel shift', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 10, 10, 2, 3, referenceBlackInk);
+      _fillInkRect(candidate, 11, 10, 2, 3, referenceBlackInk);
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _fixtureCase(
+          staticControlRegions: const [
+            ReferenceStaticControlRegion(
+              name: 'shifted-core',
+              rect: ReferencePixelRect(8, 8, 8, 8),
+            ),
+          ],
+          referenceForegroundInteriors: const [
+            ReferenceForegroundInterior(
+              role: 'black-role',
+              rect: ReferencePixelRect(2, 2, 2, 1),
+            ),
+          ],
+          foregroundRoleByRegion: const {'shifted-core': 'black-role'},
+        ),
+      );
+
+      expect(result.exitCode, 0, reason: result.diagnostics);
+    });
+
+    test(
+      'parent surface rejects wrong background outside child transition ownership',
+      () async {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(
+          reference,
+          8,
+          8,
+          24,
+          20,
+          const ReferenceInk(237, 237, 237),
+        );
+        _fillInkRect(
+          candidate,
+          8,
+          8,
+          24,
+          20,
+          const ReferenceInk(237, 237, 237),
+        );
+        _fillInkRect(reference, 13, 13, 5, 5, referenceBlackInk);
+        _fillInkRect(candidate, 13, 13, 5, 5, referenceBlackInk);
+
+        // Two physical pixels beyond the glyph is outside its allowed
+        // one-pixel transition ownership and must remain surface-owned.
+        for (var y = 14; y <= 16; y++) {
+          candidate.setPixelRgba(19, y, 255, 255, 255, 255);
+        }
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _fixtureCase(
+            visualRegionName: 'selected-pill-parent',
+            visualRect: const ReferencePixelRect(8, 8, 24, 20),
+            requiredForegroundRoles: const ['black-role'],
+            foregroundRegionNames: const ['glyph-child'],
+            staticControlRegions: const [
+              ReferenceStaticControlRegion(
+                name: 'glyph-child',
+                rect: ReferencePixelRect(10, 10, 14, 12),
+              ),
+            ],
+            referenceForegroundInteriors: const [
+              ReferenceForegroundInterior(
+                role: 'black-role',
+                rect: ReferencePixelRect(2, 2, 2, 1),
+              ),
+            ],
+            foregroundRoleByRegion: const {'glyph-child': 'black-role'},
+          ),
+        );
+
+        final rows = _parseCsv(result.diagnostics);
+        final header = rows.first;
+        final region = header.indexOf('region');
+        final status = header.indexOf('status');
+        final details = header.indexOf('details');
+        final parent = rows.singleWhere(
+          (row) =>
+              row.length == header.length &&
+              row[region] == 'selected-pill-parent',
+        );
+        expect(parent[status], 'FAIL', reason: parent.join(','));
+        expect(parent[details], contains('parent-surface pixels differ'));
+      },
+    );
+
+    test(
+      'surface ownership follows declared candidate text geometry',
+      () async {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(reference, 16, 16, 2, 3, referenceBlackInk);
+        _fillInkRect(candidate, 17, 16, 2, 3, referenceBlackInk);
+        reference.setPixelRgba(15, 17, 128, 128, 128, 255);
+        candidate.setPixelRgba(19, 17, 128, 128, 128, 255);
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _fixtureCase(
+            staticTextRegions: const [
+              StaticTextRegion(
+                name: 'shifted-label-child',
+                referenceRect: ReferencePixelRect(14, 14, 4, 7),
+                candidateRect: ReferencePixelRect(15, 14, 4, 7),
+                ink: referenceBlackInk,
+              ),
+            ],
+            surfaceRegions: const [
+              ReferenceSurfaceRegion(
+                name: 'candidate-geometry-surface',
+                rect: ReferencePixelRect(8, 8, 24, 24),
+                surfaceRole: 'fixture-white-surface',
+                surroundingRole: 'fixture-white-surface',
+                foregroundRegionNames: ['shifted-label-child'],
+              ),
+            ],
+            referenceForegroundInteriors: const [
+              ReferenceForegroundInterior(
+                role: 'black-role',
+                rect: ReferencePixelRect(2, 2, 2, 1),
+              ),
+            ],
+            foregroundRoleByRegion: const {'shifted-label-child': 'black-role'},
+          ),
+        );
+
+        final row = _rowForRegion(
+          result.diagnostics,
+          'candidate-geometry-surface',
+        );
+        expect(row, contains(',PASS,'), reason: row);
+      },
+    );
+
+    test(
+      'explicit capsule and pill surface leaves pass exact ownership',
+      () async {
+        final reference = _surfaceFixtureImage();
+        final result = await _runFixture(
+          reference: reference,
+          candidate: image.Image.from(reference),
+          referenceCase: _surfaceFixtureCase(),
+        );
+
+        final rows = _parseCsv(result.diagnostics);
+        final header = rows.first;
+        final recordType = header.indexOf('recordType');
+        final status = header.indexOf('status');
+        final surfaceRows = rows
+            .skip(1)
+            .where(
+              (row) =>
+                  row.length == header.length &&
+                  row[recordType] == 'static-surface',
+            )
+            .toList(growable: false);
+        expect(surfaceRows, hasLength(2), reason: result.diagnostics);
+        expect(
+          surfaceRows.every((row) => row[status] == 'PASS'),
+          isTrue,
+          reason: surfaceRows.map((row) => row.join(',')).join('\n'),
+        );
+      },
+    );
+
+    test('selected pill surface rejects a wrong calibrated fill', () async {
+      final reference = _surfaceFixtureImage();
+      final candidate = image.Image.from(reference);
+      _fillInkRect(
+        candidate,
+        12,
+        12,
+        20,
+        20,
+        const ReferenceInk(230, 230, 230),
+      );
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _surfaceFixtureCase(),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      expect(
+        _rowForRegion(result.diagnostics, 'fixture-pill-surface'),
+        contains(',FAIL,'),
+      );
+      expect(result.diagnostics, contains('surface RGB delta 7'));
+    });
+
+    test('selected pill surface rejects a changed corner radius', () async {
+      final reference = _surfaceFixtureImage();
+      final candidate = image.Image.from(reference);
+      for (final left in <int>[12, 29]) {
+        for (final top in <int>[12, 29]) {
+          _fillInkRect(
+            candidate,
+            left,
+            top,
+            3,
+            3,
+            const ReferenceInk(237, 237, 237),
+          );
+        }
+      }
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _surfaceFixtureCase(),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      final row = _rowForRegion(result.diagnostics, 'fixture-pill-surface');
+      expect(row, contains(',FAIL,'));
+      expect(row, contains('surface pixels differ'));
+    });
+
+    test('capsule surface rejects an unexpected background class', () async {
+      final reference = _surfaceFixtureImage();
+      final candidate = image.Image.from(reference);
+      _fillInkRect(candidate, 5, 5, 3, 3, const ReferenceInk(237, 237, 237));
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _surfaceFixtureCase(),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      final row = _rowForRegion(result.diagnostics, 'fixture-capsule-surface');
+      expect(row, contains(',FAIL,'));
+      expect(row, contains('pixels belong to neither declared surface class'));
+    });
+
+    test('surface-relative shadow rejects a two-pixel translation', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 12, 14, 16, 4, const ReferenceInk(242, 242, 242));
+      _fillInkRect(candidate, 12, 16, 16, 4, const ReferenceInk(242, 242, 242));
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _fixtureCase(
+          shadowRegions: const [
+            ReferenceShadowRegion(
+              name: 'surface-relative-shadow',
+              rect: ReferencePixelRect(8, 10, 24, 14),
+              surfaceSampleRect: ReferencePixelRect(8, 4, 24, 4),
+            ),
+          ],
+        ),
+      );
+
+      final rows = _parseCsv(result.diagnostics);
+      final header = rows.first;
+      final recordType = header.indexOf('recordType');
+      final region = header.indexOf('region');
+      final status = header.indexOf('status');
+      final details = header.indexOf('details');
+      final shadowRows = rows
+          .where(
+            (row) =>
+                row.length == header.length &&
+                row[recordType] == 'static-shadow' &&
+                row[region] == 'surface-relative-shadow',
+          )
+          .toList(growable: false);
+      expect(shadowRows, hasLength(1), reason: result.diagnostics);
+      if (shadowRows.length != 1) return;
+      expect(shadowRows.single[status], 'FAIL');
+      expect(shadowRows.single[details], contains('surface-relative shadow'));
+      expect(shadowRows.single[details], contains('feature edge delta 2'));
+    });
+
+    test(
+      'role-aware atomic and composite rows enforce raw feature edges',
+      () async {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(reference, 10, 10, 3, 3, referenceBlackInk);
+        _fillInkRect(candidate, 10, 10, 3, 3, referenceBlackInk);
+        _fillInkRect(reference, 28, 10, 2, 2, referenceBlackInk);
+        _fillInkRect(candidate, 30, 10, 2, 2, referenceBlackInk);
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _fixtureCase(
+            visualRegionName: 'role-composite',
+            visualRect: const ReferencePixelRect(8, 8, 28, 16),
+            requiredForegroundRoles: const ['black-role'],
+            staticControlRegions: const [
+              ReferenceStaticControlRegion(
+                name: 'black-control',
+                rect: ReferencePixelRect(8, 8, 28, 16),
+              ),
+            ],
+            referenceForegroundInteriors: const [
+              ReferenceForegroundInterior(
+                role: 'black-role',
+                rect: ReferencePixelRect(2, 2, 2, 1),
+              ),
+            ],
+            foregroundRoleByRegion: const {'black-control': 'black-role'},
+          ),
+        );
+
+        final rows = _parseCsv(result.diagnostics);
+        final header = rows.first;
+        final recordType = header.indexOf('recordType');
+        final region = header.indexOf('region');
+        final status = header.indexOf('status');
+        final details = header.indexOf('details');
+        for (final target in <(String, String)>[
+          ('static-control', 'black-control'),
+          ('static-region', 'role-composite'),
+        ]) {
+          final row = rows.singleWhere(
+            (row) =>
+                row.length == header.length &&
+                row[recordType] == target.$1 &&
+                row[region] == target.$2,
+          );
+          expect(row[status], 'FAIL', reason: row.join(','));
+          expect(row[details], contains('feature edge delta 2'));
+        }
+      },
+    );
+
+    test(
+      'role-aware atomic and composite rows enforce raw residuals',
+      () async {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(reference, 10, 10, 3, 3, referenceBlackInk);
+        _fillInkRect(candidate, 10, 10, 3, 3, referenceBlackInk);
+        _fillInkRect(reference, 20, 10, 4, 4, referenceBlackInk);
+        _fillInkRect(candidate, 20, 10, 4, 4, const ReferenceInk(20, 20, 20));
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _fixtureCase(
+            visualRegionName: 'role-composite',
+            visualRect: const ReferencePixelRect(8, 8, 24, 16),
+            requiredForegroundRoles: const ['black-role'],
+            staticControlRegions: const [
+              ReferenceStaticControlRegion(
+                name: 'black-control',
+                rect: ReferencePixelRect(8, 8, 24, 16),
+              ),
+            ],
+            referenceForegroundInteriors: const [
+              ReferenceForegroundInterior(
+                role: 'black-role',
+                rect: ReferencePixelRect(2, 2, 2, 1),
+              ),
+            ],
+            foregroundRoleByRegion: const {'black-control': 'black-role'},
+          ),
+        );
+
+        final rows = _parseCsv(result.diagnostics);
+        final header = rows.first;
+        final recordType = header.indexOf('recordType');
+        final region = header.indexOf('region');
+        final status = header.indexOf('status');
+        final details = header.indexOf('details');
+        for (final target in <(String, String)>[
+          ('static-control', 'black-control'),
+          ('static-region', 'role-composite'),
+        ]) {
+          final row = rows.singleWhere(
+            (row) =>
+                row.length == header.length &&
+                row[recordType] == target.$1 &&
+                row[region] == target.$2,
+          );
+          expect(row[status], 'FAIL', reason: row.join(','));
+          expect(
+            row[details],
+            contains(
+              target.$1 == 'static-control'
+                  ? 'coverage mass delta'
+                  : 'one or more assigned foreground children failed',
+            ),
+          );
+        }
+      },
+    );
+
+    test(
+      'same-bounds equal-density internal deformation fails role residuals',
+      () async {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        for (final target in [reference, candidate]) {
+          _fillInkRect(target, 10, 10, 3, 7, referenceBlackInk);
+          _fillInkRect(target, 22, 10, 3, 7, referenceBlackInk);
+        }
+        _fillInkRect(reference, 15, 10, 5, 3, referenceBlackInk);
+        _fillInkRect(candidate, 15, 14, 5, 3, referenceBlackInk);
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _fixtureCase(
+            visualRegionName: 'role-composite',
+            visualRect: const ReferencePixelRect(8, 8, 28, 20),
+            requiredForegroundRoles: const ['black-role'],
+            staticControlRegions: const [
+              ReferenceStaticControlRegion(
+                name: 'black-control',
+                rect: ReferencePixelRect(8, 8, 28, 20),
+              ),
+            ],
+            referenceForegroundInteriors: const [
+              ReferenceForegroundInterior(
+                role: 'black-role',
+                rect: ReferencePixelRect(2, 2, 2, 1),
+              ),
+            ],
+            foregroundRoleByRegion: const {'black-control': 'black-role'},
+          ),
+        );
+
+        final rows = _parseCsv(result.diagnostics);
+        final header = rows.first;
+        final recordType = header.indexOf('recordType');
+        final region = header.indexOf('region');
+        final edgeDelta = header.indexOf('edgeDelta');
+        final density = header.indexOf('candidateInkRatio');
+        final status = header.indexOf('status');
+        final details = header.indexOf('details');
+        for (final target in <(String, String)>[
+          ('static-control', 'black-control'),
+          ('static-region', 'role-composite'),
+        ]) {
+          final row = rows.singleWhere(
+            (row) =>
+                row.length == header.length &&
+                row[recordType] == target.$1 &&
+                row[region] == target.$2,
+          );
+          expect(row[edgeDelta], '0', reason: row.join(','));
+          if (target.$1 == 'static-control') {
+            expect(double.parse(row[density]), closeTo(1, .001));
+          }
+          expect(row[status], 'FAIL', reason: row.join(','));
+          expect(
+            row[details],
+            contains(
+              target.$1 == 'static-control'
+                  ? 'foreground shape pixels differ'
+                  : 'aggregate owned pixels differ',
+            ),
+          );
+        }
+      },
+    );
+
+    test(
+      'role-aware text independently rejects internal deformation',
+      () async {
+        final reference = _blankImage();
+        final candidate = _blankImage();
+        _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+        _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+        for (final target in [reference, candidate]) {
+          _fillInkRect(target, 10, 10, 3, 7, referenceBlackInk);
+          _fillInkRect(target, 22, 10, 3, 7, referenceBlackInk);
+        }
+        _fillInkRect(reference, 15, 10, 5, 3, referenceBlackInk);
+        _fillInkRect(candidate, 15, 14, 5, 3, referenceBlackInk);
+
+        final result = await _runFixture(
+          reference: reference,
+          candidate: candidate,
+          referenceCase: _fixtureCase(
+            visualRegionName: 'role-composite',
+            visualRect: const ReferencePixelRect(8, 8, 28, 20),
+            requiredForegroundRoles: const ['black-role'],
+            foregroundRegionNames: const ['black-label'],
+            staticTextRegions: const [
+              StaticTextRegion(
+                name: 'black-label',
+                referenceRect: ReferencePixelRect(8, 8, 28, 20),
+                candidateRect: ReferencePixelRect(8, 8, 28, 20),
+                ink: referenceBlackInk,
+              ),
+            ],
+            referenceForegroundInteriors: const [
+              ReferenceForegroundInterior(
+                role: 'black-role',
+                rect: ReferencePixelRect(2, 2, 2, 1),
+              ),
+            ],
+            foregroundRoleByRegion: const {'black-label': 'black-role'},
+          ),
+        );
+
+        final rows = _parseCsv(result.diagnostics);
+        final header = rows.first;
+        final recordType = header.indexOf('recordType');
+        final region = header.indexOf('region');
+        final status = header.indexOf('status');
+        final details = header.indexOf('details');
+        final text = rows.singleWhere(
+          (row) =>
+              row.length == header.length &&
+              row[recordType] == 'text' &&
+              row[region] == 'black-label',
+        );
+        expect(text[status], 'FAIL', reason: text.join(','));
+        expect(text[details], contains('foreground shape pixels differ'));
+      },
+    );
+
+    test('empty role-aware foreground emits controlled FAIL rows', () async {
+      final reference = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 8, 8, 2, 2, const ReferenceInk(20, 20, 20));
+      final candidate = image.Image.from(reference)
+        ..setPixelRgba(50, 50, 254, 254, 254, 255);
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _fixtureCase(
+          visualRegionName: 'role-composite',
+          visualRect: const ReferencePixelRect(8, 8, 2, 2),
+          requiredForegroundRoles: const ['black-role'],
+          staticControlRegions: const [
+            ReferenceStaticControlRegion(
+              name: 'black-control',
+              rect: ReferencePixelRect(8, 8, 2, 2),
+            ),
+          ],
+          referenceForegroundInteriors: const [
+            ReferenceForegroundInterior(
+              role: 'black-role',
+              rect: ReferencePixelRect(2, 2, 2, 1),
+            ),
+          ],
+          foregroundRoleByRegion: const {'black-control': 'black-role'},
+        ),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      final rows = _parseCsv(result.diagnostics);
+      final header = rows.first;
+      final status = header.indexOf('status');
+      expect(
+        rows.where(
+          (row) => row.length == header.length && row[status] == 'FAIL',
+        ),
+        hasLength(2),
+      );
+    });
+
+    test('missing candidate assigned-role ink emits a FAIL row', () async {
+      final reference = _blankImage();
+      final candidate = _blankImage();
+      _fillInkRect(reference, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(candidate, 2, 2, 2, 1, referenceBlackInk);
+      _fillInkRect(reference, 10, 10, 3, 3, referenceBlackInk);
+
+      final result = await _runFixture(
+        reference: reference,
+        candidate: candidate,
+        referenceCase: _fixtureCase(
+          staticControlRegions: const [
+            ReferenceStaticControlRegion(
+              name: 'missing-icon',
+              rect: ReferencePixelRect(8, 8, 8, 8),
+            ),
+          ],
+          referenceForegroundInteriors: const [
+            ReferenceForegroundInterior(
+              role: 'black-role',
+              rect: ReferencePixelRect(2, 2, 2, 1),
+            ),
+          ],
+          foregroundRoleByRegion: const {'missing-icon': 'black-role'},
+        ),
+      );
+
+      expect(result.exitCode, 1, reason: result.diagnostics);
+      final rows = _parseCsv(result.diagnostics);
+      final header = rows.first;
+      final region = header.indexOf('region');
+      final status = header.indexOf('status');
+      final details = header.indexOf('details');
+      final row = rows.singleWhere(
+        (row) => row.length == header.length && row[region] == 'missing-icon',
+      );
+      expect(row[status], 'FAIL', reason: row.join(','));
+      expect(row[details], startsWith('measurement failed: No ink'));
+    });
+
     test(
       'one-pixel RGB5 mutation defeats the identical-raster fast path',
       () async {
@@ -1452,6 +2754,70 @@ void main() {
   });
 }
 
+String _fnv1a64(String value) {
+  var hash = 0xcbf29ce484222325;
+  for (final byte in value.codeUnits) {
+    hash ^= byte;
+    hash = (hash * 0x100000001b3) & 0xffffffffffffffff;
+  }
+  return hash.toRadixString(16).padLeft(16, '0');
+}
+
+String _atomicNumericEvidence(String evidence) => evidence.replaceAll(
+  RegExp(r'unmatched support reference [^;]*; candidate [^;]*; support counts'),
+  'unmatched support <pairing-omitted>; support counts',
+);
+
+String _rowForRegion(String diagnostics, String regionName) {
+  final rows = _parseCsv(diagnostics);
+  final header = rows.first;
+  final region = header.indexOf('region');
+  return rows
+      .singleWhere(
+        (row) => row.length == header.length && row[region] == regionName,
+      )
+      .join(',');
+}
+
+image.Image _surfaceFixtureImage() {
+  final result = _blankImage();
+  _fillInkRect(result, 12, 12, 20, 20, const ReferenceInk(237, 237, 237));
+  for (final left in <int>[12, 29]) {
+    for (final top in <int>[12, 29]) {
+      _fillInkRect(result, left, top, 3, 3, referenceWhiteInk);
+    }
+  }
+  return result;
+}
+
+TabReferenceCase _surfaceFixtureCase() => _fixtureCase(
+  surfaceRegions: const [
+    ReferenceSurfaceRegion(
+      name: 'fixture-capsule-surface',
+      rect: ReferencePixelRect(4, 4, 36, 36),
+      surfaceRole: 'fixture-white-surface',
+      surroundingRole: 'fixture-white-surface',
+      excludedRects: [ReferencePixelRect(8, 8, 28, 28)],
+    ),
+    ReferenceSurfaceRegion(
+      name: 'fixture-pill-surface',
+      rect: ReferencePixelRect(8, 8, 28, 28),
+      surfaceRole: 'fixture-gray-surface',
+      surroundingRole: 'fixture-white-surface',
+    ),
+  ],
+  referenceSurfaceInteriors: const [
+    ReferenceSurfaceInterior(
+      role: 'fixture-white-surface',
+      rect: ReferencePixelRect(2, 2, 2, 1),
+    ),
+    ReferenceSurfaceInterior(
+      role: 'fixture-gray-surface',
+      rect: ReferencePixelRect(16, 16, 2, 1),
+    ),
+  ],
+);
+
 TabReferenceCase _calibratedTextCase(
   String role,
   ReferenceInk hint, {
@@ -1476,6 +2842,27 @@ TabReferenceCase _calibratedTextCase(
   foregroundRoleByRegion: {'thin-ink': role},
 );
 
+TabReferenceCase _coverageControlCase({
+  String id = 'fixture',
+  String fileName = 'fixture.png',
+}) => _fixtureCase(
+  id: id,
+  fileName: fileName,
+  staticControlRegions: const [
+    ReferenceStaticControlRegion(
+      name: 'coverage-control',
+      rect: ReferencePixelRect(8, 8, 13, 13),
+    ),
+  ],
+  referenceForegroundInteriors: const [
+    ReferenceForegroundInterior(
+      role: 'black-role',
+      rect: ReferencePixelRect(2, 2, 2, 1),
+    ),
+  ],
+  foregroundRoleByRegion: const {'coverage-control': 'black-role'},
+);
+
 void _fillInkRect(
   image.Image target,
   int left,
@@ -1489,37 +2876,80 @@ TabReferenceCase _fixtureCase({
   String id = 'fixture',
   String fileName = 'fixture.png',
   String visualRegionName = 'fixture-canvas',
+  ReferencePixelRect visualRect = _canvas,
   List<StaticTextRegion> staticTextRegions = const [],
   List<ReferenceStaticControlRegion> staticControlRegions = const [],
+  List<ReferenceSurfaceRegion> surfaceRegions = const [],
+  List<ReferenceShadowRegion> shadowRegions = const [],
   List<ReferenceDynamicMask> dynamicMaskRegions = const [],
   List<ReferenceForegroundInterior> referenceForegroundInteriors = const [],
+  List<ReferenceSurfaceInterior> referenceSurfaceInteriors = const [],
   Map<String, String> foregroundRoleByRegion = const {},
+  Map<String, String> surfaceRoleByRegion = const {},
+  Map<String, ReferenceForegroundSelectionState> foregroundSelectionByRegion =
+      const {},
   List<String> requiredForegroundRoles = const [],
-}) => TabReferenceCase(
-  id: id,
-  fileName: fileName,
-  state: TabReferenceState.prices,
-  route: '/fixture',
-  selectedTab: ReferenceSelectedTab.prices,
-  captureState: const ReferenceCaptureState(
-    description: 'Synthetic deterministic comparator fixture.',
-    scrollState: ReferenceScrollState.atTop,
-  ),
-  staticAuditRegion: _canvas,
-  visualRegions: [
-    ReferenceVisualRegion(
-      name: visualRegionName,
-      type: ReferenceVisualRegionType.body,
-      rect: _canvas,
-      requiredForegroundRoles: requiredForegroundRoles,
+  List<String> foregroundRegionNames = const [],
+  List<String> shadowRegionNames = const [],
+}) {
+  final resolvedSurfaceInteriors =
+      referenceSurfaceInteriors.isNotEmpty || foregroundRoleByRegion.isEmpty
+      ? referenceSurfaceInteriors
+      : const [
+          ReferenceSurfaceInterior(
+            role: 'fixture-white-surface',
+            rect: ReferencePixelRect(0, 0, 2, 1),
+          ),
+        ];
+  final resolvedSurfaceRoles =
+      surfaceRoleByRegion.isNotEmpty || foregroundRoleByRegion.isEmpty
+      ? surfaceRoleByRegion
+      : {
+          for (final name in foregroundRoleByRegion.keys)
+            name: 'fixture-white-surface',
+        };
+  final resolvedForegroundSelections =
+      foregroundSelectionByRegion.isNotEmpty || foregroundRoleByRegion.isEmpty
+      ? foregroundSelectionByRegion
+      : {
+          for (final name in foregroundRoleByRegion.keys)
+            name: ReferenceForegroundSelectionState.unselected,
+        };
+  return TabReferenceCase(
+    id: id,
+    fileName: fileName,
+    referenceSha256:
+        '0000000000000000000000000000000000000000000000000000000000000000',
+    state: TabReferenceState.prices,
+    route: '/fixture',
+    selectedTab: ReferenceSelectedTab.prices,
+    captureState: const ReferenceCaptureState(
+      description: 'Synthetic deterministic comparator fixture.',
+      scrollState: ReferenceScrollState.atTop,
     ),
-  ],
-  staticControlRegions: staticControlRegions,
-  staticTextRegions: staticTextRegions,
-  dynamicMaskRegions: dynamicMaskRegions,
-  referenceForegroundInteriors: referenceForegroundInteriors,
-  foregroundRoleByRegion: foregroundRoleByRegion,
-);
+    staticAuditRegion: _canvas,
+    visualRegions: [
+      ReferenceVisualRegion(
+        name: visualRegionName,
+        type: ReferenceVisualRegionType.body,
+        rect: visualRect,
+        requiredForegroundRoles: requiredForegroundRoles,
+        foregroundRegionNames: foregroundRegionNames,
+        shadowRegionNames: shadowRegionNames,
+      ),
+    ],
+    staticControlRegions: staticControlRegions,
+    surfaceRegions: surfaceRegions,
+    shadowRegions: shadowRegions,
+    staticTextRegions: staticTextRegions,
+    dynamicMaskRegions: dynamicMaskRegions,
+    referenceForegroundInteriors: referenceForegroundInteriors,
+    referenceSurfaceInteriors: resolvedSurfaceInteriors,
+    foregroundRoleByRegion: foregroundRoleByRegion,
+    surfaceRoleByRegion: resolvedSurfaceRoles,
+    foregroundSelectionByRegion: resolvedForegroundSelections,
+  );
+}
 
 image.Image _blankImage() {
   final result = image.Image(width: 64, height: 64, numChannels: 4);
@@ -1607,6 +3037,7 @@ Future<_RunResult> _runFixtures({
   String? renderer,
   Directory? outputDirectory,
   List<String> Function(String candidateDirectory)? arguments,
+  List<ReferenceForegroundConsensusGroup>? foregroundConsensusGroups,
 }) async {
   final root = await Directory.systemTemp.createTemp('mt5-comparator-');
   addTearDown(() => root.delete(recursive: true));
@@ -1640,8 +3071,35 @@ Future<_RunResult> _runFixtures({
     errorOutput: errors,
     referenceCases: fixtures.map((fixture) => fixture.referenceCase).toList(),
     referenceDirectory: referenceDirectory.path,
+    foregroundConsensusGroups:
+        foregroundConsensusGroups ?? _fixtureConsensusGroups(fixtures),
   );
   return _RunResult(exitCode, '$output$errors');
+}
+
+List<ReferenceForegroundConsensusGroup> _fixtureConsensusGroups(
+  List<_FixtureInput> fixtures,
+) {
+  final members = <ReferenceForegroundConsensusKey, List<String>>{};
+  for (final fixture in fixtures) {
+    final referenceCase = fixture.referenceCase;
+    for (final assignment in referenceCase.foregroundRoleByRegion.entries) {
+      final key = ReferenceForegroundConsensusKey(
+        controlIdentity: assignment.key,
+        selection: referenceCase.foregroundSelectionByRegion[assignment.key]!,
+        semanticRole: assignment.value,
+        surfaceRole: referenceCase.surfaceRoleByRegion[assignment.key]!,
+      );
+      members.putIfAbsent(key, () => <String>[]).add(referenceCase.id);
+    }
+  }
+  return [
+    for (final entry in members.entries)
+      ReferenceForegroundConsensusGroup(
+        key: entry.key,
+        memberCaseIds: entry.value,
+      ),
+  ];
 }
 
 Future<_RunResult> _runManifestWithoutInputs(

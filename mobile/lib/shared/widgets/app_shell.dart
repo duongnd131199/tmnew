@@ -250,10 +250,14 @@ class MtBottomNavigationBar extends ConsumerWidget {
                                       Positioned(
                                         left: -selectionOverhangs.left,
                                         right: -selectionOverhangs.right,
-                                        top: TabReferenceMetrics
-                                            .bottomNavigationSelectionTopInset,
-                                        bottom: TabReferenceMetrics
-                                            .bottomNavigationSelectionBottomInset,
+                                        top:
+                                            TabReferenceMetrics.bottomNavigationSelectionTopInset(
+                                              selectedIndex,
+                                            ),
+                                        bottom:
+                                            TabReferenceMetrics.bottomNavigationSelectionBottomInset(
+                                              selectedIndex,
+                                            ),
                                         child: DecoratedBox(
                                           decoration: BoxDecoration(
                                             color: AppColors
@@ -344,7 +348,7 @@ class _NavItem extends StatelessWidget {
       children: [
         Positioned(
           top: TabReferenceMetrics.bottomNavigationIconTop,
-          child: _MtNavIcon(kind, color: color),
+          child: _MtNavIcon(kind, color: color, selected: selected),
         ),
         Positioned(
           left: 0,
@@ -371,36 +375,18 @@ class _NavItem extends StatelessWidget {
 enum _MtNavKind { quotes, chart, trade, history, settings }
 
 class _MtNavIcon extends StatelessWidget {
-  const _MtNavIcon(this.kind, {required this.color});
+  const _MtNavIcon(this.kind, {required this.color, required this.selected});
 
   final _MtNavKind kind;
   final Color color;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    if (kind == _MtNavKind.settings) {
-      return Transform.translate(
-        offset: const Offset(
-          0,
-          TabReferenceMetrics.bottomNavigationSettingsIconOffsetY,
-        ),
-        child: Transform.scale(
-          scaleX: TabReferenceMetrics.bottomNavigationSettingsIconScaleX,
-          scaleY: TabReferenceMetrics.bottomNavigationSettingsIconScaleY,
-          alignment: Alignment.topLeft,
-          child: Icon(
-            Icons.settings_outlined,
-            key: const ValueKey('bottom-nav-icon-settings'),
-            size: TabReferenceMetrics.bottomNavigationIconSize,
-            color: color,
-          ),
-        ),
-      );
-    }
     final icon = CustomPaint(
       key: ValueKey('bottom-nav-icon-${kind.name}'),
       size: const Size.square(TabReferenceMetrics.bottomNavigationIconSize),
-      painter: _MtNavIconPainter(kind, color),
+      painter: _MtNavIconPainter(kind, color, selected),
     );
     return switch (kind) {
       _MtNavKind.chart => Transform.translate(
@@ -450,116 +436,210 @@ class _MtNavIcon extends StatelessWidget {
           child: icon,
         ),
       ),
-      _ => icon,
+      _MtNavKind.settings => Transform.translate(
+        offset: const Offset(
+          TabReferenceMetrics.bottomNavigationSettingsIconOffsetX,
+          TabReferenceMetrics.bottomNavigationSettingsIconOffsetY,
+        ),
+        child: Transform.scale(
+          scaleX: TabReferenceMetrics.bottomNavigationSettingsIconScaleX,
+          scaleY: TabReferenceMetrics.bottomNavigationSettingsIconScaleY,
+          alignment: Alignment.topLeft,
+          child: icon,
+        ),
+      ),
     };
   }
 }
 
 class _MtNavIconPainter extends CustomPainter {
-  const _MtNavIconPainter(this.kind, this.color);
+  const _MtNavIconPainter(this.kind, this.color, this.selected);
 
   final _MtNavKind kind;
   final Color color;
+  final bool selected;
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.scale(size.width / 27, size.height / 27);
-    final stroke = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.05
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final fill = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
+    void draw({required double strokeWidth, required Color layerColor}) {
+      final stroke = Paint()
+        ..color = layerColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      final fill = Paint()
+        ..color = layerColor
+        ..style = PaintingStyle.fill;
 
-    switch (kind) {
-      case _MtNavKind.quotes:
-        stroke.strokeWidth = 2.35;
-        // Keep the arrows optically separate. The native glyph is two
-        // independent directions (down on the left, up on the right), not a
-        // swap/branch icon with touching diagonal rails.
-        canvas.drawLine(const Offset(8, 9), const Offset(8, 22), stroke);
-        canvas.drawLine(const Offset(3, 17.7), const Offset(8, 22), stroke);
-        canvas.drawLine(const Offset(8, 22), const Offset(13, 17.7), stroke);
-        canvas.drawLine(const Offset(19, 17.7), const Offset(19, 5), stroke);
-        canvas.drawLine(const Offset(14, 9.3), const Offset(19, 5), stroke);
-        canvas.drawLine(const Offset(19, 5), const Offset(24, 9.3), stroke);
-        break;
-      case _MtNavKind.chart:
-        stroke.strokeWidth = 1.9;
-        stroke.strokeCap = StrokeCap.square;
-        canvas.drawLine(const Offset(9.2, 2.7), const Offset(9.2, 23), stroke);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            const Rect.fromLTWH(5.6, 9, 6.4, 10.7),
-            const Radius.circular(.35),
-          ),
-          fill,
-        );
-        canvas.drawLine(
-          const Offset(18.4, 2.7),
-          const Offset(18.4, 5.8),
-          stroke,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            const Rect.fromLTWH(16, 5.8, 4.8, 11),
-            const Radius.circular(.35),
-          ),
-          stroke,
-        );
-        canvas.drawLine(
-          const Offset(18.4, 16.8),
-          const Offset(18.4, 20.2),
-          stroke,
-        );
-        break;
-      case _MtNavKind.trade:
-        stroke.strokeWidth = 2.05;
-        canvas.drawRect(const Rect.fromLTWH(3.5, 4, 20, 18), stroke);
-        final path = Path()
-          ..moveTo(6.2, 18.2)
-          ..lineTo(11, 12.1)
-          ..lineTo(15.2, 15)
-          ..lineTo(21, 8);
-        canvas.drawPath(path, stroke);
-        break;
-      case _MtNavKind.history:
-        stroke.strokeWidth = 2.05;
-        canvas.drawArc(
-          Rect.fromCircle(center: const Offset(13.5, 13.5), radius: 10),
-          math.pi * .9777777778,
-          math.pi * 1.7611111111,
-          false,
-          stroke,
-        );
-        final arrow = Path()
-          ..moveTo(.6, 13.3)
-          ..lineTo(5, 11.05)
-          ..lineTo(4.75, 15.05)
-          ..close();
-        canvas.drawPath(arrow, fill);
-        canvas.drawLine(
-          const Offset(13.85, 14.25),
-          const Offset(13.85, 9),
-          stroke,
-        );
-        canvas.drawLine(
-          const Offset(13.85, 14.25),
-          const Offset(17.6, 18.35),
-          stroke,
-        );
-        break;
-      case _MtNavKind.settings:
-        break;
+      switch (kind) {
+        case _MtNavKind.quotes:
+          // Keep the arrows optically separate. The native glyph is two
+          // independent directions (down on the left, up on the right), not a
+          // swap/branch icon with touching diagonal rails.
+          final downStroke = Paint()
+            ..color = stroke.color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = stroke.strokeWidth + .15
+            ..strokeCap = stroke.strokeCap
+            ..strokeJoin = stroke.strokeJoin;
+          final upStroke = Paint()
+            ..color = stroke.color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = stroke.strokeWidth - .10
+            ..strokeCap = stroke.strokeCap
+            ..strokeJoin = stroke.strokeJoin;
+          canvas.drawLine(
+            const Offset(8, 10.5),
+            const Offset(8, 22),
+            downStroke,
+          );
+          canvas.drawLine(
+            const Offset(3, 17.7),
+            const Offset(8, 22),
+            downStroke,
+          );
+          canvas.drawLine(
+            const Offset(8, 22),
+            const Offset(13, 17.7),
+            downStroke,
+          );
+          canvas.drawLine(
+            const Offset(20.3333333333, 16.8),
+            const Offset(20.3333333333, 5),
+            upStroke,
+          );
+          canvas.drawLine(
+            const Offset(15.8333333333, 9.3),
+            const Offset(20.3333333333, 5),
+            upStroke,
+          );
+          canvas.drawLine(
+            const Offset(20.3333333333, 5),
+            const Offset(24.8333333333, 9.3),
+            upStroke,
+          );
+          break;
+        case _MtNavKind.chart:
+          stroke.strokeCap = StrokeCap.square;
+          canvas.drawLine(
+            const Offset(9.2, 2.7),
+            const Offset(9.2, 23),
+            stroke,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              const Rect.fromLTWH(5.6, 9, 6.4, 10.7),
+              const Radius.circular(.35),
+            ),
+            fill,
+          );
+          canvas.drawLine(
+            const Offset(18.4, 2.7),
+            const Offset(18.4, 5.8),
+            stroke,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              const Rect.fromLTWH(16, 5.8, 4, 11),
+              const Radius.circular(.35),
+            ),
+            stroke,
+          );
+          canvas.drawLine(
+            const Offset(18.4, 16.8),
+            const Offset(18.4, 20.2),
+            stroke,
+          );
+          break;
+        case _MtNavKind.trade:
+          canvas.drawRect(const Rect.fromLTWH(3.5, 4, 19.85, 18), stroke);
+          final path = Path()
+            ..moveTo(7, 17.4)
+            ..lineTo(11, 12.1)
+            ..lineTo(15.2, 15.7)
+            ..lineTo(20.2, 9.6);
+          final pathStroke = Paint()
+            ..color = stroke.color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = stroke.strokeWidth + .15
+            ..strokeCap = stroke.strokeCap
+            ..strokeJoin = stroke.strokeJoin;
+          canvas.drawPath(path, pathStroke);
+          break;
+        case _MtNavKind.history:
+          canvas.drawArc(
+            const Rect.fromLTWH(3.5, 3.5, 20.5, 19.5),
+            math.pi * .9777777778,
+            math.pi * 1.7611111111,
+            false,
+            stroke,
+          );
+          final arrow = Path()
+            ..moveTo(.6, 13.3)
+            ..lineTo(5, 11.05)
+            ..lineTo(selected ? 4 : 4.75, selected ? 14.5 : 15.05)
+            ..close();
+          canvas.drawPath(arrow, fill);
+          canvas.drawLine(
+            const Offset(13.85, 14.25),
+            const Offset(13.85, 9),
+            stroke,
+          );
+          canvas.drawLine(
+            const Offset(13.85, 14.25),
+            const Offset(17.6, 18.35),
+            stroke,
+          );
+          break;
+        case _MtNavKind.settings:
+          const center = Offset(13.5, 13.5);
+          const toothRadii = <double>[8.65, 8.65, 10.65, 10.65, 8.65, 8.65];
+          const toothAngles = <double>[-.5, -.31, -.18, .18, .31, .5];
+          final gear = Path();
+          for (var tooth = 0; tooth < 8; tooth++) {
+            final toothCenter = -math.pi / 2 + tooth * math.pi / 4;
+            for (var point = 0; point < toothRadii.length; point++) {
+              final angle = toothCenter + toothAngles[point] * math.pi / 4;
+              final offset = Offset(
+                center.dx + math.cos(angle) * toothRadii[point],
+                center.dy + math.sin(angle) * toothRadii[point],
+              );
+              if (tooth == 0 && point == 0) {
+                gear.moveTo(offset.dx, offset.dy);
+              } else {
+                gear.lineTo(offset.dx, offset.dy);
+              }
+            }
+          }
+          gear.close();
+          canvas.drawPath(gear, stroke);
+          canvas.drawCircle(const Offset(13.5, 13.8), 3.6, stroke);
+          break;
+      }
     }
+
+    final (outerWidth, coreWidth, outerAlpha) = switch ((kind, selected)) {
+      (_MtNavKind.quotes, false) => (2.70, 1.25, .565),
+      (_MtNavKind.quotes, true) => (2.80, 1.25, .565),
+      (_MtNavKind.chart, _) => (2.38, 1.50, .565),
+      (_MtNavKind.trade, _) => (2.65, 1.35, .565),
+      (_MtNavKind.history, _) => (2.78, 1.15, .565),
+      (_MtNavKind.settings, _) => (2.45, 1.70, .565),
+    };
+    draw(
+      strokeWidth: outerWidth,
+      layerColor: color.withValues(alpha: outerAlpha),
+    );
+    draw(strokeWidth: coreWidth, layerColor: color);
     canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant _MtNavIconPainter oldDelegate) =>
-      oldDelegate.kind != kind || oldDelegate.color != color;
+      oldDelegate.kind != kind ||
+      oldDelegate.color != color ||
+      oldDelegate.selected != selected;
 }
