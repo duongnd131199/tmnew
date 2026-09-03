@@ -16,6 +16,7 @@ import 'package:trading_mobile/features/account_login/data/account_password_logi
 import 'package:trading_mobile/features/account_login/data/installation_id_store.dart';
 import 'package:trading_mobile/features/account_login/domain/account_password_login_models.dart';
 import 'package:trading_mobile/features/account_sessions/application/account_session_committer.dart';
+import 'package:trading_mobile/features/account_sessions/data/removed_account_store.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
@@ -505,6 +506,9 @@ Future<void> _openForm(
         linkedAccountPresentationStoreProvider.overrideWithValue(
           _MemoryPresentationStore(),
         ),
+        removedAccountStoreProvider.overrideWithValue(
+          _MemoryRemovedAccountStore(),
+        ),
         if (connectionStatuses != null) ...[
           exV2EnabledProvider.overrideWithValue(true),
           marketConnectionStatusProvider.overrideWith(
@@ -531,6 +535,19 @@ Future<void> _openForm(
     find.byKey(const Key('existing-account-login-screen')),
     findsOneWidget,
   );
+}
+
+final class _MemoryRemovedAccountStore implements RemovedAccountStore {
+  final Set<String> _values = {};
+
+  @override
+  Future<void> add(String accountId) async => _values.add(accountId);
+
+  @override
+  Future<Set<String>> read() async => {..._values};
+
+  @override
+  Future<void> remove(String accountId) async => _values.remove(accountId);
 }
 
 final class _PasswordLoginRepository implements AccountPasswordLoginRepository {

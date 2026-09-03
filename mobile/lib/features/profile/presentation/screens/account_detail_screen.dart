@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
+import 'package:trading_mobile/features/account_sessions/application/account_removal_service.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
+import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
@@ -23,6 +27,7 @@ class AccountDetailScreen extends ConsumerStatefulWidget {
 
 class _AccountDetailScreenState extends ConsumerState<AccountDetailScreen> {
   bool? _tradeNotificationsOverride;
+  bool _removalInFlight = false;
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +161,9 @@ class _AccountDetailScreenState extends ConsumerState<AccountDetailScreen> {
                           title: 'Xóa tài khoản',
                           titleColor: AppColors.destructive,
                           showChevron: true,
-                          onTap: () {},
+                          onTap: _removalInFlight
+                              ? null
+                              : _confirmAccountRemoval,
                         ),
                       ],
                     ),
@@ -182,7 +189,68 @@ class _AccountDetailScreenState extends ConsumerState<AccountDetailScreen> {
       if (mounted) setState(() => _tradeNotificationsOverride = null);
     }
   }
+
+  Future<void> _confirmAccountRemoval() async {
+    if (_removalInFlight) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'Xóa tài khoản khỏi thiết bị?',
+          style: AppTypography.dialogTitle,
+        ),
+        content: const Text(
+          'Chỉ gỡ phiên đăng nhập của tài khoản này khỏi thiết bị. '
+          'Dữ liệu tài khoản trên máy chủ vẫn được giữ.',
+          style: AppTypography.dialogSubtitle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Hủy', style: AppTypography.dialogAction),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              'Xóa',
+              style: AppTypography.dialogAction.copyWith(
+                color: AppColors.destructive,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _removalInFlight) return;
+
+    setState(() => _removalInFlight = true);
+    try {
+      final result = await ref
+          .read(accountRemovalServiceProvider)
+          .removeActiveAccount();
+      if (!mounted) return;
+      if (result == AccountRemovalResult.switched) {
+        await Navigator.of(context).maybePop();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_safeAccountRemovalMessage(error))),
+      );
+    } finally {
+      if (mounted) setState(() => _removalInFlight = false);
+    }
+  }
 }
+
+String _safeAccountRemovalMessage(Object error) => switch (error) {
+  ExV2RequestFailure failure => failure.safeDisplayMessage,
+  ExV2ClientFailure failure => failure.message,
+  AccountActivationIdentityMismatch failure => failure.message,
+  _ => 'Không thể xóa tài khoản khỏi thiết bị. Thử lại.',
+};
 
 class _AccountHero extends StatelessWidget {
   const _AccountHero({required this.account});

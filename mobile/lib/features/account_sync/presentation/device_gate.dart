@@ -7,6 +7,7 @@ import 'package:trading_mobile/app/router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
+import 'package:trading_mobile/features/account_sessions/application/account_removal_service.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/account_sync/presentation/dev_device_token_import_screen.dart';
@@ -78,6 +79,9 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(deviceSessionRevisionProvider, (_, _) {
+      if (mounted) unawaited(_readToken(retry: true));
+    });
     if (_tokenReadError != null) {
       return _AccountBootstrapUnavailable(
         key: const Key('device-token-read-error'),

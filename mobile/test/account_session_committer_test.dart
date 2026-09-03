@@ -5,6 +5,7 @@ import 'package:trading_mobile/features/account_link/domain/account_link_models.
 import 'package:trading_mobile/features/account_login/domain/account_password_login_models.dart';
 import 'package:trading_mobile/features/account_sessions/application/account_session_committer.dart';
 import 'package:trading_mobile/features/account_sessions/application/account_switch_guard.dart';
+import 'package:trading_mobile/features/account_sessions/data/removed_account_store.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
@@ -47,6 +48,24 @@ void main() {
       'account-b',
     );
   });
+
+  test(
+    'successful login restores only the authenticated removed account',
+    () async {
+      final fixture = await _Fixture.create(
+        removedAccountIds: {'account-b', 'account-c'},
+      );
+      addTearDown(fixture.dispose);
+
+      final publication = await fixture.committer.commit(
+        _loginResult('account-b', 'token-b'),
+      );
+
+      expect(publication, ExV2BootstrapPublication.committed);
+      expect(await fixture.removedStore.read(), {'account-c'});
+      expect(fixture.restoredAccountIds, ['account-b']);
+    },
+  );
 
   test('rejected publication restores the previous active token', () async {
     final fixture = await _Fixture.create();
@@ -117,14 +136,21 @@ final class _Fixture {
   _Fixture({
     required this.container,
     required this.tokenStore,
+    required this.removedStore,
+    required this.restoredAccountIds,
     required this.committer,
   });
 
-  static Future<_Fixture> create({bool tokenWriteFails = false}) async {
+  static Future<_Fixture> create({
+    bool tokenWriteFails = false,
+    Set<String> removedAccountIds = const {},
+  }) async {
     final tokenStore = _MemoryTokenStore(
       'token-a',
       writeFails: tokenWriteFails,
     );
+    final removedStore = _MemoryRemovedAccountStore(removedAccountIds);
+    final restoredAccountIds = <String>[];
     final container = ProviderContainer(
       overrides: [
         deviceTokenStoreProvider.overrideWithValue(tokenStore),
@@ -139,20 +165,41 @@ final class _Fixture {
     final committer = SecureAccountSessionCommitter(
       guard: AccountSwitchGuard(),
       tokenStore: tokenStore,
+      removedAccountStore: removedStore,
+      onAccountRestored: restoredAccountIds.add,
       publisher: container.read(exV2AccountProvider.notifier),
     );
     return _Fixture(
       container: container,
       tokenStore: tokenStore,
+      removedStore: removedStore,
+      restoredAccountIds: restoredAccountIds,
       committer: committer,
     );
   }
 
   final ProviderContainer container;
   final _MemoryTokenStore tokenStore;
+  final _MemoryRemovedAccountStore removedStore;
+  final List<String> restoredAccountIds;
   final SecureAccountSessionCommitter committer;
 
   void dispose() => container.dispose();
+}
+
+final class _MemoryRemovedAccountStore implements RemovedAccountStore {
+  _MemoryRemovedAccountStore(Set<String> initial) : values = {...initial};
+
+  final Set<String> values;
+
+  @override
+  Future<void> add(String accountId) async => values.add(accountId);
+
+  @override
+  Future<Set<String>> read() async => {...values};
+
+  @override
+  Future<void> remove(String accountId) async => values.remove(accountId);
 }
 
 final class _MemoryTokenStore implements DeviceTokenStore {

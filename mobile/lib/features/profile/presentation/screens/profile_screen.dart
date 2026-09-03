@@ -9,22 +9,6 @@ import 'package:trading_mobile/features/profile/presentation/theme/account_list_
 import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
-const _fixedDeleteAccount = DemoAccountProfile(
-  id: '28210230',
-  name: 'Delete',
-  company: 'Vantage Markets',
-  server: 'VantageMarkets-Live 19',
-  accessPoint: 'Access Point #1',
-  balance: 0,
-  brand: DemoBrokerBrand.vantage,
-  historyDeposit: 0,
-  historyWithdrawal: 0,
-  historyProfit: 0,
-  historySwap: 0,
-  historyCommission: 0,
-  historyBalance: 0,
-);
-
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -93,29 +77,22 @@ class ProfileScreen extends ConsumerWidget {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.only(top: 9),
-                itemCount: ordered.length + 1,
+                itemCount: ordered.length,
                 itemBuilder: (context, index) {
-                  final isFixedDeleteAccount = index == ordered.length;
-                  final account = isFixedDeleteAccount
-                      ? _fixedDeleteAccount
-                      : ordered[index];
+                  final account = ordered[index];
                   final rowId = account.linkedAccountId ?? account.id;
-                  final isActive = !isFixedDeleteAccount && rowId == activeId;
+                  final isActive = rowId == activeId;
                   return _AccountRow(
                     key: ValueKey('account-$rowId'),
                     account: account,
-                    displayBalance: isFixedDeleteAccount
-                        ? account.balance
-                        : serverAccount != null && !isActive
+                    displayBalance: serverAccount != null && !isActive
                         ? null
                         : tradingController
                                   .stateForAccount(account.id)
                                   ?.balance ??
                               account.balance,
                     active: isActive,
-                    onTap: isFixedDeleteAccount
-                        ? null
-                        : isActive
+                    onTap: isActive
                         ? () => context.push('/account-detail')
                         : !serverMode
                         ? () {

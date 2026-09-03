@@ -3,6 +3,7 @@ import 'package:trading_mobile/features/account_link/data/account_link_dependenc
 import 'package:trading_mobile/features/account_link/data/linked_account_presentation_store.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_link/domain/linked_account_presentation.dart';
+import 'package:trading_mobile/features/account_sessions/data/removed_account_store.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 
@@ -353,6 +354,7 @@ final class AccountLinkController extends AsyncNotifier<AccountLinkState> {
     await ref
         .read(linkedAccountPresentationStoreProvider)
         .write(linked.account.id, selectedPresentation);
+    await ref.read(removedAccountStoreProvider).remove(linked.account.id);
     ref.invalidate(linkedAccountPresentationProvider(linked.account.id));
   }
 

@@ -12,6 +12,7 @@ import 'package:trading_mobile/features/account_login/data/account_password_logi
 import 'package:trading_mobile/features/account_login/data/installation_id_store.dart';
 import 'package:trading_mobile/features/account_login/domain/account_password_login_models.dart';
 import 'package:trading_mobile/features/account_sessions/application/account_session_committer.dart';
+import 'package:trading_mobile/features/account_sessions/data/removed_account_store.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
@@ -231,6 +232,23 @@ void main() {
     expect(harness.state.phase, AccountLinkPhase.succeeded);
   });
 
+  test('successful link restores only the explicitly added account', () async {
+    final removedStore = _MemoryRemovedAccountStore({
+      _account.id,
+      'account-other',
+    });
+    final harness = await _harness(
+      repository: _FakeRepository(),
+      removedStore: removedStore,
+    );
+    addTearDown(harness.dispose);
+
+    final result = await harness.controller.submit();
+
+    expect(result, isNotNull);
+    expect(await removedStore.read(), {'account-other'});
+  });
+
   test('successful link remembers the exact selected server label', () async {
     final presentationStore = _MemoryPresentationStore();
     final harness = await _harness(
@@ -383,6 +401,7 @@ Future<void> _waitFor(bool Function() condition, String description) async {
 Future<_Harness> _harness({
   required _FakeRepository repository,
   LinkedAccountPresentationStore? presentationStore,
+  RemovedAccountStore? removedStore,
   _FakeLoginRepository? loginRepository,
 }) async {
   final resolvedLoginRepository =
@@ -398,6 +417,9 @@ Future<_Harness> _harness({
       accountSessionCommitterProvider.overrideWithValue(resolvedCommitter),
       linkedAccountPresentationStoreProvider.overrideWithValue(
         presentationStore ?? _MemoryPresentationStore(),
+      ),
+      removedAccountStoreProvider.overrideWithValue(
+        removedStore ?? _MemoryRemovedAccountStore(const {}),
       ),
     ],
   );
@@ -621,6 +643,21 @@ final class _MemoryPresentationStore implements LinkedAccountPresentationStore {
   Future<void> write(String accountId, LinkedAccountPresentation value) async {
     values[accountId] = value;
   }
+}
+
+final class _MemoryRemovedAccountStore implements RemovedAccountStore {
+  _MemoryRemovedAccountStore(Set<String> initial) : values = {...initial};
+
+  final Set<String> values;
+
+  @override
+  Future<void> add(String accountId) async => values.add(accountId);
+
+  @override
+  Future<Set<String>> read() async => {...values};
+
+  @override
+  Future<void> remove(String accountId) async => values.remove(accountId);
 }
 
 const _account = LinkedTradingAccount(

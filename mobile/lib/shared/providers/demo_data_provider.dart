@@ -7,6 +7,7 @@ import 'package:trading_mobile/features/account_link/data/linked_account_present
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
 import 'package:trading_mobile/features/account_link/domain/linked_account_presentation.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
+import 'package:trading_mobile/features/account_sessions/data/removed_account_store.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
@@ -756,9 +757,13 @@ final class LinkedTradingAccountsController
     final activeId = ref.watch(exV2AccountGenerationProvider).accountId;
     if (activeId == null) return const [];
     final accounts = await ref.read(accountLinkRepositoryProvider).accounts();
+    final removedIds = await ref.read(removedAccountStoreProvider).read();
+    final visibleAccounts = accounts.where(
+      (account) => account.id == activeId || !removedIds.contains(account.id),
+    );
     return List.unmodifiable([
-      ...accounts.where((account) => account.id == activeId),
-      ...accounts.where((account) => account.id != activeId),
+      ...visibleAccounts.where((account) => account.id == activeId),
+      ...visibleAccounts.where((account) => account.id != activeId),
     ]);
   }
 

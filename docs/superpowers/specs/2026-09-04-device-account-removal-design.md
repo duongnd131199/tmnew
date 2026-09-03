@@ -55,10 +55,11 @@ dialog bằng `Hủy`, Back hoặc chạm vùng ngoài không thay đổi trạn
 ### Khi còn tài khoản khác
 
 1. Chọn tài khoản đầu tiên còn lại theo thứ tự catalog hiện tại.
-2. Kích hoạt tài khoản đó qua account activation coordinator hiện có.
-3. Chỉ khi bootstrap mới được chấp nhận, ghi account ID cũ vào secure removed
-   set và làm mới catalog.
-4. Đóng trang chi tiết về danh sách tài khoản. Tài khoản mới đứng đầu và tài
+2. Ghi account ID cũ vào secure removed set nhưng chưa làm mới catalog.
+3. Kích hoạt tài khoản thay thế qua account activation coordinator hiện có;
+   nếu bootstrap không được chấp nhận thì rollback removed set.
+4. Khi bootstrap mới được chấp nhận, làm mới catalog.
+5. Đóng trang chi tiết về danh sách tài khoản. Tài khoản mới đứng đầu và tài
    khoản vừa gỡ không còn xuất hiện.
 
 Nếu activate thất bại, không ghi removed set, giữ tài khoản hiện tại, giữ
@@ -112,8 +113,8 @@ catalog, nên active account hợp lệ không bị lọc mất. Nếu app bị 
 trình, active bootstrap vẫn được phép hiển thị để người dùng không bị kẹt;
 removed set chỉ loại các hàng inactive từ catalog.
 
-Controller cung cấp mutation nhỏ để ghi removed ID và cập nhật state sau khi
-thao tác hoàn thành, thay vì để widget chỉnh danh sách trực tiếp.
+Removal service ghi removed ID và invalidate catalog sau khi thao tác hoàn
+thành, thay vì để widget chỉnh danh sách trực tiếp.
 
 ### Removal coordinator
 
@@ -155,8 +156,9 @@ AccountDetailScreen
   -> AccountRemovalController.removeActiveAccount()
       -> read visible linked accounts
       -> replacement exists?
-          yes -> AccountActivationCoordinator.activate(replacement)
-                 -> RemovedAccountStore.add(oldAccountId)
+          yes -> RemovedAccountStore.add(oldAccountId)
+                 -> AccountActivationCoordinator.activate(replacement)
+                 -> rollback marker nếu activation thất bại
                  -> refresh linked catalog
                  -> result: switched
           no  -> RemovedAccountStore.add(oldAccountId)

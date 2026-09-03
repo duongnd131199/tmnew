@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/features/account_sessions/application/account_removal_service.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_view_state.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
@@ -73,6 +74,44 @@ void main() {
     );
     expect(find.text('SERVER APP'), findsNothing);
   });
+
+  testWidgets(
+    'session revision rereads a deleted token without restarting the widget',
+    (tester) async {
+      final tokenStore = _MemoryTokenStore('device-token');
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          deviceTokenStoreProvider.overrideWithValue(tokenStore),
+          exV2AccountProvider.overrideWithBuild(
+            (ref, controller) async => _serverState,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: DeviceGate(
+              enableDevelopmentTokenImport: false,
+              child: Text('SERVER APP'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('SERVER APP'), findsOneWidget);
+
+      await tokenStore.delete();
+      container.read(deviceSessionRevisionProvider.notifier).advance();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('account-login-required')), findsOneWidget);
+      expect(find.text('SERVER APP'), findsNothing);
+    },
+  );
 
   testWidgets(
     'missing token shows token activation without EX2 password login',
