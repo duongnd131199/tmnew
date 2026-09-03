@@ -174,7 +174,10 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
                         color: AppColors.textPrimary,
                         size: 20,
                       ),
-                      prefixIconConstraints: BoxConstraints.tightFor(width: 40),
+                      prefixIconConstraints: BoxConstraints.tightFor(
+                        width: 40,
+                        height: AccountLinkReferenceMetrics.searchFieldHeight,
+                      ),
                       isDense: true,
                       filled: true,
                       fillColor: AppColors.surface,

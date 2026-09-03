@@ -288,6 +288,23 @@ void main() {
     );
   });
 
+  testWidgets('broker search content stays vertically centered in its pill', (
+    tester,
+  ) async {
+    await _pump(tester, child: const BrokerListScreen());
+
+    final fieldCenter = tester
+        .getRect(find.byKey(const Key('broker-search-field')))
+        .center;
+    final hintCenter = tester
+        .getRect(find.text('Vui lòng nhập tên công ty hoặc máy chủ'))
+        .center;
+    final iconCenter = tester.getRect(find.byIcon(Icons.search_rounded)).center;
+
+    expect(hintCenter.dy, closeTo(fieldCenter.dy, 1));
+    expect(iconCenter.dy, closeTo(fieldCenter.dy, 1));
+  });
+
   testWidgets('login form uses the measured compact row geometry', (
     tester,
   ) async {
