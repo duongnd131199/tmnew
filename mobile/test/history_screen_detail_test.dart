@@ -1581,6 +1581,66 @@ void main() {
     expect(find.text('2 301.60'), findsOneWidget);
   });
 
+  testWidgets(
+    'few position history rows keep the summary directly after the last row',
+    (tester) async {
+      const entry = DemoHistoryPosition(
+        id: 'few-deposit',
+        title: 'Balance',
+        profit: 100,
+        time: '2026.09.03 10:00:00',
+        subtitle: 'D-ALLINT-USD-INT-test-deposit-id',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ...videoReferenceOverrides,
+            demoHistoryPositionsProvider.overrideWithValue(const [entry]),
+          ],
+          child: const MaterialApp(home: HistoryScreen()),
+        ),
+      );
+      await pumpBottomAnchor(tester);
+
+      final listFinder = find.byKey(
+        const PageStorageKey('history-positions-list'),
+      );
+      final listRect = tester.getRect(listFinder);
+      final entryRect = tester.getRect(
+        find.byKey(const ValueKey('history-position-few-deposit')),
+      );
+      final summaryTopRect = tester.getRect(
+        find.byKey(const ValueKey('history-summary-Tien nap')),
+      );
+      final summaryBottomRect = tester.getRect(
+        find.byKey(const ValueKey('history-summary-Số dư')),
+      );
+      final navigationFadeTop =
+          listRect.bottom - TabReferenceMetrics.bottomNavigationFadeHeight;
+
+      expect(
+        entryRect.top,
+        closeTo(
+          listRect.top +
+              TabReferenceMetrics.historyHeaderExtent +
+              TabReferenceMetrics.historyListTopGap,
+          .01,
+        ),
+        reason: 'The history record must keep its existing top alignment.',
+      );
+      expect(
+        summaryTopRect.top - entryRect.bottom,
+        closeTo(1.3333333333, .01),
+        reason: 'The summary must keep its original position after the rows.',
+      );
+      expect(
+        summaryBottomRect.bottom,
+        lessThan(navigationFadeTop - 100),
+        reason: 'A short history must leave the remaining space below.',
+      );
+    },
+  );
+
   testWidgets('a newly closed position appears at the bottom immediately', (
     tester,
   ) async {

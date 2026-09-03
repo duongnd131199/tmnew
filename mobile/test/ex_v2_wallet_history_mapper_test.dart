@@ -88,6 +88,54 @@ void main() {
     expect(entries.last.profit, -2000);
   });
 
+  test('uses the history invoice as the deposit transaction code', () {
+    const transactionId = '32b9c810-91f0-4d4c-b976-3dd8f0f726ee';
+    const transactionCode = '681540511910';
+    final entries = ExV2WalletHistoryMapper.entries(
+      historyTransactions: const [
+        {
+          'id': '2fd15448-34fd-4414-bf56-37061053c498',
+          'accountId': 'account-1',
+          'invoice': '924750483461',
+          'from': 'wallet',
+          'to': 'trading-account',
+          'type': 'deposit',
+          'amount': 50.0,
+          'currency': 'USD',
+          'status': 'completed',
+          'createdAtUtc': '2026-09-03T02:31:36Z',
+        },
+        {
+          'id': transactionId,
+          'accountId': 'account-1',
+          'invoice': transactionCode,
+          'from': 'wallet',
+          'to': 'trading-account',
+          'type': 'deposit',
+          'amount': 100.0,
+          'amountValue': 100.0,
+          'currency': 'USD',
+          'status': 'completed',
+          'createdAtUtc': '2026-09-04T02:31:36Z',
+          'timestamp': '2026-09-04T02:31:36Z',
+          'depositRequestId': '557ab614-b0ec-4132-885f-e642ace92820',
+        },
+      ],
+      deposits: const [],
+      withdrawals: const [],
+    );
+
+    expect(entries, hasLength(2));
+    final target = entries.singleWhere(
+      (entry) => entry.id == 'wallet-$transactionId',
+    );
+    expect(target.subtitle, 'D-ALLINT-USD-INT-$transactionCode');
+    final normalizedTarget = ExV2WalletHistoryMapper.normalizeReferences(
+      entries,
+    ).singleWhere((entry) => entry.id == 'wallet-$transactionId');
+    expect(normalizedTarget.subtitle, 'D-ALLINT-USD-INT-$transactionCode');
+  });
+
   test('maps and merges the production legacy payment contract', () {
     final entries = ExV2WalletHistoryMapper.entries(
       historyTransactions: const [

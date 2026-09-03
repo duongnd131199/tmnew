@@ -99,16 +99,31 @@ void main() {
         {
           'id': '11111111-1111-4111-8111-111111111111',
           'accountId': 'account-1',
-          'amount': 5000000,
+          'amount': 100,
           'currency': 'USD',
           'method': 'demo',
-          'reference': 'five-million',
-          'status': 'pending',
-          'createdAtUtc': '2026-08-13T08:00:00Z',
-          'updatedAtUtc': '2026-08-13T08:00:00Z',
-          'approvedAtUtc': null,
+          'reference': 'D-ALLINT-USD-INT-883009458181',
+          'status': 'approved',
+          'createdAtUtc': '2026-07-02T20:31:36Z',
+          'updatedAtUtc': '2026-07-02T20:31:36Z',
+          'approvedAtUtc': '2026-07-02T20:31:36Z',
           'rejectedAtUtc': null,
-          'transactionId': null,
+          'transactionId': 'deposit-transaction-100',
+          'snapshotVersion': 12,
+        },
+        {
+          'id': '22222222-2222-4222-8222-222222222222',
+          'accountId': 'account-1',
+          'amount': 176.20,
+          'currency': 'USD',
+          'method': 'demo',
+          'reference': 'D-ALLINT-USD-INT-927312146437',
+          'status': 'approved',
+          'createdAtUtc': '2026-07-21T10:14:06Z',
+          'updatedAtUtc': '2026-07-21T10:14:06Z',
+          'approvedAtUtc': '2026-07-21T10:14:06Z',
+          'rejectedAtUtc': null,
+          'transactionId': 'deposit-transaction-176',
           'snapshotVersion': 12,
         },
       ],
@@ -139,8 +154,35 @@ void main() {
     expect(snapshot.recentDeals.single.createdAt.isUtc, isTrue);
     expect(snapshot.wallet.lockedBalance, 100);
     expect(snapshot.performance.netProfit, 100);
-    expect(viewState.deposits.single['status'], 'pending');
-    expect(viewState.deposits.single['snapshotVersion'], 12);
+    expect(
+      viewState.deposits.map((deposit) => deposit['status']),
+      everyElement('approved'),
+    );
+    expect(
+      viewState.deposits.map((deposit) => deposit['snapshotVersion']),
+      everyElement(12),
+    );
+    expect(
+      viewState.historyPositions
+          .map(
+            (entry) => (entry.title, entry.profit, entry.subtitle, entry.time),
+          )
+          .toList(growable: false),
+      const [
+        (
+          'Balance',
+          100.0,
+          'D-ALLINT-USD-INT-883009458181',
+          '2026.07.03 03:31:36',
+        ),
+        (
+          'Balance',
+          176.20,
+          'D-ALLINT-USD-INT-927312146437',
+          '2026.07.21 17:14:06',
+        ),
+      ],
+    );
     expect(viewState.historySummary.deposit, 1200);
   });
 

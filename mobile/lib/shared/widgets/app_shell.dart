@@ -664,37 +664,69 @@ class _MtNavIconPainter extends CustomPainter {
           );
           break;
         case _MtNavKind.settings:
-          const center = Offset(13.5, 13.5);
-          const toothRadii = <double>[8.65, 8.65, 10.65, 10.65, 8.65, 8.65];
-          const toothAngles = <double>[-.5, -.31, -.18, .18, .31, .5];
-          const toothCount = 6;
-          const horizontalCompensation = 1.08;
-          const toothStep = math.pi * 2 / toothCount;
-          final gear = Path();
-          for (var tooth = 0; tooth < toothCount; tooth++) {
-            final toothCenter = -math.pi / 2 + tooth * toothStep;
-            for (var point = 0; point < toothRadii.length; point++) {
-              final angle = toothCenter + toothAngles[point] * toothStep;
-              final offset = Offset(
-                center.dx +
-                    math.cos(angle) *
-                        toothRadii[point] *
-                        horizontalCompensation,
-                center.dy + math.sin(angle) * toothRadii[point],
-              );
-              if (tooth == 0 && point == 0) {
-                gear.moveTo(offset.dx, offset.dy);
-              } else {
-                gear.lineTo(offset.dx, offset.dy);
-              }
-            }
-          }
-          gear.close();
+          // The supplied reference uses the classic eight-tooth Material
+          // silhouette, but as a light outline instead of the font's filled
+          // band. Drawing only its outer contour keeps the exact tooth shape
+          // while matching the thinner iOS reference weight.
+          final gear = Path()
+            ..moveTo(19.43, 12.98)
+            ..relativeCubicTo(.04, -.32, .07, -.64, .07, -.98)
+            ..relativeCubicTo(0, -.34, -.03, -.66, -.07, -.98)
+            ..relativeLineTo(2.11, -1.65)
+            ..relativeCubicTo(.19, -.15, .24, -.42, .12, -.64)
+            ..relativeLineTo(-2, -3.46)
+            ..relativeCubicTo(-.09, -.16, -.26, -.25, -.44, -.25)
+            ..relativeCubicTo(-.06, 0, -.12, .01, -.17, .03)
+            ..relativeLineTo(-2.49, 1)
+            ..relativeCubicTo(-.52, -.4, -1.08, -.73, -1.69, -.98)
+            ..relativeLineTo(-.38, -2.65)
+            ..cubicTo(14.46, 2.18, 14.25, 2, 14, 2)
+            ..relativeLineTo(-4, 0)
+            ..relativeCubicTo(-.25, 0, -.46, .18, -.49, .42)
+            ..relativeLineTo(-.38, 2.65)
+            ..relativeCubicTo(-.61, .25, -1.17, .59, -1.69, .98)
+            ..relativeLineTo(-2.49, -1)
+            ..relativeCubicTo(-.06, -.02, -.12, -.03, -.18, -.03)
+            ..relativeCubicTo(-.17, 0, -.34, .09, -.43, .25)
+            ..relativeLineTo(-2, 3.46)
+            ..relativeCubicTo(-.13, .22, -.07, .49, .12, .64)
+            ..relativeLineTo(2.11, 1.65)
+            ..relativeCubicTo(-.04, .32, -.07, .65, -.07, .98)
+            ..relativeCubicTo(0, .33, .03, .66, .07, .98)
+            ..relativeLineTo(-2.11, 1.65)
+            ..relativeCubicTo(-.19, .15, -.24, .42, -.12, .64)
+            ..relativeLineTo(2, 3.46)
+            ..relativeCubicTo(.09, .16, .26, .25, .44, .25)
+            ..relativeCubicTo(.06, 0, .12, -.01, .17, -.03)
+            ..relativeLineTo(2.49, -1)
+            ..relativeCubicTo(.52, .4, 1.08, .73, 1.69, .98)
+            ..relativeLineTo(.38, 2.65)
+            ..relativeCubicTo(.03, .24, .24, .42, .49, .42)
+            ..relativeLineTo(4, 0)
+            ..relativeCubicTo(.25, 0, .46, -.18, .49, -.42)
+            ..relativeLineTo(.38, -2.65)
+            ..relativeCubicTo(.61, -.25, 1.17, -.59, 1.69, -.98)
+            ..relativeLineTo(2.49, 1)
+            ..relativeCubicTo(.06, .02, .12, .03, .18, .03)
+            ..relativeCubicTo(.17, 0, .34, -.09, .43, -.25)
+            ..relativeLineTo(2, -3.46)
+            ..relativeCubicTo(.12, -.22, .07, -.49, -.12, -.64)
+            ..relativeLineTo(-2.11, -1.65)
+            ..close();
+          canvas.save();
+          canvas.translate(13.5, 13.5);
+          canvas.scale(1.09, 1.10);
+          canvas.translate(-12, -12);
           canvas.drawPath(gear, stroke);
           canvas.drawOval(
-            Rect.fromCenter(center: center, width: 6.5, height: 6.9),
+            Rect.fromCenter(
+              center: const Offset(12, 12),
+              width: 6.5,
+              height: 6.2,
+            ),
             stroke,
           );
+          canvas.restore();
           break;
       }
     }
@@ -705,7 +737,7 @@ class _MtNavIconPainter extends CustomPainter {
       (_MtNavKind.chart, _) => (2.38, 1.50, .565),
       (_MtNavKind.trade, _) => (2.65, 1.35, .565),
       (_MtNavKind.history, _) => (2.78, 1.15, .565),
-      (_MtNavKind.settings, _) => (2.65, 1.85, .565),
+      (_MtNavKind.settings, _) => (2.05, 1.85, .565),
     };
     draw(
       strokeWidth: outerWidth,

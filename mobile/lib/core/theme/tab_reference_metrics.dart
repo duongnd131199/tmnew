@@ -59,9 +59,9 @@ abstract final class TabReferenceMetrics {
     _ => (left: 4.0, right: 4.0),
   };
 
-  static const bottomNavigationSettingsIconOffsetX = -.3333333333;
-  static const bottomNavigationSettingsIconOffsetY = 0.0;
-  static const bottomNavigationSettingsIconScaleX = .96;
+  static const bottomNavigationSettingsIconOffsetX = .6666666667;
+  static const bottomNavigationSettingsIconOffsetY = .3333333333;
+  static const bottomNavigationSettingsIconScaleX = .90;
   static const bottomNavigationSettingsIconScaleY = .90;
   static const bottomNavigationChartIconOffsetX = .1666666667;
   static const bottomNavigationChartIconOffsetY = 1.3333333333;

@@ -51,6 +51,13 @@ abstract final class ExV2WalletHistoryMapper {
       _WalletHistoryCandidate? metadata,
     }) {
       final reference = _displayReference(canonical, metadata: metadata);
+      final referenceIsAuthoritative =
+          canonical.type == 'deposit' &&
+          _referenceSuffix(
+                canonical.depositTransactionCode,
+                _depositReferenceDigits,
+              ) !=
+              null;
       final duplicateKeys = <String>{
         'reference:${reference.toLowerCase()}',
         for (final identifier in canonical.identifiers)
@@ -71,6 +78,7 @@ abstract final class ExV2WalletHistoryMapper {
                 : canonical.amount.abs(),
             time: ExV2DemoMapper.dateLabel(canonical.occurredAt),
             subtitle: reference,
+            referenceIsAuthoritative: referenceIsAuthoritative,
           ),
         ),
       );
@@ -132,6 +140,13 @@ abstract final class ExV2WalletHistoryMapper {
           _date(json, const ['createdAt', 'createdAtUtc', 'timestamp']) ??
           occurredAt,
       identifiers: _identifiers(json),
+      depositTransactionCode: sourceType == null && type == 'deposit'
+          ? _text(json, const [
+              'invoice',
+              'transactionCode',
+              'transactionNumber',
+            ])
+          : null,
       explicitReference: _text(json, const [
         'reference',
         'transactionReference',
@@ -185,6 +200,13 @@ abstract final class ExV2WalletHistoryMapper {
     final prefix = isWithdrawal
         ? _withdrawalReferencePrefix
         : _depositReferencePrefix;
+    final depositTransactionSuffix = _referenceSuffix(
+      canonical.depositTransactionCode,
+      _depositReferenceDigits,
+    );
+    if (!isWithdrawal && depositTransactionSuffix != null) {
+      return '$prefix${depositTransactionSuffix.toString().padLeft(_depositReferenceDigits, '0')}';
+    }
     final digits = isWithdrawal
         ? _withdrawalReferenceDigits
         : _depositReferenceDigits;
@@ -213,6 +235,16 @@ abstract final class ExV2WalletHistoryMapper {
           final digits = isWithdrawal
               ? _withdrawalReferenceDigits
               : _depositReferenceDigits;
+          final authoritativeSuffix = entry.referenceIsAuthoritative
+              ? _referenceSuffix(entry.subtitle, digits)
+              : null;
+          if (!isWithdrawal && authoritativeSuffix != null) {
+            final previous = lastSuffixByType[type];
+            if (previous == null || authoritativeSuffix > previous) {
+              lastSuffixByType[type] = authoritativeSuffix;
+            }
+            return entry;
+          }
           final candidate =
               _referenceSuffix(entry.subtitle, digits) ??
               _generatedEntryReferenceSuffix(entry, digits);
@@ -234,6 +266,7 @@ abstract final class ExV2WalletHistoryMapper {
             openPrice: entry.openPrice,
             closePrice: entry.closePrice,
             subtitle: normalizedReference,
+            referenceIsAuthoritative: entry.referenceIsAuthoritative,
           );
         })
         .toList(growable: false);
@@ -388,6 +421,7 @@ final class _WalletHistoryCandidate {
     required this.occurredAt,
     required this.matchAt,
     required this.identifiers,
+    required this.depositTransactionCode,
     required this.explicitReference,
   });
 
@@ -398,6 +432,7 @@ final class _WalletHistoryCandidate {
   final DateTime occurredAt;
   final DateTime matchAt;
   final List<String> identifiers;
+  final String? depositTransactionCode;
   final String? explicitReference;
 }
 

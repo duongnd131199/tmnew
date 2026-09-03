@@ -206,40 +206,28 @@ void main() {
       const Rect.fromLTWH(315, 780, 40, 34),
     );
 
-    expect(bounds, const Rect.fromLTWH(323, 790, 19, 18));
+    expect(bounds, const Rect.fromLTWH(324, 790, 18, 18));
   });
 
-  testWidgets('selected Settings gear exposes the six reference teeth', (
+  testWidgets('unselected Settings gear exposes the eight reference teeth', (
     tester,
   ) async {
     await _pumpNavigation(
       tester,
-      selectedIndex: 4,
+      selectedIndex: 3,
       surfaceSize: const Size(393.3333333333, 853.3333333333),
     );
 
-    final radialInk = await _ellipticalDarkInkPattern(
+    final toothCount = await _ellipticalDarkInkRunCount(
       tester,
       center: const Offset(332.5, 799),
-      radius: 9.5,
-      scaleX: .96,
-      scaleY: .90,
+      innerRadius: 6.75,
+      outerRadius: 7,
+      scaleX: 1,
+      scaleY: 1,
     );
 
-    expect(radialInk, const <bool>[
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-    ]);
+    expect(toothCount, 8);
   });
 
   testWidgets(
@@ -653,10 +641,11 @@ Future<Rect> _darkInkBounds(WidgetTester tester, Rect searchRect) async {
   );
 }
 
-Future<List<bool>> _ellipticalDarkInkPattern(
+Future<int> _ellipticalDarkInkRunCount(
   WidgetTester tester, {
   required Offset center,
-  required double radius,
+  required double innerRadius,
+  required double outerRadius,
   required double scaleX,
   required double scaleY,
 }) async {
@@ -674,20 +663,32 @@ Future<List<bool>> _ellipticalDarkInkPattern(
     throw StateError('Unable to read navigation pixels');
   }
 
-  const sampleCount = 12;
+  const sampleCount = 720;
   final samples = <bool>[];
   for (var index = 0; index < sampleCount; index++) {
     final angle = -math.pi / 2 + index * math.pi * 2 / sampleCount;
-    final x = ((center.dx + math.cos(angle) * radius * scaleX) * 4).round();
-    final y = ((center.dy + math.sin(angle) * radius * scaleY) * 4).round();
-    final offset = (y * captured.width + x) * 4;
-    final red = captured.bytes!.getUint8(offset);
-    final green = captured.bytes!.getUint8(offset + 1);
-    final blue = captured.bytes!.getUint8(offset + 2);
-    samples.add((red + green + blue) / 3 < 205);
+    var hasInk = false;
+    for (var radius = innerRadius; radius <= outerRadius; radius += .25) {
+      final x = ((center.dx + math.cos(angle) * radius * scaleX) * 4).round();
+      final y = ((center.dy + math.sin(angle) * radius * scaleY) * 4).round();
+      final offset = (y * captured.width + x) * 4;
+      final red = captured.bytes!.getUint8(offset);
+      final green = captured.bytes!.getUint8(offset + 1);
+      final blue = captured.bytes!.getUint8(offset + 2);
+      if ((red + green + blue) / 3 < 205) {
+        hasInk = true;
+        break;
+      }
+    }
+    samples.add(hasInk);
   }
 
-  return samples;
+  var runs = 0;
+  for (var index = 0; index < samples.length; index++) {
+    final previous = samples[(index + samples.length - 1) % samples.length];
+    if (samples[index] && !previous) runs++;
+  }
+  return runs;
 }
 
 class _NavigationHarness extends StatelessWidget {

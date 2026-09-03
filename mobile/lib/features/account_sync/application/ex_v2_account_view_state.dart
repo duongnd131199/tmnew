@@ -1,4 +1,5 @@
 import 'package:trading_mobile/features/account_sync/data/ex_v2_demo_mapper.dart';
+import 'package:trading_mobile/features/account_sync/data/ex_v2_wallet_history_mapper.dart';
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 
@@ -99,6 +100,13 @@ final class ExV2AccountViewState {
     deals: bootstrap.recentDeals
         .map(ExV2DemoMapper.deal)
         .toList(growable: false),
+    historyPositions: ExV2WalletHistoryMapper.entries(
+      historyTransactions: const [],
+      deposits: bootstrap.recentDeposits
+          .map((deposit) => deposit.toJson())
+          .toList(growable: false),
+      withdrawals: const [],
+    ),
     deposits: bootstrap.recentDeposits
         .map((deposit) => deposit.toJson())
         .toList(growable: false),
