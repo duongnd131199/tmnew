@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/chart/presentation/navigation/chart_navigation.dart';
+import 'package:trading_mobile/features/order/presentation/order_failure_message.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
@@ -171,9 +173,16 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
         completedOrderType = _marketOrderType;
         completedPendingOrder = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() => submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            orderFailureMessage(error, fallback: 'Không thể đặt lệnh'),
+          ),
+        ),
+      );
     }
   }
 
@@ -232,9 +241,16 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
         completedOrderType = orderType;
         completedPendingOrder = true;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() => submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            orderFailureMessage(error, fallback: 'Không thể đặt lệnh chờ'),
+          ),
+        ),
+      );
     }
   }
 
@@ -767,7 +783,8 @@ class _OrderForm extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 alignment: Alignment.center,
                 child: Text(
-                  'Đóng #${position.id} ${position.side.toLowerCase()} '
+                  'Đóng #${displayTradingTicketId(position.id)} '
+                  '${position.side.toLowerCase()} '
                   '${position.volume.toStringAsFixed(2)} ở Thị Trường với mức '
                   '${position.profit < 0 ? 'Lỗ' : 'Lợi nhuận'} '
                   '${position.profit.toStringAsFixed(2)}',
@@ -848,10 +865,11 @@ class _OrderCompleted extends StatelessWidget {
               children: [
                 TextSpan(
                   text: closedPosition
-                      ? '#$orderId close '
+                      ? '#${displayTradingTicketId(orderId)} close '
                       : pendingOrder
-                      ? '#$orderId ${orderType.toLowerCase()} '
-                      : '#$orderId market ',
+                      ? '#${displayTradingTicketId(orderId)} '
+                            '${orderType.toLowerCase()} '
+                      : '#${displayTradingTicketId(orderId)} market ',
                 ),
                 TextSpan(
                   text: side.toLowerCase(),

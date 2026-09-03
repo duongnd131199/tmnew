@@ -132,7 +132,8 @@ abstract final class ExV2DemoMapper {
     profit: value.profit,
     time: dateLabel(value.createdAt),
     entry: _isExitDealType(value.type) ? 'out' : 'in',
-    positionId: value.positionId,
+    orderId: value.orderId ?? '',
+    positionId: value.positionId ?? '',
   );
 
   static String orderType(ExV2Order value) {

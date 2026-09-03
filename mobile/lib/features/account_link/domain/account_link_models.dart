@@ -81,19 +81,22 @@ final class LinkedTradingAccount {
     this.status,
   });
 
-  factory LinkedTradingAccount.fromJson(AccountLinkJson json) =>
-      LinkedTradingAccount(
-        id: _requiredString(json, 'id'),
-        brokerId: _requiredString(json, 'brokerId'),
-        brokerName: _requiredString(json, 'brokerName'),
-        serverId: _requiredString(json, 'serverId'),
-        serverName: _requiredString(json, 'serverName'),
-        login: _requiredString(json, 'login'),
-        isActive: _requiredBool(json, 'isActive'),
-        displayName: _optionalString(json, 'displayName'),
-        currency: _optionalString(json, 'currency'),
-        status: _optionalString(json, 'status'),
-      );
+  factory LinkedTradingAccount.fromJson(AccountLinkJson json) {
+    final brokerId = _requiredString(json, 'brokerId');
+    final serverId = _requiredString(json, 'serverId');
+    return LinkedTradingAccount(
+      id: _requiredString(json, 'id'),
+      brokerId: brokerId,
+      brokerName: _optionalString(json, 'brokerName') ?? brokerId,
+      serverId: serverId,
+      serverName: _optionalString(json, 'serverName') ?? serverId,
+      login: _requiredString(json, 'login'),
+      isActive: _requiredBool(json, 'isActive'),
+      displayName: _optionalString(json, 'displayName'),
+      currency: _optionalString(json, 'currency'),
+      status: _optionalString(json, 'status'),
+    );
+  }
 
   final String id;
   final String brokerId;

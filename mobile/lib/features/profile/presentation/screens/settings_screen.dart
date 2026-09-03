@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/reference_typography_profile.dart';
+import 'package:trading_mobile/core/theme/settings_reference_metrics.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/mt5_settings_icons.dart';
+import 'package:trading_mobile/shared/widgets/mt_tab_header_fade.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -22,7 +26,22 @@ class SettingsScreen extends ConsumerWidget {
         serverSettings['unreadNotifications'] ?? serverSettings['unreadCount'];
     final unreadCount = unreadValue is num ? unreadValue.toInt() : null;
     final language = (serverSettings['language'] ?? serverSettings['locale'])
-        ?.toString();
+        ?.toString()
+        .trim();
+    final languageLabel =
+        language == null ||
+            language.isEmpty ||
+            language.toLowerCase() == 'tieng viet'
+        ? 'Tiếng Việt'
+        : language;
+    final mailboxSubtitle = account == null
+        ? 'Bạn đã đăng ký tài khoản mới'
+        : 'Bạn đã đăng ký tài khoản mới - ${account.server}';
+    final toolbarTitleStyle = AppTypography.forRole(
+      context,
+      ReferenceTextRole.settingsToolbarTitle,
+      colorRole: ReferenceTextColorRole.primary,
+    );
     String sectionRoute(String title) =>
         '/section?title=${Uri.encodeComponent(title)}';
 
@@ -30,39 +49,9 @@ class SettingsScreen extends ConsumerWidget {
       backgroundColor: AppColors.groupedBackground,
       body: SafeArea(
         bottom: false,
-        child: Column(
+        child: Stack(
           children: [
-            SizedBox(
-              height: 76,
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: 48.3333333333,
-                    child: Transform.translate(
-                      offset: const Offset(.6666666667, .6666666667),
-                      child: Transform.scale(
-                        scaleY: 1,
-                        alignment: Alignment.topCenter,
-                        child: Text(
-                          'Cai dat',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontFamily: 'sans-serif',
-                            fontSize: 19.5,
-                            fontWeight: FontWeight.w600,
-                            height: 1,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
+            Positioned.fill(
               child: Scrollbar(
                 key: const Key('settings-scrollbar'),
                 radius: const Radius.circular(2),
@@ -72,7 +61,12 @@ class SettingsScreen extends ConsumerWidget {
                   physics: const BouncingScrollPhysics(
                     parent: AlwaysScrollableScrollPhysics(),
                   ),
-                  padding: const EdgeInsets.fromLTRB(16, 14, 14, 118),
+                  padding: const EdgeInsets.fromLTRB(
+                    SettingsReferenceMetrics.contentHorizontalInset,
+                    SettingsReferenceMetrics.contentTopInset,
+                    SettingsReferenceMetrics.contentHorizontalInset,
+                    SettingsReferenceMetrics.contentBottomInset,
+                  ),
                   children: [
                     _SettingsCard(
                       children: [
@@ -84,11 +78,9 @@ class SettingsScreen extends ConsumerWidget {
                         _SettingsRow(
                           iconKind: _SettingsIconKind.newAccount,
                           title: 'Tai khoan moi',
-                          height: 50.6666666667,
-                          contentOffsetY: 1.3,
+                          stableId: 'Tai khoan moi',
+                          height: SettingsReferenceMetrics.newAccountRowHeight,
                           iconOffsetY: .6666666667,
-                          titleOffsetY: -1,
-                          titleScaleX: .97,
                           onTap: serverMode
                               ? () => context.push('/accounts/add')
                               : () => context.push('/register'),
@@ -96,143 +88,131 @@ class SettingsScreen extends ConsumerWidget {
                         _SettingsRow(
                           iconKind: _SettingsIconKind.mail,
                           title: 'Hop thu',
-                          subtitle: 'You have registered a new acco...',
-                          height: 62,
-                          contentOffsetY: -1.3,
+                          stableId: 'Hop thu',
+                          subtitle: mailboxSubtitle,
+                          height: SettingsReferenceMetrics.mailboxRowHeight,
                           iconOffsetY: .6666666667,
-                          titleOffsetY: .3333333333,
-                          titleScaleX: 1.01,
-                          titleScaleY: .963,
-                          subtitleOffsetY: -.3333333333,
-                          subtitleScaleX: 1.033,
-                          subtitleScaleY: 1.045,
                           onTap: () => context.push('/messages'),
                         ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.news,
                           title: 'Tin tuc',
-                          subtitle: 'Australian Dollar: RBA keeps hik...',
-                          height: 62,
-                          contentOffsetY: -1.3,
+                          stableId: 'Tin tuc',
+                          height: SettingsReferenceMetrics.newsRowHeight,
                           iconOffsetY: .6666666667,
-                          titleScaleX: .977,
-                          titleScaleY: 1.1,
-                          subtitleOffsetY: -.3333333333,
-                          subtitleScaleX: 1.035,
-                          subtitleScaleY: 1.045,
                           onTap: () => context.push(sectionRoute('Tin tuc')),
                         ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.tradays,
                           title: 'Tradays',
                           subtitle: 'Lich Kinh Te',
-                          height: 62,
-                          contentOffsetY: -1.3,
-                          subtitleOffsetY: -.3333333333,
-                          subtitleScaleX: 1.023,
-                          subtitleScaleY: 1.055,
+                          height: SettingsReferenceMetrics.tradaysRowHeight,
                           onTap: () => context.push(sectionRoute('Tradays')),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 19),
+                    const SizedBox(height: SettingsReferenceMetrics.cardGap),
                     _SettingsCard(
                       children: [
                         _SettingsRow(
                           iconKind: _SettingsIconKind.community,
                           title: 'Trao doi va tin nhan',
+                          stableId: 'Trao doi va tin nhan',
                           subtitle: 'Dang nhap vao cong dong MQ...',
                           notificationCount: serverState == null
                               ? 2
                               : unreadCount,
-                          showConnectedIndicator: true,
-                          height: 62,
+                          height: SettingsReferenceMetrics.communityRowHeight,
                           subtitleGap: 8.7,
-                          contentOffsetY: -2.33,
                           iconOffsetY: 1,
-                          titleOffsetY: .6666666667,
-                          titleScaleX: .98,
-                          titleScaleY: 1.048,
-                          subtitleOffsetY: 1.6666666667,
-                          subtitleScaleX: 1.037,
                           onTap: () => context.push('/messages'),
                         ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.mql5,
                           title: 'Cong dong trader',
-                          height: 50,
-                          contentOffsetY: -.1,
-                          titleScaleX: 1.01,
+                          stableId: 'Cong dong trader',
+                          height:
+                              SettingsReferenceMetrics.traderCommunityRowHeight,
                           onTap: () =>
                               context.push(sectionRoute('Cong dong trader')),
                         ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.telegram,
                           title: 'MQL5 Algo Trading',
-                          height: 50.6666666667,
-                          contentOffsetY: -1.3,
-                          titleOffsetY: .6666666667,
-                          titleScaleX: .996,
+                          height: SettingsReferenceMetrics.algoTradingRowHeight,
                           onTap: () =>
                               context.push(sectionRoute('MQL5 Algo Trading')),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 19.3333333333),
+                    const SizedBox(height: SettingsReferenceMetrics.cardGap),
                     _SettingsCard(
                       children: [
                         _SettingsRow(
                           iconKind: _SettingsIconKind.otp,
                           title: 'OTP',
                           subtitle: 'Khoi tao mat khau mot lan',
-                          height: 61.6666666667,
-                          contentOffsetY: -1.3,
+                          height: SettingsReferenceMetrics.otpRowHeight,
                           iconOffsetY: .3333333333,
-                          titleOffsetY: .6666666667,
-                          titleScaleY: 1.05,
-                          subtitleOffsetY: -.3333333333,
-                          subtitleScaleX: 1.024,
-                          subtitleScaleY: 1.11,
                           onTap: () => context.push(sectionRoute('OTP')),
                         ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.language,
                           title: 'Giao dien',
-                          subtitle: language?.trim().isNotEmpty == true
-                              ? language
-                              : 'Tieng Viet',
-                          height: 61,
-                          contentOffsetY: -1.3,
+                          stableId: 'Giao diện',
+                          subtitle: languageLabel,
+                          height: SettingsReferenceMetrics.languageRowHeight,
                           iconOffsetY: 1.3333333333,
-                          titleOffsetY: 1,
-                          titleScaleX: .99,
-                          titleScaleY: 1.05,
-                          subtitleOffsetY: -1,
-                          subtitleScaleX: 1.037,
-                          subtitleScaleY: 1.12,
                           onTap: () => context.push(sectionRoute('Giao dien')),
                         ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.candles,
                           title: 'Nhung bieu do',
-                          height: 61,
+                          stableId: 'Nhung bieu do',
+                          height:
+                              SettingsReferenceMetrics.embeddedChartsRowHeight,
                           onTap: () => context.go('/chart'),
                         ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.journal,
                           title: 'Nhat ky',
-                          height: 61,
+                          stableId: 'Nhat ky',
+                          height: SettingsReferenceMetrics.journalRowHeight,
                           onTap: () => context.push(sectionRoute('Nhat ky')),
                         ),
                         _SettingsRow(
                           iconKind: _SettingsIconKind.settings,
                           title: 'Cai dat',
-                          height: 61,
+                          stableId: 'Cai dat',
+                          height: SettingsReferenceMetrics.finalRowHeight,
                           onTap: () => context.push(sectionRoute('Cai dat')),
                         ),
                       ],
                     ),
                   ],
+                ),
+              ),
+            ),
+            const Positioned(
+              left: 0,
+              top: 0,
+              right: 0,
+              height: SettingsReferenceMetrics.contentTopInset,
+              child: IgnorePointer(
+                child: MtTabHeaderFade(
+                  decorationKey: Key('settings-header-overlay'),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: SettingsReferenceMetrics.toolbarTitleTop,
+              child: IgnorePointer(
+                child: Text(
+                  'Cai dat',
+                  textAlign: TextAlign.center,
+                  style: toolbarTitleStyle,
                 ),
               ),
             ),
@@ -253,10 +233,14 @@ class _SettingsCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(
+          SettingsReferenceMetrics.cardRadius,
+        ),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(
+          SettingsReferenceMetrics.cardRadius,
+        ),
         child: Column(children: children),
       ),
     );
@@ -271,6 +255,33 @@ class _AccountCardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final nameGeometry = AppTypography.geometryForRole(
+      context,
+      ReferenceTextRole.settingsAccountName,
+    );
+    final companyGeometry = AppTypography.geometryForRole(
+      context,
+      ReferenceTextRole.settingsAccountCompany,
+    );
+    final metaGeometry = AppTypography.geometryForRole(
+      context,
+      ReferenceTextRole.settingsAccountMetaMultiline,
+    );
+    final nameStyle = AppTypography.forRole(
+      context,
+      ReferenceTextRole.settingsAccountName,
+      colorRole: ReferenceTextColorRole.primary,
+    );
+    final companyStyle = AppTypography.forRole(
+      context,
+      ReferenceTextRole.settingsAccountCompany,
+      colorRole: ReferenceTextColorRole.primary,
+    );
+    final metaStyle = AppTypography.forRole(
+      context,
+      ReferenceTextRole.settingsAccountMetaMultiline,
+      colorRole: ReferenceTextColorRole.primary,
+    );
     return Semantics(
       key: const Key('settings-account'),
       button: true,
@@ -282,85 +293,62 @@ class _AccountCardHeader extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: SizedBox(
-            height: 110.6666666667,
+            height: SettingsReferenceMetrics.accountHeaderHeight,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
                 Positioned(
-                  top: 9.3,
+                  top: SettingsReferenceMetrics.accountNameTop,
                   left: 0,
                   right: 0,
-                  child: Transform.translate(
-                    offset: const Offset(0, 1.6666666667),
-                    child: Transform.scale(
-                      scaleX: 1.025,
-                      scaleY: 1.05,
-                      alignment: Alignment.center,
+                  child: _applySettingsTextGeometry(
+                    nameGeometry,
+                    Opacity(
+                      opacity: 1,
                       child: Text(
                         account.name,
                         key: const Key('settings-account-name'),
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontFamily: 'sans-serif',
-                          fontSize: 18.5,
-                          height: 1,
-                        ),
+                        style: nameStyle,
                       ),
                     ),
                   ),
                 ),
                 Positioned(
-                  top: 35.7,
+                  top: SettingsReferenceMetrics.accountCompanyTop,
                   left: 0,
                   right: 0,
-                  child: Transform.translate(
-                    offset: const Offset(.6666666667, 1.3333333333),
-                    child: Transform.scale(
-                      scaleX: .993,
-                      scaleY: .92,
-                      alignment: Alignment.center,
+                  child: _applySettingsTextGeometry(
+                    companyGeometry,
+                    Opacity(
+                      opacity: 1,
                       child: Text(
                         account.company,
                         key: const Key('settings-account-company'),
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontFamily: 'sans-serif',
-                          fontSize: 15,
-                          height: 1,
-                        ),
+                        style: companyStyle,
                       ),
                     ),
                   ),
                 ),
                 Positioned(
-                  top: 60.6333333333,
+                  top: SettingsReferenceMetrics.accountMetaTop,
                   left: 0,
                   right: 0,
-                  child: Transform.translate(
-                    offset: const Offset(.6666666667, 0),
-                    child: Transform.scale(
-                      scaleX: 1.011,
-                      alignment: Alignment.topCenter,
-                      child: Text(
-                        '${account.id} - ${account.server}\n'
-                        '${account.accessPoint}',
-                        key: const Key('settings-account-server-access'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontFamily: 'sans-serif',
-                          fontSize: 15,
-                          height: 1.4833333333,
-                        ),
-                      ),
+                  child: _applySettingsTextGeometry(
+                    metaGeometry,
+                    Text(
+                      '${account.id} - ${account.server}\n'
+                      '${account.accessPoint}',
+                      key: const Key('settings-account-server-access'),
+                      textAlign: TextAlign.center,
+                      style: metaStyle,
                     ),
                   ),
                 ),
                 const Positioned(
                   right: 10.7,
-                  top: 45.5,
+                  top: SettingsReferenceMetrics.accountChevronTop,
                   child: SizedBox.square(
                     dimension: 18,
                     key: Key('settings-account-chevron'),
@@ -391,50 +379,70 @@ class _SettingsRow extends StatelessWidget {
   const _SettingsRow({
     required this.iconKind,
     required this.title,
+    this.stableId,
     this.subtitle,
     this.notificationCount,
-    this.showConnectedIndicator = false,
     this.height = 52,
     this.subtitleGap = 10.3,
-    this.contentOffsetY = 0,
     this.iconOffsetY = 0,
-    this.titleOffsetY = 0,
-    this.titleScaleX = 1,
-    this.titleScaleY = 1,
-    this.subtitleOffsetY = 0,
-    this.subtitleScaleX = 1,
-    this.subtitleScaleY = 1,
     required this.onTap,
   });
 
   final _SettingsIconKind iconKind;
   final String title;
+  final String? stableId;
   final String? subtitle;
   final int? notificationCount;
-  final bool showConnectedIndicator;
   final double height;
   final double subtitleGap;
-  final double contentOffsetY;
   final double iconOffsetY;
-  final double titleOffsetY;
-  final double titleScaleX;
-  final double titleScaleY;
-  final double subtitleOffsetY;
-  final double subtitleScaleX;
-  final double subtitleScaleY;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final typographyVariant = _settingsTypographyVariant(iconKind);
+    final titleGeometry = AppTypography.geometryForRole(
+      context,
+      ReferenceTextRole.settingsRowTitle,
+      variant: typographyVariant,
+    );
+    final subtitleGeometry = subtitle == null
+        ? null
+        : AppTypography.geometryForRole(
+            context,
+            ReferenceTextRole.settingsRowSubtitle,
+            variant: typographyVariant,
+          );
+    final titleStyle = AppTypography.forRole(
+      context,
+      ReferenceTextRole.settingsRowTitle,
+      colorRole: ReferenceTextColorRole.primary,
+      variant: typographyVariant,
+    );
+    final subtitleStyle = subtitle == null
+        ? null
+        : AppTypography.forRole(
+            context,
+            ReferenceTextRole.settingsRowSubtitle,
+            colorRole: ReferenceTextColorRole.secondary,
+            variant: typographyVariant,
+          );
+    final notificationBadgeStyle = notificationCount == null
+        ? null
+        : AppTypography.forRole(
+            context,
+            ReferenceTextRole.settingsNotificationBadge,
+            colorRole: ReferenceTextColorRole.white,
+          );
+    final rowId = stableId ?? title;
     final semanticsLabel = [
       title,
       ?subtitle,
       if (notificationCount case final count?) '$count thông báo',
-      if (showConnectedIndicator) 'Đã kết nối',
     ].join(', ');
 
     return Semantics(
-      key: ValueKey('settings-$title'),
+      key: ValueKey('settings-$rowId'),
       button: true,
       label: semanticsLabel,
       onTap: onTap,
@@ -445,14 +453,14 @@ class _SettingsRow extends StatelessWidget {
             height: height,
             child: Row(
               children: [
-                const SizedBox(width: 15),
+                const SizedBox(width: SettingsReferenceMetrics.rowLeadingInset),
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
                     Transform.translate(
                       offset: Offset(0, iconOffsetY),
                       child: _SettingsIcon(
-                        key: ValueKey('settings-icon-$title'),
+                        key: ValueKey('settings-icon-$rowId'),
                         kind: iconKind,
                       ),
                     ),
@@ -461,7 +469,7 @@ class _SettingsRow extends StatelessWidget {
                         right: -5,
                         top: -7.3 + iconOffsetY,
                         child: Container(
-                          key: ValueKey('settings-notification-$title'),
+                          key: ValueKey('settings-notification-$rowId'),
                           width: 21,
                           height: 21,
                           alignment: Alignment.center,
@@ -471,19 +479,13 @@ class _SettingsRow extends StatelessWidget {
                           ),
                           child: Text(
                             '$notificationCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontFamily: 'sans-serif',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              height: 1,
-                            ),
+                            style: notificationBadgeStyle,
                           ),
                         ),
                       ),
                   ],
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: SettingsReferenceMetrics.rowTitleGap),
                 Expanded(
                   child: DecoratedBox(
                     decoration: const BoxDecoration(
@@ -494,81 +496,40 @@ class _SettingsRow extends StatelessWidget {
                     child: Row(
                       children: [
                         Expanded(
-                          child: Transform.translate(
-                            offset: Offset(-.6666666667, contentOffsetY),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Transform.translate(
-                                  offset: Offset(0, titleOffsetY),
-                                  child: Transform.scale(
-                                    scaleX: titleScaleX,
-                                    scaleY: titleScaleY,
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontFamily: 'sans-serif',
-                                        fontSize: 18.5,
-                                        fontWeight: FontWeight.w500,
-                                        height: 1,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                if (subtitle != null) ...[
-                                  SizedBox(height: subtitleGap),
-                                  Transform.translate(
-                                    offset: Offset(0, subtitleOffsetY),
-                                    child: Transform.scale(
-                                      scaleX: subtitleScaleX,
-                                      scaleY: subtitleScaleY,
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        subtitle!,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: AppColors.textSecondary,
-                                          fontFamily: 'sans-serif',
-                                          fontSize: 16,
-                                          height: 1,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                        if (showConnectedIndicator)
-                          const SizedBox(
-                            key: Key('settings-connected-indicator'),
-                            width: 29,
-                            height: 29,
-                            child: Align(
-                              alignment: Alignment.topLeft,
-                              child: SizedBox.square(
-                                dimension: 28,
-                                child: CustomPaint(
-                                  key: Key('settings-connected-glyph'),
-                                  painter: _ConnectedIndicatorPainter(),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _applySettingsTextGeometry(
+                                titleGeometry,
+                                Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: titleStyle,
                                 ),
                               ),
-                            ),
-                          )
-                        else
-                          const SizedBox.square(
-                            dimension: 18,
-                            key: Key('settings-row-chevron'),
-                            child: Center(child: AccountChevronRight()),
+                              if (subtitle != null) ...[
+                                SizedBox(height: subtitleGap),
+                                _applySettingsTextGeometry(
+                                  subtitleGeometry!,
+                                  Text(
+                                    subtitle!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: subtitleStyle,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                        SizedBox(width: showConnectedIndicator ? 12.7 : 10.7),
+                        ),
+                        const SizedBox.square(
+                          dimension: 18,
+                          key: Key('settings-row-chevron'),
+                          child: Center(child: AccountChevronRight()),
+                        ),
+                        const SizedBox(width: 10.7),
                       ],
                     ),
                   ),
@@ -595,6 +556,44 @@ enum _SettingsIconKind {
   candles,
   journal,
   settings,
+}
+
+TypographyVariantId _settingsTypographyVariant(_SettingsIconKind kind) =>
+    switch (kind) {
+      _SettingsIconKind.newAccount => TypographyVariantId.settingsRowNewAccount,
+      _SettingsIconKind.mail => TypographyVariantId.settingsRowMailbox,
+      _SettingsIconKind.news => TypographyVariantId.settingsRowNews,
+      _SettingsIconKind.tradays => TypographyVariantId.settingsRowTradays,
+      _SettingsIconKind.community => TypographyVariantId.settingsRowCommunity,
+      _SettingsIconKind.mql5 => TypographyVariantId.settingsRowTraderCommunity,
+      _SettingsIconKind.telegram => TypographyVariantId.settingsRowAlgoTrading,
+      _SettingsIconKind.otp => TypographyVariantId.settingsRowOtp,
+      _SettingsIconKind.language => TypographyVariantId.settingsRowLanguage,
+      _SettingsIconKind.candles =>
+        TypographyVariantId.settingsRowEmbeddedCharts,
+      _SettingsIconKind.journal => TypographyVariantId.settingsRowJournal,
+      _SettingsIconKind.settings => TypographyVariantId.settingsRowFinal,
+    };
+
+Widget _applySettingsTextGeometry(
+  TypographyTextGeometry geometry,
+  Widget child,
+) {
+  var transformed = child;
+  if (geometry.scaleX != 1 || geometry.scaleY != 1) {
+    transformed = Transform.scale(
+      scaleX: geometry.scaleX,
+      scaleY: geometry.scaleY,
+      child: transformed,
+    );
+  }
+  if (geometry.dx != 0 || geometry.dy != 0) {
+    transformed = Transform.translate(
+      offset: Offset(geometry.dx, geometry.dy),
+      child: transformed,
+    );
+  }
+  return transformed;
 }
 
 class _SettingsIcon extends StatelessWidget {
@@ -984,53 +983,6 @@ class _LanguageIconPainter extends CustomPainter {
     final painter = TextPainter(text: span, textDirection: TextDirection.ltr)
       ..layout();
     painter.paint(canvas, offset);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _ConnectedIndicatorPainter extends CustomPainter {
-  const _ConnectedIndicatorPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2 - .6666666667, size.height / 2);
-    final bounds = Rect.fromCircle(center: center, radius: 13.3333333333);
-    canvas.drawCircle(
-      center,
-      13.3333333333,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppColors.connectedIndicatorTop,
-            AppColors.connectedIndicatorBottom,
-          ],
-        ).createShader(bounds),
-    );
-
-    final line = Paint()
-      ..color = AppColors.connectedIndicatorGlyph
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.15
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(
-      center.translate(-7.2, -4.1),
-      center.translate(6.9, -2.5),
-      line,
-    );
-    canvas.drawLine(
-      center.translate(-6.1, -.2),
-      center.translate(5.4, .8),
-      line,
-    );
-    canvas.drawLine(
-      center.translate(-4.8, 3.6),
-      center.translate(3.7, 4.2),
-      line,
-    );
   }
 
   @override

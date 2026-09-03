@@ -1,4 +1,3 @@
-import 'dart:io' as io;
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
@@ -8,12 +7,15 @@ import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/reference_typography_profile.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
+import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
+import 'package:trading_mobile/shared/widgets/mt_tab_header_fade.dart';
 import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
 
 final RegExp _historyTimestampPattern = RegExp(
@@ -29,6 +31,25 @@ int _historyPriceDigitsForSymbol(String symbol) {
 
 String _historyVolumeLabel(double volume) =>
     volume.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+
+typedef _HistorySummaryRow = ({String keyId, String label, String value});
+
+TextStyle _historyRoleStyle(
+  BuildContext context,
+  ReferenceTextRole role,
+  ReferenceTextColorRole colorRole,
+  TypographyVariantId variant,
+) => AppTypography.forRole(
+  context,
+  role,
+  colorRole: colorRole,
+  variant: variant,
+);
+
+ReferenceTextColorRole _historySideColorRole(String side) =>
+    side.toUpperCase().contains('SELL') || side.toLowerCase().contains('sell')
+    ? ReferenceTextColorRole.negative
+    : ReferenceTextColorRole.blueAction;
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -73,7 +94,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             2;
     _anchoredAccountId = accountId;
     _anchoredHistoryLength = historyLength;
-    if (accountChanged || wasNearBottom) {
+    if (accountChanged || (historyChanged && wasNearBottom)) {
       _scheduleBottomAnchor(accountId, historyLength: historyLength);
     }
   }
@@ -139,21 +160,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             top: 0,
             right: 0,
             height: safeTop + TabReferenceMetrics.historyHeaderExtent,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                key: const Key('history-header-overlay'),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppColors.background.withValues(alpha: .88),
-                      AppColors.background.withValues(alpha: .80),
-                      AppColors.background.withValues(alpha: 0),
-                    ],
-                    stops: const [0, .72, 1],
-                  ),
-                ),
+            child: const IgnorePointer(
+              child: MtTabHeaderFade(
+                decorationKey: Key('history-header-overlay'),
               ),
             ),
           ),
@@ -289,18 +298,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   bool _withinPeriod(String label, DateTime now) {
-    final time = _parsedHistoryTimes.putIfAbsent(label, () {
-      final match = _historyTimestampPattern.firstMatch(label);
-      if (match == null) return null;
-      return DateTime(
-        int.parse(match.group(1)!),
-        int.parse(match.group(2)!),
-        int.parse(match.group(3)!),
-        int.parse(match.group(4)!),
-        int.parse(match.group(5)!),
-        int.parse(match.group(6)!),
-      );
-    });
+    final time = _historyTime(label);
     if (time == null) return true;
     final start = switch (period) {
       _HistoryPeriod.today => DateTime(now.year, now.month, now.day),
@@ -321,6 +319,21 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       return !time.isBefore(start) && time.isBefore(end);
     }
     return !time.isBefore(start);
+  }
+
+  DateTime? _historyTime(String label) {
+    return _parsedHistoryTimes.putIfAbsent(label, () {
+      final match = _historyTimestampPattern.firstMatch(label);
+      if (match == null) return null;
+      return DateTime(
+        int.parse(match.group(1)!),
+        int.parse(match.group(2)!),
+        int.parse(match.group(3)!),
+        int.parse(match.group(4)!),
+        int.parse(match.group(5)!),
+        int.parse(match.group(6)!),
+      );
+    });
   }
 
   Future<void> _showDealDetails(DemoDeal deal) async {
@@ -583,7 +596,7 @@ class _HistoryFilterScreenState extends State<_HistoryFilterScreen> {
                                     ? 'Tất cả Symbols'
                                     : displayTradingSymbol(symbol!),
                                 style: const TextStyle(
-                                  color: AppColors.textSecondary,
+                                  color: AppColors.tradingSecondaryText,
                                   fontSize: 15,
                                 ),
                               ),
@@ -686,7 +699,7 @@ class _HistoryFilterScreenState extends State<_HistoryFilterScreen> {
                                   Text(
                                     period.label,
                                     style: const TextStyle(
-                                      color: AppColors.textSecondary,
+                                      color: AppColors.tradingSecondaryText,
                                       fontSize: 13,
                                     ),
                                   ),
@@ -749,7 +762,12 @@ class _HistoryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const labels = ['Lenh co tr...', 'Cac lenh', 'Cac giao d...'];
+    const labels = ['Lenh co trang thai', 'Cac lenh', 'Cac giao dich'];
+    const variants = [
+      TypographyVariantId.historyPositions,
+      TypographyVariantId.historyOrders,
+      TypographyVariantId.historyDeals,
+    ];
     return SizedBox(
       height: TabReferenceMetrics.historyHeaderExtent,
       child: Stack(
@@ -824,29 +842,18 @@ class _HistoryHeader extends StatelessWidget {
                               alignment: index == 2
                                   ? const Alignment(0, -.1)
                                   : Alignment.center,
-                              child: Transform.translate(
-                                offset: index == 0
-                                    ? Offset(
-                                        -2.3333333333,
-                                        io.Platform.isAndroid && !selected
-                                            ? 0
-                                            : .6666666667,
-                                      )
-                                    : Offset.zero,
-                                child: Transform.scale(
-                                  scaleX: index == 2 ? 1 : .985,
-                                  scaleY: index == 2 ? 1 : .94,
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    labels[index],
-                                    key: ValueKey(
-                                      'history-segment-label-$index',
-                                    ),
-                                    maxLines: 1,
-                                    style: index == 2
-                                        ? AppTypography.historyDealsSegment
-                                        : AppTypography.historySegment,
-                                  ),
+                              child: Text(
+                                labels[index],
+                                key: ValueKey('history-segment-label-$index'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _historyRoleStyle(
+                                  context,
+                                  index == 2
+                                      ? ReferenceTextRole.historyDealsSegment
+                                      : ReferenceTextRole.historySegment,
+                                  ReferenceTextColorRole.primary,
+                                  variants[index],
                                 ),
                               ),
                             ),
@@ -1046,6 +1053,24 @@ class _DealsHistory extends StatelessWidget {
     final trailingSecondaryTop = stacksSecondary
         ? TabReferenceMetrics.historyTrailingSecondaryTopFor(textScaler)
         : TabReferenceMetrics.historyDealSecondaryTop;
+    final primaryStyle = _historyRoleStyle(
+      context,
+      ReferenceTextRole.historyPrimary,
+      ReferenceTextColorRole.primary,
+      TypographyVariantId.historyDeals,
+    );
+    final secondaryStyle = _historyRoleStyle(
+      context,
+      ReferenceTextRole.historySecondary,
+      ReferenceTextColorRole.secondary,
+      TypographyVariantId.historyDeals,
+    );
+    final trailingSecondaryStyle = _historyRoleStyle(
+      context,
+      ReferenceTextRole.historyTrailingSecondary,
+      ReferenceTextColorRole.secondary,
+      TypographyVariantId.historyDeals,
+    );
     return _HistoryPersistentScrollbar(
       scrollbarKey: const Key('history-deals-scrollbar'),
       indicatorKey: const Key('history-deals-scrollbar-indicator'),
@@ -1101,20 +1126,15 @@ class _DealsHistory extends StatelessWidget {
                                 children: [
                                   TextSpan(
                                     text: displayTradingSymbol(deal.symbol),
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.w400,
-                                      fontVariations: [
-                                        FontVariation('wght', 400),
-                                      ],
-                                    ),
+                                    style: primaryStyle,
                                   ),
                                   _historyActionSpan(
                                     context: context,
                                     text:
                                         ' ${deal.side.toLowerCase()}, '
                                         '${deal.entry}',
-                                    color: _sideColor(deal.side),
+                                    colorRole: _historySideColorRole(deal.side),
+                                    variant: TypographyVariantId.historyDeals,
                                     key: ValueKey(
                                       'history-deals-action-$index',
                                     ),
@@ -1122,7 +1142,7 @@ class _DealsHistory extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              style: AppTypography.historyPrimary,
+                              style: primaryStyle,
                               softWrap: false,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1133,17 +1153,13 @@ class _DealsHistory extends StatelessWidget {
                                     key: ValueKey(
                                       'history-deals-trailing-primary-$index',
                                     ),
-                                    style: AppTypography.tabColorInk(
+                                    style: _historyRoleStyle(
                                       context,
-                                      AppTypography.historyTrailingPrimary
-                                          .copyWith(
-                                            color: deal.profit < 0
-                                                ? AppColors.negative
-                                                : AppColors.primary,
-                                            fontFeatures: const [
-                                              FontFeature.tabularFigures(),
-                                            ],
-                                          ),
+                                      ReferenceTextRole.historyTrailingPrimary,
+                                      deal.profit < 0
+                                          ? ReferenceTextColorRole.negative
+                                          : ReferenceTextColorRole.positive,
+                                      TypographyVariantId.historyDeals,
                                     ),
                                   )
                                 : const SizedBox.shrink(),
@@ -1152,27 +1168,22 @@ class _DealsHistory extends StatelessWidget {
                         Positioned(
                           left: 0,
                           top: secondaryTop,
-                          child: _HistoryDealSecondaryInk(
-                            child: Text(
-                              '${_historyVolumeLabel(deal.volume)} at '
-                              '${deal.price.toStringAsFixed(_historyPriceDigitsForSymbol(deal.symbol))}',
-                              key: ValueKey('history-deals-secondary-$index'),
-                              style: AppTypography.historySecondary,
-                            ),
+                          child: Text(
+                            '${_historyVolumeLabel(deal.volume)} at '
+                            '${deal.price.toStringAsFixed(_historyPriceDigitsForSymbol(deal.symbol))}',
+                            key: ValueKey('history-deals-secondary-$index'),
+                            style: secondaryStyle,
                           ),
                         ),
                         Positioned(
                           right: 0,
                           top: trailingSecondaryTop,
-                          child: _HistoryDealSecondaryInk(
-                            trailing: true,
-                            child: Text(
-                              deal.time,
-                              key: ValueKey(
-                                'history-deals-trailing-secondary-$index',
-                              ),
-                              style: AppTypography.historyTrailingSecondary,
+                          child: Text(
+                            deal.time,
+                            key: ValueKey(
+                              'history-deals-trailing-secondary-$index',
                             ),
+                            style: trailingSecondaryStyle,
                           ),
                         ),
                       ],
@@ -1186,14 +1197,39 @@ class _DealsHistory extends StatelessWidget {
             return const SizedBox(height: 2);
           }
           return _SummaryRows(
+            variant: TypographyVariantId.historyDeals,
             rows: [
-              ('Tien nap', _formatMoney(profile.historyDeposit)),
+              (
+                keyId: 'Tien nap',
+                label: 'Tien nap',
+                value: _formatMoney(profile.historyDeposit),
+              ),
               if (profile.historyWithdrawal != 0)
-                ('Tien rut', _formatMoney(profile.historyWithdrawal)),
-              ('Loi nhuan', _formatMoney(profile.historyProfit)),
-              ('Phi qua dem', _formatMoney(profile.historySwap)),
-              ('Hoa hong', _formatMoney(profile.historyCommission)),
-              ('Số dư', _formatMoney(profile.historyBalance)),
+                (
+                  keyId: 'Tien rut',
+                  label: 'Tien rut',
+                  value: _formatMoney(profile.historyWithdrawal),
+                ),
+              (
+                keyId: 'Loi nhuan',
+                label: 'Loi nhuan',
+                value: _formatMoney(profile.historyProfit),
+              ),
+              (
+                keyId: 'Phi qua dem',
+                label: 'Phi qua dem',
+                value: _formatMoney(profile.historySwap),
+              ),
+              (
+                keyId: 'Hoa hong',
+                label: 'Hoa hong',
+                value: _formatMoney(profile.historyCommission),
+              ),
+              (
+                keyId: 'Số dư',
+                label: 'Số dư',
+                value: _formatMoney(profile.historyBalance),
+              ),
             ],
           );
         },
@@ -1231,6 +1267,24 @@ class _OrdersHistory extends StatelessWidget {
     final trailingSecondaryTop = stacksSecondary
         ? TabReferenceMetrics.historyTrailingSecondaryTopFor(textScaler)
         : TabReferenceMetrics.historySecondaryTop;
+    final primaryStyle = _historyRoleStyle(
+      context,
+      ReferenceTextRole.historyPrimary,
+      ReferenceTextColorRole.primary,
+      TypographyVariantId.historyOrders,
+    );
+    final secondaryStyle = _historyRoleStyle(
+      context,
+      ReferenceTextRole.historySecondary,
+      ReferenceTextColorRole.secondary,
+      TypographyVariantId.historyOrders,
+    );
+    final trailingSecondaryStyle = _historyRoleStyle(
+      context,
+      ReferenceTextRole.historyTrailingSecondary,
+      ReferenceTextColorRole.secondary,
+      TypographyVariantId.historyOrders,
+    );
     return _HistoryPersistentScrollbar(
       scrollbarKey: const Key('history-orders-scrollbar'),
       indicatorKey: const Key('history-orders-scrollbar-indicator'),
@@ -1285,18 +1339,15 @@ class _OrdersHistory extends StatelessWidget {
                                 children: [
                                   TextSpan(
                                     text: displayTradingSymbol(order.symbol),
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.w400,
-                                      fontVariations: [
-                                        FontVariation('wght', 400),
-                                      ],
-                                    ),
+                                    style: primaryStyle,
                                   ),
                                   _historyActionSpan(
                                     context: context,
                                     text: ' ${_orderTypeLabel(order)}',
-                                    color: _sideColor(order.side),
+                                    colorRole: _historySideColorRole(
+                                      order.side,
+                                    ),
+                                    variant: TypographyVariantId.historyOrders,
                                     key: ValueKey(
                                       'history-orders-action-$index',
                                     ),
@@ -1304,31 +1355,21 @@ class _OrdersHistory extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              style: AppTypography.historyPrimary,
+                              style: primaryStyle,
                               softWrap: false,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            trailing: Transform.translate(
-                              offset: const Offset(
-                                TabReferenceMetrics.historyOrderStatusOffsetX,
-                                TabReferenceMetrics.historyOrderStatusOffsetY,
+                            trailing: Text(
+                              _historyOrderStatusLabel(order.status),
+                              key: ValueKey(
+                                'history-orders-trailing-primary-$index',
                               ),
-                              child: Transform.scale(
-                                scaleY: TabReferenceMetrics
-                                    .historyOrderStatusScaleY,
-                                alignment: Alignment.bottomRight,
-                                child: Text(
-                                  order.status,
-                                  key: ValueKey(
-                                    'history-orders-trailing-primary-$index',
-                                  ),
-                                  style: AppTypography.historyTrailingPrimary
-                                      .copyWith(
-                                        color: AppColors.historyOrderStatus,
-                                        letterSpacing: .05,
-                                      ),
-                                ),
+                              style: _historyRoleStyle(
+                                context,
+                                ReferenceTextRole.historyTrailingPrimary,
+                                ReferenceTextColorRole.historyStatus,
+                                TypographyVariantId.historyOrders,
                               ),
                             ),
                           ),
@@ -1339,7 +1380,7 @@ class _OrdersHistory extends StatelessWidget {
                           child: Text(
                             _orderVolumeLabel(order),
                             key: ValueKey('history-orders-secondary-$index'),
-                            style: AppTypography.historySecondary,
+                            style: secondaryStyle,
                           ),
                         ),
                         Positioned(
@@ -1350,7 +1391,7 @@ class _OrdersHistory extends StatelessWidget {
                             key: ValueKey(
                               'history-orders-trailing-secondary-$index',
                             ),
-                            style: AppTypography.historyTrailingSecondary,
+                            style: trailingSecondaryStyle,
                           ),
                         ),
                       ],
@@ -1364,15 +1405,24 @@ class _OrdersHistory extends StatelessWidget {
             return const SizedBox(height: 3);
           }
           return _SummaryRows(
+            variant: TypographyVariantId.historyOrders,
             rows: [
-              ('Tong cong', '${orders.length}'),
               (
-                'Filled',
-                '${orders.where((item) => item.status == 'filled').length}',
+                keyId: 'Tong cong',
+                label: 'Tong cong',
+                value: '${orders.length}',
               ),
               (
-                'Bi huy',
-                '${orders.where((item) => item.status == 'canceled').length}',
+                keyId: 'Filled',
+                label: 'Filled',
+                value:
+                    '${orders.where((item) => item.status == 'filled').length}',
+              ),
+              (
+                keyId: 'Bi huy',
+                label: 'Bi huy',
+                value:
+                    '${orders.where((item) => item.status == 'canceled').length}',
               ),
             ],
           );
@@ -1573,7 +1623,7 @@ class _PositionsHistory extends StatelessWidget {
           6,
           _historyListTopPadding(context),
           5.3333333333,
-          81.3333333333,
+          TabReferenceMetrics.bottomNavigationFadeHeight,
         ),
         itemCount: entries.length + 1,
         itemExtentBuilder: (index, _) => index < entries.length
@@ -1590,19 +1640,40 @@ class _PositionsHistory extends StatelessWidget {
             );
           }
           return _SummaryRows(
+            variant: TypographyVariantId.historyBalance,
             rows: [
-              ('Tien nap', _formatMoney(profile.historyDeposit)),
-              if (profile.historyWithdrawal != 0)
-                ('Tien rut', _formatMoney(profile.historyWithdrawal)),
               (
-                'Loi nhuan',
-                _formatMoney(profile.historyProfit + realizedAdjustment),
+                keyId: 'Tien nap',
+                label: 'Tien nap',
+                value: _formatMoney(profile.historyDeposit),
               ),
-              ('Phi qua dem', _formatMoney(profile.historySwap)),
-              ('Hoa hong', _formatMoney(profile.historyCommission)),
+              if (profile.historyWithdrawal != 0)
+                (
+                  keyId: 'Tien rut',
+                  label: 'Tien rut',
+                  value: _formatMoney(profile.historyWithdrawal),
+                ),
               (
-                'Số dư',
-                _formatMoney(profile.historyBalance + realizedAdjustment),
+                keyId: 'Loi nhuan',
+                label: 'Loi nhuan',
+                value: _formatMoney(profile.historyProfit + realizedAdjustment),
+              ),
+              (
+                keyId: 'Phi qua dem',
+                label: 'Phi qua dem',
+                value: _formatMoney(profile.historySwap),
+              ),
+              (
+                keyId: 'Hoa hong',
+                label: 'Hoa hong',
+                value: _formatMoney(profile.historyCommission),
+              ),
+              (
+                keyId: 'Số dư',
+                label: 'Số dư',
+                value: _formatMoney(
+                  profile.historyBalance + realizedAdjustment,
+                ),
               ),
             ],
           );
@@ -1625,12 +1696,6 @@ class _HistoryPositionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sideColor = entry.side == 'SELL'
-        ? AppColors.negative
-        : AppColors.primary;
-    final profitColor = entry.profit < 0
-        ? AppColors.negative
-        : AppColors.primary;
     final volume = entry.volume;
     final volumeLabel = volume == null ? '' : _historyVolumeLabel(volume);
     final priceDigits = _historyPriceDigitsForSymbol(entry.title);
@@ -1647,6 +1712,21 @@ class _HistoryPositionRow extends StatelessWidget {
     final trailingSecondaryTop = stacksSecondary
         ? TabReferenceMetrics.historyTrailingSecondaryTopFor(textScaler)
         : TabReferenceMetrics.historySecondaryTop;
+    final variant = entry.isBalance
+        ? TypographyVariantId.historyBalance
+        : TypographyVariantId.historyPositions;
+    final primaryRole = entry.isBalance
+        ? ReferenceTextRole.historyBalancePrimary
+        : ReferenceTextRole.historyPrimary;
+    final trailingPrimaryRole = entry.isBalance
+        ? ReferenceTextRole.historyBalanceTrailingPrimary
+        : ReferenceTextRole.historyTrailingPrimary;
+    final primaryStyle = _historyRoleStyle(
+      context,
+      primaryRole,
+      ReferenceTextColorRole.primary,
+      variant,
+    );
     return Semantics(
       button: onTap != null,
       child: Material(
@@ -1669,25 +1749,17 @@ class _HistoryPositionRow extends StatelessWidget {
                         children: [
                           TextSpan(
                             text: displayTradingSymbol(entry.title),
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: entry.isBalance
-                                  ? FontWeight.w300
-                                  : FontWeight.w400,
-                              fontVariations: <FontVariation>[
-                                FontVariation(
-                                  'wght',
-                                  entry.isBalance ? 349 : 400,
-                                ),
-                              ],
-                            ),
+                            style: primaryStyle,
                           ),
                           if (!entry.isBalance)
                             _historyActionSpan(
                               context: context,
                               text:
                                   ' ${entry.side?.toLowerCase() ?? ''} $volumeLabel',
-                              color: sideColor,
+                              colorRole: _historySideColorRole(
+                                entry.side ?? '',
+                              ),
+                              variant: TypographyVariantId.historyPositions,
                               key: ValueKey(
                                 'history-positions-action-$roleIndex',
                               ),
@@ -1695,11 +1767,7 @@ class _HistoryPositionRow extends StatelessWidget {
                             ),
                         ],
                       ),
-                      style: entry.isBalance
-                          ? AppTypography.historyPrimary.copyWith(
-                              letterSpacing: -.8,
-                            )
-                          : AppTypography.historyPrimary,
+                      style: primaryStyle,
                       softWrap: false,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1709,51 +1777,108 @@ class _HistoryPositionRow extends StatelessWidget {
                       key: ValueKey(
                         'history-positions-trailing-primary-$roleIndex',
                       ),
-                      style: AppTypography.tabColorInk(
+                      style: _historyRoleStyle(
                         context,
-                        AppTypography.historyTrailingPrimary.copyWith(
-                          color: profitColor,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
+                        trailingPrimaryRole,
+                        entry.profit < 0
+                            ? ReferenceTextColorRole.negative
+                            : ReferenceTextColorRole.positive,
+                        variant,
                       ),
                     ),
                   ),
                 ),
-                Positioned(
-                  left: 0,
-                  top: leadingSecondaryTop,
-                  child: entry.isBalance
-                      ? Text(
-                          entry.subtitle ?? '',
-                          key: ValueKey(
-                            'history-positions-secondary-$roleIndex',
-                          ),
-                          style: AppTypography.historySecondary,
-                        )
-                      : MtPriceRangeText(
-                          openPrice:
-                              entry.openPrice?.toStringAsFixed(priceDigits) ??
-                              '—',
-                          closePrice:
-                              entry.closePrice?.toStringAsFixed(priceDigits) ??
-                              '—',
-                          textKey: ValueKey(
-                            'history-positions-secondary-$roleIndex',
-                          ),
-                          style: AppTypography.historyPriceRange,
-                        ),
-                ),
-                Positioned(
-                  right: 0,
-                  top: trailingSecondaryTop,
-                  child: Text(
-                    entry.time,
-                    key: ValueKey(
-                      'history-positions-trailing-secondary-$roleIndex',
+                if (entry.isBalance)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: leadingSecondaryTop,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.subtitle ?? '',
+                                key: ValueKey(
+                                  'history-positions-secondary-$roleIndex',
+                                ),
+                                style: _historyRoleStyle(
+                                  context,
+                                  ReferenceTextRole.historyBalanceSecondary,
+                                  ReferenceTextColorRole.secondary,
+                                  TypographyVariantId.historyBalance,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.xxs),
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: math.max(
+                                  0,
+                                  constraints.maxWidth - AppSpacing.xxs,
+                                ),
+                              ),
+                              child: Text(
+                                entry.time,
+                                key: ValueKey(
+                                  'history-positions-trailing-secondary-$roleIndex',
+                                ),
+                                style: _historyRoleStyle(
+                                  context,
+                                  ReferenceTextRole.historyBalanceSecondary,
+                                  ReferenceTextColorRole.secondary,
+                                  TypographyVariantId.historyBalance,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.right,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                    style: AppTypography.historyTrailingSecondary,
+                  )
+                else ...[
+                  Positioned(
+                    left: 0,
+                    top: leadingSecondaryTop,
+                    child: MtPriceRangeText(
+                      openPrice:
+                          entry.openPrice?.toStringAsFixed(priceDigits) ?? '—',
+                      closePrice:
+                          entry.closePrice?.toStringAsFixed(priceDigits) ?? '—',
+                      textKey: ValueKey(
+                        'history-positions-secondary-$roleIndex',
+                      ),
+                      style: _historyRoleStyle(
+                        context,
+                        ReferenceTextRole.historyPriceRange,
+                        ReferenceTextColorRole.secondary,
+                        TypographyVariantId.historyPositions,
+                      ),
+                    ),
                   ),
-                ),
+                  Positioned(
+                    right: 0,
+                    top: trailingSecondaryTop,
+                    child: Text(
+                      entry.time,
+                      key: ValueKey(
+                        'history-positions-trailing-secondary-$roleIndex',
+                      ),
+                      style: _historyRoleStyle(
+                        context,
+                        ReferenceTextRole.historyTrailingSecondary,
+                        ReferenceTextColorRole.secondary,
+                        TypographyVariantId.historyPositions,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1766,39 +1891,22 @@ class _HistoryPositionRow extends StatelessWidget {
 InlineSpan _historyActionSpan({
   required BuildContext context,
   required String text,
-  required Color color,
+  required ReferenceTextColorRole colorRole,
+  required TypographyVariantId variant,
   required Key key,
   bool inline = false,
 }) {
-  final style = AppTypography.tabColorInk(
+  final style = _historyRoleStyle(
     context,
-    AppTypography.historyAction.copyWith(color: color),
+    ReferenceTextRole.historyAction,
+    colorRole,
+    variant,
   );
   if (inline) return TextSpan(text: text, style: style);
   return WidgetSpan(
     alignment: PlaceholderAlignment.baseline,
     baseline: TextBaseline.alphabetic,
-    child: Transform.translate(
-      offset: const Offset(0, TabReferenceMetrics.historyActionOffsetY),
-      child: Text(text, key: key, style: style),
-    ),
-  );
-}
-
-class _HistoryDealSecondaryInk extends StatelessWidget {
-  const _HistoryDealSecondaryInk({required this.child, this.trailing = false});
-
-  final Widget child;
-  final bool trailing;
-
-  @override
-  Widget build(BuildContext context) => Transform.translate(
-    offset: const Offset(0, TabReferenceMetrics.historyDealSecondaryOffsetY),
-    child: Transform.scale(
-      scaleY: TabReferenceMetrics.historyDealSecondaryScaleY,
-      alignment: trailing ? Alignment.topRight : Alignment.topLeft,
-      child: child,
-    ),
+    child: Text(text, key: key, style: style),
   );
 }
 
@@ -1833,9 +1941,10 @@ String _formatMoney(double value) {
 }
 
 class _SummaryRows extends StatelessWidget {
-  const _SummaryRows({required this.rows});
+  const _SummaryRows({required this.rows, required this.variant});
 
-  final List<(String, String)> rows;
+  final List<_HistorySummaryRow> rows;
+  final TypographyVariantId variant;
 
   @override
   Widget build(BuildContext context) {
@@ -1848,18 +1957,27 @@ class _SummaryRows extends StatelessWidget {
         children: [
           for (final row in rows)
             SizedBox(
-              key: ValueKey('history-summary-${row.$1}'),
+              key: ValueKey('history-summary-${row.keyId}'),
               height: rowHeight,
               child: Row(
                 children: [
-                  _historySummaryLabel(row.$1),
-                  const Spacer(),
-                  Text(
-                    row.$2,
-                    key: row.$1 == 'Loi nhuan'
-                        ? const Key('history-report-profit-value')
-                        : ValueKey('history-summary-value-${row.$1}'),
-                    style: AppTypography.historySummaryValue,
+                  Expanded(child: _historySummaryLabel(context, row, variant)),
+                  Expanded(
+                    child: Text(
+                      row.value,
+                      key: row.keyId == 'Loi nhuan'
+                          ? const Key('history-report-profit-value')
+                          : ValueKey('history-summary-value-${row.keyId}'),
+                      style: _historyRoleStyle(
+                        context,
+                        ReferenceTextRole.historySummaryValue,
+                        ReferenceTextColorRole.primary,
+                        variant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                    ),
                   ),
                 ],
               ),
@@ -1870,21 +1988,22 @@ class _SummaryRows extends StatelessWidget {
   }
 }
 
-Widget _historySummaryLabel(String label) {
-  final text = Text(
-    label,
-    key: ValueKey('history-summary-label-$label'),
-    style: label == 'Tong cong'
-        ? AppTypography.historyOrderSummaryTotal
-        : AppTypography.historySummary,
-  );
-  if (label != 'Tong cong') return text;
-  return Transform.translate(
-    offset: const Offset(
-      0,
-      TabReferenceMetrics.historyOrderSummaryTotalOffsetY,
+Widget _historySummaryLabel(
+  BuildContext context,
+  _HistorySummaryRow row,
+  TypographyVariantId variant,
+) {
+  return Text(
+    row.label,
+    key: ValueKey('history-summary-label-${row.keyId}'),
+    style: _historyRoleStyle(
+      context,
+      row.keyId == 'Tong cong'
+          ? ReferenceTextRole.historyOrderSummaryTotal
+          : ReferenceTextRole.historySummary,
+      ReferenceTextColorRole.primary,
+      variant,
     ),
-    child: text,
   );
 }
 
@@ -1945,7 +2064,7 @@ class _DealDetailSheet extends StatelessWidget {
                           Expanded(
                             child: _HistoryDetailPair(
                               label: 'Lệnh:',
-                              value: orderId,
+                              value: displayTradingTicketId(orderId),
                               valueOffset: 80,
                             ),
                           ),
@@ -2139,7 +2258,7 @@ class _PositionHistoryDetailSheet extends StatelessWidget {
                             _formatMoney(entry.profit),
                             style: TextStyle(
                               color: entry.profit < 0
-                                  ? AppColors.negative
+                                  ? AppColors.tradingNegativeText
                                   : AppColors.primary,
                               fontSize: 15.2,
                               height: 1,
@@ -2241,9 +2360,9 @@ class _HistoryDetailTicketHeader extends StatelessWidget {
             right: 4,
             top: 6,
             child: Text(
-              '#$ticket',
+              '#${displayTradingTicketId(ticket)}',
               style: const TextStyle(
-                color: AppColors.textSecondary,
+                color: AppColors.tradingSecondaryText,
                 fontSize: 13.4,
                 height: 1,
                 fontFeatures: [FontFeature.tabularFigures()],
@@ -2256,7 +2375,7 @@ class _HistoryDetailTicketHeader extends StatelessWidget {
             child: Text(
               _symbolDescription(symbol),
               style: const TextStyle(
-                color: AppColors.textSecondary,
+                color: AppColors.tradingSecondaryText,
                 fontSize: 13.4,
                 height: 1,
               ),
@@ -2340,7 +2459,7 @@ class _HistoryChartButton extends StatelessWidget {
 
 abstract final class _HistoryDetailStyles {
   static const value = TextStyle(
-    color: AppColors.textSecondary,
+    color: AppColors.tradingSecondaryText,
     fontSize: 15.2,
     height: 1,
     fontFeatures: [FontFeature.tabularFigures()],
@@ -2404,12 +2523,15 @@ double _historyListTopPadding(BuildContext context) =>
 
 Color _sideColor(String side) =>
     side.toUpperCase().contains('SELL') || side.toLowerCase().contains('sell')
-    ? AppColors.negative
-    : AppColors.primary;
+    ? AppColors.tradingNegativeText
+    : AppColors.historyPositiveText;
 
 String _orderTypeLabel(DemoOrder order) => order.type == 'Market'
     ? order.side.toLowerCase()
     : order.type.toLowerCase();
+
+String _historyOrderStatusLabel(String status) =>
+    status.toLowerCase() == 'canceled' ? 'Bi huy' : status;
 
 String _orderVolumeLabel(DemoOrder order) =>
     '${_historyVolumeLabel(order.volume)} / '

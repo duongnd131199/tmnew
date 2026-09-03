@@ -39,6 +39,9 @@ void main() {
       'family: Mt5RobotoCondensed',
       'family: Mt5RobotoVariable',
       'family: Mt5RobotoCondensedVariable',
+      'family: Mt5ReferenceRoboto',
+      'family: Mt5ReferenceRobotoCondensed',
+      'family: Mt5ReferenceRobotoCondensedVariable',
       'assets/fonts/Roboto-Regular.ttf',
       'assets/fonts/Roboto-Medium.ttf',
       'assets/fonts/Roboto-Bold.ttf',
@@ -47,12 +50,20 @@ void main() {
       'assets/fonts/RobotoCondensed-Bold.ttf',
       'assets/fonts/Roboto-Variable.ttf',
       'assets/fonts/RobotoCondensed-Variable.ttf',
+      'assets/fonts/mt5-reference/Roboto-Regular.ttf',
+      'assets/fonts/mt5-reference/Roboto-Bold.ttf',
+      'assets/fonts/mt5-reference/RobotoCondensed-Regular.ttf',
+      'assets/fonts/mt5-reference/RobotoCondensed-Bold.ttf',
     ]) {
       expect(yaml, contains(token), reason: token);
     }
     for (final path in <String>[
       'assets/fonts/Roboto-Variable.ttf',
       'assets/fonts/RobotoCondensed-Variable.ttf',
+      'assets/fonts/mt5-reference/Roboto-Regular.ttf',
+      'assets/fonts/mt5-reference/Roboto-Bold.ttf',
+      'assets/fonts/mt5-reference/RobotoCondensed-Regular.ttf',
+      'assets/fonts/mt5-reference/RobotoCondensed-Bold.ttf',
     ]) {
       expect(File(path).existsSync(), isTrue, reason: path);
     }

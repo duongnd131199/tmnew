@@ -183,6 +183,7 @@ final class ChartRenderSnapshot {
       left.bullish == right.bullish &&
       left.bearish == right.bearish &&
       left.tradeBlue == right.tradeBlue &&
+      left.tradeRed == right.tradeRed &&
       left.axisBorder == right.axisBorder &&
       left.axisText == right.axisText &&
       left.plotSubtitleText == right.plotSubtitleText &&

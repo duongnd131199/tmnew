@@ -3,6 +3,7 @@ import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_radius.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/trade/presentation/trade_formatters.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
@@ -27,7 +28,7 @@ class PositionBulkActionsDialog extends StatelessWidget {
   }
 
   String get _summary =>
-      '#${position.id} ${position.side.toLowerCase()} '
+      '#${displayTradingTicketId(position.id)} ${position.side.toLowerCase()} '
       '${formatTradeVolume(position.volume)} '
       '${displayTradingSymbol(position.symbol)} '
       '${formatPositionBulkOpenPrice(position.symbol, position.openPrice)}';
@@ -85,11 +86,7 @@ class PositionBulkActionsDialog extends StatelessWidget {
                     Text(
                       'Hoạt động hàng loạt',
                       key: const Key('position-bulk-title'),
-                      style: AppTypography.referenceServerName.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        height: 1.1,
-                      ),
+                      style: AppTypography.dialogTitle,
                     ),
                     const SizedBox(height: AppSpacing.xxs),
                     SizedBox(
@@ -102,10 +99,7 @@ class PositionBulkActionsDialog extends StatelessWidget {
                           key: const Key('position-bulk-subtitle'),
                           maxLines: 1,
                           softWrap: false,
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.textSecondary,
-                            height: 1.2,
-                          ),
+                          style: AppTypography.dialogSubtitle,
                         ),
                       ),
                     ),
@@ -171,7 +165,7 @@ class _PositionBulkAction extends StatelessWidget {
               maxLines: 1,
               softWrap: false,
               textAlign: TextAlign.center,
-              style: AppTypography.bodyLarge.copyWith(
+              style: AppTypography.dialogAction.copyWith(
                 color: destructive
                     ? AppColors.destructive
                     : AppColors.textPrimary,

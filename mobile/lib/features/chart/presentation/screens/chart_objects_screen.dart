@@ -199,7 +199,9 @@ class _ChartObjectsScreenState extends ConsumerState<ChartObjectsScreen> {
                       subtitle: Text(
                         '${displayTradingSymbol(widget.symbol)}, '
                         '${widget.timeframe}',
-                        style: const TextStyle(color: AppColors.textSecondary),
+                        style: const TextStyle(
+                          color: AppColors.tradingSecondaryText,
+                        ),
                       ),
                       trailing: IconButton(
                         onPressed: () => ref
@@ -207,7 +209,7 @@ class _ChartObjectsScreenState extends ConsumerState<ChartObjectsScreen> {
                             .remove(object.id),
                         icon: const Icon(
                           CupertinoIcons.minus_circle_fill,
-                          color: AppColors.negative,
+                          color: AppColors.tradingNegativeText,
                           size: 19,
                         ),
                       ),
@@ -222,7 +224,7 @@ class _ChartObjectsScreenState extends ConsumerState<ChartObjectsScreen> {
                   'Giữ trên đối tượng của biểu đồ để chỉnh sửa hoặc xóa',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: AppColors.tradingSecondaryText,
                     fontSize: 11.5,
                   ),
                 ),

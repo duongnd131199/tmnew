@@ -27,8 +27,15 @@ final class ExV2ApiClient {
   final Dio _dio;
   final DeviceTokenReader _tokenReader;
 
-  Future<Map<String, dynamic>> getJson(String path) async {
-    final response = await _request<dynamic>('GET', path);
+  Future<Map<String, dynamic>> getJson(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final response = await _request<dynamic>(
+      'GET',
+      path,
+      queryParameters: queryParameters,
+    );
     final value = response.data;
     if (value is Map<String, dynamic>) return value;
     if (value is Map) return value.cast<String, dynamic>();
@@ -60,6 +67,12 @@ final class ExV2ApiClient {
     required Map<String, dynamic> body,
     required ExV2CommandMetadata metadata,
   }) => _mutation('POST', path, body, metadata);
+
+  Future<Map<String, dynamic>> postCreatedJson(
+    String path, {
+    required Map<String, dynamic> body,
+    required ExV2CommandMetadata metadata,
+  }) => _mutation('POST', path, body, metadata, expectedStatusCode: 201);
 
   Future<Map<String, dynamic>> postLoginJson(
     String path, {
@@ -93,6 +106,7 @@ final class ExV2ApiClient {
     ExV2CommandMetadata metadata, {
     bool requiresDeviceToken = true,
     Map<String, dynamic> extraHeaders = const <String, dynamic>{},
+    int? expectedStatusCode,
   }) async {
     final response = await _request<dynamic>(
       method,
@@ -102,6 +116,13 @@ final class ExV2ApiClient {
       requiresDeviceToken: requiresDeviceToken,
       extraHeaders: extraHeaders,
     );
+    if (expectedStatusCode != null &&
+        response.statusCode != expectedStatusCode) {
+      throw FormatException(
+        'EX V2 mutation expected HTTP $expectedStatusCode, '
+        'received ${response.statusCode}',
+      );
+    }
     final value = response.data;
     if (value == null || value == '') return const {};
     if (value is Map<String, dynamic>) return value;

@@ -9,6 +9,22 @@ abstract final class ExV2WalletHistoryMapper {
   static const _withdrawalReferenceDigits = 13;
   static final _referenceEpoch = DateTime.utc(2000);
 
+  static bool isSettled(JsonMap json) => _isSettled(json);
+
+  static double settledDepositTotal({
+    required Iterable<JsonMap> historyTransactions,
+    required Iterable<JsonMap> deposits,
+  }) =>
+      entries(
+            historyTransactions: historyTransactions
+                .where(_isSettled)
+                .toList(growable: false),
+            deposits: deposits.where(_isSettled).toList(growable: false),
+            withdrawals: const [],
+          )
+          .where((entry) => entry.profit > 0)
+          .fold<double>(0, (total, entry) => total + entry.profit);
+
   static List<DemoHistoryPosition> entries({
     required List<JsonMap> historyTransactions,
     required List<JsonMap> deposits,
@@ -294,6 +310,25 @@ abstract final class ExV2WalletHistoryMapper {
       return 'deposit';
     }
     return null;
+  }
+
+  static bool _isSettled(JsonMap json) {
+    final status = _text(json, const ['status', 'state'])?.toLowerCase();
+    if (status == null) return false;
+    return const {
+      'approved',
+      'complete',
+      'completed',
+      'credited',
+      'paid',
+      'processed',
+      'succeeded',
+      'success',
+      'hoàn tất',
+      'hoan tat',
+      'đã duyệt',
+      'da duyet',
+    }.contains(status);
   }
 
   static List<String> _identifiers(JsonMap json) {

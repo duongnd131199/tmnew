@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
@@ -130,7 +131,8 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                 child: Row(
                   children: [
                     Text(
-                      '#${position.id} ${position.side.toLowerCase()} '
+                      '#${displayTradingTicketId(position.id)} '
+                      '${position.side.toLowerCase()} '
                       '${_formatVolume(position.volume)} '
                       '${displayTradingSymbol(position.symbol)}',
                       style: const TextStyle(

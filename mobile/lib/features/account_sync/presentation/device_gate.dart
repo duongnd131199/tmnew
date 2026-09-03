@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trading_mobile/app/router.dart';
@@ -15,12 +16,14 @@ class DeviceGate extends ConsumerStatefulWidget {
     required this.child,
     this.onAddAccount,
     this.startupTimeout = const Duration(seconds: 20),
+    this.enableDevelopmentTokenImport = kDebugMode,
     super.key,
   });
 
   final Widget child;
   final VoidCallback? onAddAccount;
   final Duration startupTimeout;
+  final bool enableDevelopmentTokenImport;
 
   @override
   ConsumerState<DeviceGate> createState() => _DeviceGateState();
@@ -102,7 +105,13 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
       return accountState.when(
         loading: () => const _AccountBootstrapLoading(),
         error: (error, stackTrace) => _isAccountNotConfigured(error)
-            ? _AccountBootstrapAccountless(onAddAccount: _openAddAccount)
+            ? _AccountBootstrapAccountless(
+                key: const Key('account-bootstrap-accountless'),
+                message:
+                    'Thiết bị đã được kích hoạt. Hãy thêm tài khoản giao dịch đầu tiên.',
+                buttonLabel: 'Thêm tài khoản',
+                onAddAccount: _openAddAccount,
+              )
             : _isDeviceAuthenticationFailure(error)
             ? _AccountBootstrapUnavailable(
                 key: const Key('device-authentication-error'),
@@ -112,7 +121,7 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
               )
             : _AccountBootstrapUnavailable(
                 key: const Key('account-bootstrap-error'),
-                message: 'Không thể tải tài khoản.',
+                message: _bootstrapFailureMessage(error),
                 onRetry: _retryBootstrap,
               ),
         data: (account) => account == null
@@ -124,11 +133,20 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
             : widget.child,
       );
     }
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      home: DevDeviceTokenImportScreen(onActivated: _completeTokenActivation),
-    );
+    return widget.enableDevelopmentTokenImport
+        ? MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light,
+            home: DevDeviceTokenImportScreen(
+              onActivated: _completeTokenActivation,
+            ),
+          )
+        : _AccountBootstrapAccountless(
+            key: const Key('account-login-required'),
+            message: 'Hãy đăng nhập tài khoản giao dịch trên thiết bị này.',
+            buttonLabel: 'Đăng nhập',
+            onAddAccount: _openAddAccount,
+          );
   }
 
   void _completeTokenActivation() {
@@ -145,7 +163,10 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
 
   void _openAddAccount() {
     if (!mounted) return;
-    setState(() => _accountlessUnlocked = true);
+    setState(() {
+      _activated = true;
+      _accountlessUnlocked = true;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final callback = widget.onAddAccount;
@@ -223,6 +244,23 @@ bool _isDeviceAuthenticationFailure(Object error) =>
     error is ExV2RequestFailure &&
     (error.statusCode == 401 || error.statusCode == 403);
 
+String _bootstrapFailureMessage(Object error) {
+  if (error is! ExV2RequestFailure) return 'Không thể tải tài khoản.';
+  final code = _safeDiagnostic(error.code, maxLength: 64);
+  final correlationId = _safeDiagnostic(error.correlationId, maxLength: 128);
+  return [
+    'Không thể tải tài khoản.',
+    if (error.statusCode case final statusCode?) 'HTTP $statusCode',
+    if (code != null) 'Mã lỗi: $code',
+    if (correlationId != null) 'Mã tra cứu: $correlationId',
+  ].join('\n');
+}
+
+String? _safeDiagnostic(String? value, {required int maxLength}) {
+  if (value == null || value.isEmpty || value.length > maxLength) return null;
+  return RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value) ? value : null;
+}
+
 class _AccountBootstrapLoading extends StatelessWidget {
   const _AccountBootstrapLoading();
 
@@ -269,13 +307,19 @@ class _AccountBootstrapUnavailable extends StatelessWidget {
 }
 
 class _AccountBootstrapAccountless extends StatelessWidget {
-  const _AccountBootstrapAccountless({required this.onAddAccount});
+  const _AccountBootstrapAccountless({
+    required this.message,
+    required this.buttonLabel,
+    required this.onAddAccount,
+    super.key,
+  });
 
+  final String message;
+  final String buttonLabel;
   final VoidCallback onAddAccount;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    key: const Key('account-bootstrap-accountless'),
     debugShowCheckedModeBanner: false,
     theme: AppTheme.light,
     home: Scaffold(
@@ -285,15 +329,9 @@ class _AccountBootstrapAccountless extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Thiết bị đã được kích hoạt. Hãy thêm tài khoản giao dịch đầu tiên.',
-                textAlign: TextAlign.center,
-              ),
+              Text(message, textAlign: TextAlign.center),
               const SizedBox(height: AppSpacing.lg),
-              FilledButton(
-                onPressed: onAddAccount,
-                child: const Text('Thêm tài khoản'),
-              ),
+              FilledButton(onPressed: onAddAccount, child: Text(buttonLabel)),
             ],
           ),
         ),

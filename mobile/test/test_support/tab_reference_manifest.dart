@@ -2350,3 +2350,179 @@ const tabReferenceCases = <TabReferenceCase>[
     dynamicMaskRegions: _systemStatusMasks,
   ),
 ];
+
+enum ReferenceTypographyCaptureFixture {
+  canonicalTab,
+  settingsPrimary,
+  settingsSecondary,
+  darkTrade,
+}
+
+enum ReferenceTypographyCaptureTheme { light, dark }
+
+class ReferenceTypographyCaptureCase {
+  const ReferenceTypographyCaptureCase({
+    required this.id,
+    required this.candidateFileName,
+    required this.sourceId,
+    required this.referencePath,
+    required this.referenceSha256,
+    required this.logicalSize,
+    required this.devicePixelRatio,
+    required this.physicalWidth,
+    required this.physicalHeight,
+    required this.fixture,
+    required this.theme,
+    required this.fixtureDescription,
+    this.fixtureValues = const <String, String>{},
+    this.settingsScrollOffset = 0,
+    this.tabCase,
+  });
+
+  final String id;
+  final String candidateFileName;
+  final String sourceId;
+  final String referencePath;
+  final String referenceSha256;
+  final ReferenceSize logicalSize;
+  final double devicePixelRatio;
+  final int physicalWidth;
+  final int physicalHeight;
+  final ReferenceTypographyCaptureFixture fixture;
+  final ReferenceTypographyCaptureTheme theme;
+  final String fixtureDescription;
+  final Map<String, String> fixtureValues;
+  final double settingsScrollOffset;
+  final TabReferenceCase? tabCase;
+}
+
+const darkTradeReferenceLogicalSize = ReferenceSize(413, 881);
+const darkTradeReferenceDevicePixelRatio = 1.0;
+
+final referenceTypographyCaptureCases = <ReferenceTypographyCaptureCase>[
+  for (final tabCase in tabReferenceCases)
+    ReferenceTypographyCaptureCase(
+      id: tabCase.id,
+      candidateFileName: '${tabCase.id}-590x1280.png',
+      sourceId: switch (tabCase.id) {
+        'trade' => 'trade-light',
+        'history-orders' => 'history-orders-offset',
+        'history-deals' => 'history-deals-summary',
+        _ => tabCase.id,
+      },
+      referencePath: tabCase.referencePath,
+      referenceSha256: tabCase.referenceSha256,
+      logicalSize: tabReferenceLogicalSize,
+      devicePixelRatio: tabReferenceDevicePixelRatio,
+      physicalWidth: 590,
+      physicalHeight: 1280,
+      fixture: ReferenceTypographyCaptureFixture.canonicalTab,
+      theme: ReferenceTypographyCaptureTheme.light,
+      fixtureDescription: tabCase.captureState.description,
+      tabCase: tabCase,
+    ),
+  const ReferenceTypographyCaptureCase(
+    id: 'settings-primary',
+    candidateFileName: 'settings-primary-590x1280.png',
+    sourceId: 'settings-primary',
+    referencePath: '../iconMau/anhmau/image.png',
+    referenceSha256:
+        '4c4f508369707ef576521c220e918bc0db5c9f3bdb900334ff5a5a859fcfcf9c',
+    logicalSize: tabReferenceLogicalSize,
+    devicePixelRatio: tabReferenceDevicePixelRatio,
+    physicalWidth: 590,
+    physicalHeight: 1280,
+    fixture: ReferenceTypographyCaptureFixture.settingsPrimary,
+    theme: ReferenceTypographyCaptureTheme.light,
+    fixtureDescription:
+        'MetaQuotes account scrolled 40 logical pixels beneath the fixed fade.',
+    fixtureValues: <String, String>{
+      'accountId': '111500232',
+      'accountName': 'HaiAa NamAa',
+      'company': 'MetaQuotes Ltd.',
+      'server': 'MetaQuotes-Demo',
+      'accessPoint': 'Access Point HK 1',
+      'scrollOffsetLogical': '40',
+    },
+    settingsScrollOffset: 40,
+  ),
+  const ReferenceTypographyCaptureCase(
+    id: 'settings-secondary',
+    candidateFileName: 'settings-secondary-590x1280.png',
+    sourceId: 'settings-secondary',
+    referencePath: '../iconMau/anhmau/photo_2026-08-27_21-13-34.jpg',
+    referenceSha256:
+        'bf67307f7e12f378ac2bf6abbbdf3b351d1e5492d59a50f0a0233b9a8955d092',
+    logicalSize: tabReferenceLogicalSize,
+    devicePixelRatio: tabReferenceDevicePixelRatio,
+    physicalWidth: 590,
+    physicalHeight: 1280,
+    fixture: ReferenceTypographyCaptureFixture.settingsSecondary,
+    theme: ReferenceTypographyCaptureTheme.light,
+    fixtureDescription:
+        'MetaQuotes account at top; only shared roles are comparison evidence.',
+    fixtureValues: <String, String>{
+      'accountId': '111500232',
+      'accountName': 'HaiAa NamAa',
+      'company': 'MetaQuotes Ltd.',
+      'server': 'MetaQuotes-Demo',
+      'accessPoint': 'Access Point HK 1',
+      'scrollOffsetLogical': '0',
+    },
+  ),
+  const ReferenceTypographyCaptureCase(
+    id: 'dark-trade',
+    candidateFileName: 'dark-trade-413x881.png',
+    sourceId: 'trade-dark',
+    referencePath: '../iconMau/anhmau/photo_2026-08-21_16-51-41.jpg',
+    referenceSha256:
+        '349b41ed7ab4e974966b7bf1394e65f39cd43f07667613c5f92f0e2e8b2cefe9',
+    logicalSize: darkTradeReferenceLogicalSize,
+    devicePixelRatio: darkTradeReferenceDevicePixelRatio,
+    physicalWidth: 413,
+    physicalHeight: 881,
+    fixture: ReferenceTypographyCaptureFixture.darkTrade,
+    theme: ReferenceTypographyCaptureTheme.dark,
+    fixtureDescription:
+        'Dark Trade: 36 984.02 USD, 6 083 552.48 balance, 0.25-lot XAUUSD rows.',
+    fixtureValues: <String, String>{
+      'profit': '36 984.02 USD',
+      'balance': '6 083 552.48',
+      'equity': '6 120 536.51',
+      'margin': '0.00',
+      'freeMargin': '6 120 536.51',
+      'marginLevel': '0.00',
+      'symbol': 'XAUUSD+',
+      'side': 'BUY',
+      'volume': '0.25',
+      'positionCount': '15',
+      'firstOpenPrices': '4482.62,4482.56,4482.57',
+      'currentPrice': '4580.63',
+      'firstProfits': '2450.25,2451.62,2451.42',
+    },
+  ),
+];
+
+List<ReferenceTypographyCaptureCase> selectReferenceTypographyCaptureCases(
+  String selection,
+) {
+  if (selection == 'all') {
+    return List<ReferenceTypographyCaptureCase>.unmodifiable(
+      referenceTypographyCaptureCases,
+    );
+  }
+  if (selection == 'history') {
+    return List<ReferenceTypographyCaptureCase>.unmodifiable(
+      referenceTypographyCaptureCases.where(
+        (captureCase) => captureCase.id.startsWith('history-'),
+      ),
+    );
+  }
+  final exact = referenceTypographyCaptureCases
+      .where((captureCase) => captureCase.id == selection)
+      .toList(growable: false);
+  if (exact.length != 1) {
+    throw ArgumentError.value(selection, 'selection', 'Unknown capture case');
+  }
+  return exact;
+}

@@ -425,49 +425,80 @@ void main() {
     expect(painter.viewport, retainedViewport);
   });
 
-  testWidgets('chart remount restores its manual price scale', (tester) async {
-    useVideoViewport(tester);
-    final container = createStableContainer();
-    addTearDown(container.dispose);
+  testWidgets(
+    'chart remount enables automatic price centering before timeframe input',
+    (tester) async {
+      useVideoViewport(tester);
+      final container = createStableContainer();
+      addTearDown(container.dispose);
 
-    Widget app(Widget home) => UncontrolledProviderScope(
-      container: container,
-      child: MaterialApp(home: home),
-    );
+      Widget app(Widget home) => UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(home: home),
+      );
 
-    await tester.pumpWidget(
-      app(const ChartScreen(symbol: 'XAUEUR', initialTimeframe: 'M1')),
-    );
-    await tester.pump();
-    dynamic painter = tester
-        .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
-        .painter;
-    final canvasTopLeft = tester.getTopLeft(
-      find.byKey(const Key('chart-canvas')),
-    );
-    final axisPoint = canvasTopLeft + (painter.priceAxisRect as Rect).center;
+      await tester.pumpWidget(
+        app(const ChartScreen(symbol: 'XAUEUR', initialTimeframe: 'M1')),
+      );
+      await tester.pump();
+      dynamic painter = tester
+          .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+          .painter;
+      final canvasTopLeft = tester.getTopLeft(
+        find.byKey(const Key('chart-canvas')),
+      );
+      final axisPoint = canvasTopLeft + (painter.priceAxisRect as Rect).center;
 
-    await tester.dragFrom(axisPoint, const Offset(0, -160));
-    await tester.pump();
-    painter = tester
-        .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
-        .painter;
-    final retainedPriceViewport = painter.priceViewport as ChartPriceViewport;
-    expect(retainedPriceViewport.isAuto, isFalse);
+      await tester.dragFrom(axisPoint, const Offset(0, -160));
+      await tester.pump();
+      painter = tester
+          .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+          .painter;
+      expect((painter.priceViewport as ChartPriceViewport).isAuto, isFalse);
 
-    await tester.pumpWidget(app(const SizedBox.shrink()));
-    await tester.pump();
-    await tester.pumpWidget(
-      app(const ChartScreen(symbol: 'XAUEUR', initialTimeframe: 'M1')),
-    );
-    await tester.pump();
-    painter = tester
-        .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
-        .painter;
+      await tester.pumpWidget(app(const SizedBox.shrink()));
+      await tester.pump();
+      await tester.pumpWidget(
+        app(const ChartScreen(symbol: 'XAUEUR', initialTimeframe: 'M1')),
+      );
+      await tester.pump();
+      painter = tester
+          .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+          .painter;
 
-    expect(painter.priceViewport, retainedPriceViewport);
-    await tester.pump(const Duration(milliseconds: 50));
-  });
+      expect(painter.priceViewport, const ChartPriceViewport.auto());
+      final initialViewport = painter.viewport as ChartViewport;
+      await tester.drag(
+        find.byKey(const Key('chart-gesture-area')),
+        const Offset(140, 0),
+      );
+      await tester.pump();
+      painter = tester
+          .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+          .painter;
+
+      final visibleCandles = List<MarketCandle>.from(
+        painter.hitTargets.visibleCandles as List<MarketCandle>,
+      );
+      var visibleMinimum = visibleCandles.first.low;
+      var visibleMaximum = visibleCandles.first.high;
+      for (final candle in visibleCandles.skip(1)) {
+        if (candle.low < visibleMinimum) visibleMinimum = candle.low;
+        if (candle.high > visibleMaximum) visibleMaximum = candle.high;
+      }
+      final displayedCenter =
+          ((painter.chartMinPrice as double) +
+              (painter.chartMaxPrice as double)) /
+          2;
+      expect(painter.viewport, isNot(initialViewport));
+      expect(painter.priceViewport, const ChartPriceViewport.auto());
+      expect(
+        displayedCenter,
+        closeTo((visibleMinimum + visibleMaximum) / 2, .001),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+    },
+  );
 
   testWidgets('price-axis reset replaces the persisted manual scale', (
     tester,

@@ -7,6 +7,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
@@ -40,6 +41,7 @@ Mt5CandlePainter _viewportInvariantPainter({
   String symbol = 'XAUEUR',
   String timeframe = 'M1',
   double referencePrice = 3566.07,
+  double? currentPrice,
   bool showHistoryBadge = false,
   double? pendingOrderPrice,
   bool oneClickTrading = false,
@@ -64,7 +66,7 @@ Mt5CandlePainter _viewportInvariantPainter({
     snapshot: snapshot,
     symbol: symbol,
     referencePrice: referencePrice,
-    currentPrice: referencePrice,
+    currentPrice: currentPrice ?? referencePrice,
     tickTime: DateTime(2026, 8, 1, 10, 3),
     crosshairEnabled: false,
     crosshairPosition: null,
@@ -115,6 +117,12 @@ Map<String, Object> _rendererCharacterization(Mt5CandlePainter painter) {
   };
 }
 
+List<Override> _videoReferenceOverridesWith(Override replacement) => [
+  for (final defaultOverride in videoReferenceOverrides)
+    if (!identical(replacement.origin, defaultOverride.origin)) defaultOverride,
+  replacement,
+];
+
 void main() {
   testWidgets('reference typography preserves chart frame geometry', (
     tester,
@@ -133,12 +141,11 @@ void main() {
     );
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          ...videoReferenceOverrides,
+        overrides: _videoReferenceOverridesWith(
           marketCandlesProvider.overrideWith(
             (ref, request) => Stream.value(const <MarketCandle>[]),
           ),
-        ],
+        ),
         child: const MaterialApp(
           home: MediaQuery(
             data: media,
@@ -162,16 +169,36 @@ void main() {
     final timeframe = tester.widget<Text>(
       find.byKey(const Key('chart-toolbar-timeframe')),
     );
-    expect(timeframe.style?.fontFamily, AppTypography.tabPlainFamily);
+    expect(timeframe.style?.fontFamily, AppTypography.referencePlainFamily);
     expect(timeframe.style?.fontSize, AppTypography.chartToolbar.fontSize);
+    expect(timeframe.style?.fontWeight, FontWeight.w700);
+    expect(timeframe.style?.color, ChartReferenceTheme.light.toolbarInk);
+    expect(timeframe.style?.fontVariations, isNull);
 
     final painter =
         tester.widget<CustomPaint>(canvasFinder).painter! as Mt5CandlePainter;
-    expect(painter.referenceTextFamily, AppTypography.plainFamily);
+    expect(painter.referenceTextFamily, AppTypography.referencePlainFamily);
+    expect(
+      painter.debugTimeAxisTextStyle.fontFamily,
+      AppTypography.referencePlainFamily,
+    );
+    expect(painter.debugTimeAxisTextStyle.fontWeight, FontWeight.w400);
+    expect(painter.debugTimeAxisTextStyle.fontVariations, isNull);
     expect(painter.priceGridRect.top * 1.5, closeTo(118, .01));
     final plotTitleRect = tester.getRect(
       find.byKey(const Key('chart-plot-title')),
     );
+    final plotTitle = tester.widget<Text>(
+      find.byKey(const Key('chart-plot-title')),
+    );
+    final plotTitleSpan = plotTitle.textSpan! as TextSpan;
+    final plotSymbolSpan = plotTitleSpan.children!.first as TextSpan;
+    expect(
+      plotSymbolSpan.style?.fontFamily,
+      AppTypography.referencePlainFamily,
+    );
+    expect(plotSymbolSpan.style?.fontWeight, FontWeight.w700);
+    expect(plotSymbolSpan.style?.fontVariations, isNull);
     final upperPositionLabel = painter.hitTargets.positionLabelRects.reduce(
       (left, right) => left.top < right.top ? left : right,
     );
@@ -187,31 +214,214 @@ void main() {
     final volume = tester.widget<Text>(
       find.byKey(const Key('chart-one-click-volume-text')),
     );
-    expect(volume.style?.fontFamily, AppTypography.condensedFamily);
+    expect(volume.style?.fontFamily, AppTypography.referencePlainFamily);
     expect(volume.style?.fontSize, 16.5);
+    expect(volume.style?.fontWeight, FontWeight.w700);
+    expect(volume.style?.fontVariations, isNull);
     expect(
       tester.widget<Text>(find.byKey(const Key('chart-plot-subtitle'))).style,
       AppTypography.chartAnnotation.copyWith(
-        color: const Color(0xFF404040),
-        fontFamily: AppTypography.tabPlainFamily,
+        color: AppColors.textSecondary,
         fontSize: 12.5,
-        fontWeight: FontWeight.w200,
-        fontVariations: const [FontVariation('wght', 225)],
         letterSpacing: .4,
       ),
     );
     expect(
-      tester
-          .widget<Icon>(
-            find.descendant(
-              of: find.byKey(const Key('chart-symbol-chevron')),
-              matching: find.byType(Icon),
-            ),
-          )
-          .color,
-      ChartReferenceTheme.light.foreground,
+      tester.widget<Text>(find.byKey(const Key('chart-plot-subtitle'))).data,
+      'Gold vs US Dollar',
     );
+    final symbolArrow = tester.widget<Icon>(
+      find.descendant(
+        of: find.byKey(const Key('chart-symbol-chevron')),
+        matching: find.byType(Icon),
+      ),
+    );
+    expect(symbolArrow.icon, CupertinoIcons.arrowtriangle_down_fill);
+    expect(symbolArrow.color, ChartReferenceTheme.light.plotTitleBlue);
+    expect(symbolArrow.size, 5.5);
   });
+
+  testWidgets('XAUUSD chart corner uses the Prices positive blue', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _videoReferenceOverridesWith(
+          marketCandlesProvider.overrideWith(
+            (ref, request) => Stream.value(const <MarketCandle>[]),
+          ),
+        ),
+        child: const MaterialApp(
+          home: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'M30'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final title = tester.widget<Text>(
+      find.byKey(const Key('chart-plot-title')),
+    );
+    final titleSpan = title.textSpan! as TextSpan;
+    final symbolSpan = titleSpan.children!.first as TextSpan;
+    final symbolArrow = tester.widget<Icon>(
+      find.descendant(
+        of: find.byKey(const Key('chart-symbol-chevron')),
+        matching: find.byType(Icon),
+      ),
+    );
+
+    expect(symbolSpan.style?.color, const Color(0xFF007AFF));
+    expect(symbolArrow.color, const Color(0xFF007AFF));
+  });
+
+  for (final testCase
+      in <
+        ({
+          String symbol,
+          String timeframe,
+          MarketCandle candle,
+          String expectedSuffix,
+        })
+      >[
+        (
+          symbol: 'XAUUSD+',
+          timeframe: 'H4',
+          candle: MarketCandle(
+            time: DateTime.utc(2026, 9, 1, 8),
+            open: 4436.516,
+            high: 4437.821,
+            low: 4428.431,
+            close: 4429.610,
+          ),
+          expectedSuffix: 'H4, 4436.516 4437.821 4428.431 4429.610 0',
+        ),
+        (
+          symbol: 'BTCUSD',
+          timeframe: 'M15',
+          candle: MarketCandle(
+            time: DateTime.utc(2026, 9, 1, 8),
+            open: 65120.25,
+            high: 65220.75,
+            low: 65080.50,
+            close: 65175.98,
+            volume: 1234,
+          ),
+          expectedSuffix: 'M15, 65120.25 65220.75 65080.50 65175.98 1234',
+        ),
+      ]) {
+    testWidgets(
+      '${testCase.symbol} plot title shows active OHLCV with symbol precision',
+      (tester) async {
+        final quote = DemoQuote(
+          symbol: testCase.symbol,
+          name: testCase.symbol.startsWith('XAU')
+              ? 'Gold US Dollar'
+              : 'Bitcoin',
+          bid: testCase.candle.close,
+          ask: testCase.candle.close + .01,
+          changePercent: 0,
+          sourceTimestamp: testCase.candle.time,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              marketApiConfigProvider.overrideWithValue(
+                const MarketApiConfig(baseUrl: 'https://market.example.com'),
+              ),
+              marketCandlesProvider.overrideWith(
+                (ref, request) => Stream.value([testCase.candle]),
+              ),
+              realtimeCandleProvider.overrideWith(
+                (ref, request) => const Stream<MarketCandle>.empty(),
+              ),
+              demoQuoteProvider.overrideWith(
+                (ref, symbol) => Stream.value(quote),
+              ),
+              marketClockProvider.overrideWithValue(() => testCase.candle.time),
+            ],
+            child: MaterialApp(
+              home: ChartScreen(
+                symbol: testCase.symbol,
+                initialTimeframe: testCase.timeframe,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        final title = tester.widget<Text>(
+          find.byKey(const Key('chart-plot-title')),
+        );
+        expect(title.maxLines, 1);
+        expect(title.softWrap, isFalse);
+        expect(
+          find.ancestor(
+            of: find.byKey(const Key('chart-plot-title')),
+            matching: find.byKey(const Key('chart-ohlcv-fit')),
+          ),
+          findsOneWidget,
+          reason: 'Long gold and BTC OHLCV values must scale into one line.',
+        );
+        expect(
+          title.textSpan!.toPlainText(includeSemanticsLabels: false),
+          contains(testCase.expectedSuffix),
+        );
+
+        final canvasFinder = find.byKey(const Key('chart-canvas'));
+        final canvasRect = tester.getRect(canvasFinder);
+        final painter =
+            tester.widget<CustomPaint>(canvasFinder).painter!
+                as Mt5CandlePainter;
+        final titleRect = tester.getRect(
+          find.byKey(const Key('chart-plot-title')),
+        );
+        final fittedTitleRect = tester.getRect(
+          find.byKey(const Key('chart-ohlcv-fit')),
+        );
+        final priceAxisLeft = canvasRect.left + painter.priceAxisRect.left;
+        expect(
+          titleRect.right,
+          lessThanOrEqualTo(priceAxisLeft + .01),
+          reason: 'The complete OHLCV line must clear the price axis.',
+        );
+        expect(
+          priceAxisLeft - fittedTitleRect.right,
+          greaterThanOrEqualTo(10),
+          reason: 'The OHLCV line keeps the trailing air visible in the video.',
+        );
+
+        await tester.tap(find.byKey(const Key('chart-crosshair-button')));
+        await tester.pump();
+
+        final crosshairTitle = tester.widget<Text>(
+          find.byKey(const Key('chart-plot-title')),
+        );
+        expect(
+          crosshairTitle.textSpan!.toPlainText(includeSemanticsLabels: false),
+          isNot(contains('Di chuyển con trỏ')),
+        );
+        expect(crosshairTitle.maxLines, 1);
+        expect(crosshairTitle.softWrap, isFalse);
+        expect(
+          find.ancestor(
+            of: find.byKey(const Key('chart-plot-title')),
+            matching: find.byKey(const Key('chart-ohlcv-fit')),
+          ),
+          findsOneWidget,
+          reason: 'Crosshair OHLCV must retain the initial one-line fit.',
+        );
+        final crosshairTitleRect = tester.getRect(
+          find.byKey(const Key('chart-plot-title')),
+        );
+        expect(
+          crosshairTitleRect.right,
+          lessThanOrEqualTo(priceAxisLeft + .01),
+          reason: 'Crosshair OHLCV must not overflow into the price axis.',
+        );
+      },
+    );
+  }
 
   test('current price tag is centered on the active candle close', () {
     const currentPrice = 100.0;
@@ -276,6 +486,42 @@ void main() {
       painter.debugCurrentPriceBadgeRect!.center.dy,
       closeTo(candleCloseY, .01),
     );
+  });
+
+  test('historical horizontal pan centers auto scale on visible candles', () {
+    final candles = <MarketCandle>[
+      for (var index = 0; index < 19; index++)
+        MarketCandle(
+          time: DateTime.utc(2026, 8, 1, index),
+          open: 99,
+          high: 110,
+          low: 90,
+          close: 101,
+        ),
+      MarketCandle(
+        time: DateTime.utc(2026, 8, 2),
+        open: 1000,
+        high: 1000,
+        low: 1000,
+        close: 1000,
+      ),
+    ];
+    final painter = _viewportInvariantPainter(
+      viewport: const ChartViewport(scrollOffset: 10000),
+      candles: candles,
+      referencePrice: 1000,
+      currentPrice: 1000,
+    );
+
+    _paintViewportPainter(painter);
+
+    final visible = painter.hitTargets.visibleCandles;
+    expect(visible, isNot(contains(candles.last)));
+    expect(
+      (painter.chartMinPrice + painter.chartMaxPrice) / 2,
+      closeTo(100, 1e-9),
+    );
+    expect(painter.currentPrice, greaterThan(painter.chartMaxPrice));
   });
 
   test('viewport spacing does not reshape the resolved candle series', () {
@@ -526,7 +772,7 @@ void main() {
     }
   });
 
-  test('history badges use their associated resolved candle time', () {
+  test('chart does not render the legacy history badges', () {
     final hourlyCandles = List<MarketCandle>.generate(6, (index) {
       return MarketCandle(
         time: DateTime(2026, 8, 1, 10 + index),
@@ -566,11 +812,11 @@ void main() {
     _paintViewportPainter(hourly);
     _paintViewportPainter(daily);
 
-    expect(hourly.hitTargets.historyBadgeLabel, 'Đến 1 Aug 10:00');
-    expect(daily.hitTargets.historyBadgeLabel, 'Đến 6 Aug 2026');
+    expect(hourly.hitTargets.historyBadgeLabel, isNull);
+    expect(daily.hitTargets.historyBadgeLabel, isNull);
   });
 
-  test('canonical MT5 geometry aligns candles grid and price labels', () {
+  test('M30 reference keeps 17 fixed price marks on a 58px grid', () {
     final candles = List<MarketCandle>.generate(
       100,
       (index) => MarketCandle(
@@ -586,16 +832,16 @@ void main() {
       viewport: const ChartViewport(),
       candles: candles,
       useRealtimeCandles: true,
-      symbol: 'BTCUSD',
-      timeframe: 'M5',
+      symbol: 'XAUUSD+',
+      timeframe: 'M30',
       referencePrice: candles.last.close,
     );
     final recorder = ui.PictureRecorder();
     painter.paint(Canvas(recorder), const Size(590 / 1.5, 700));
     recorder.endRecording();
 
-    expect(painter.priceAxisRect.width * 1.5, closeTo(114, 1));
-    expect(painter.priceAxisRect.left * 1.5, closeTo(476, 1));
+    expect(painter.priceAxisRect.width * 1.5, closeTo(105, 1));
+    expect(painter.priceAxisRect.left * 1.5, closeTo(485, 1));
     expect(painter.hitTargets.candleWidth * 1.5, closeTo(42, 1));
     expect(painter.hitTargets.candleBodyWidth * 1.5, closeTo(42 * .64, 1));
     expect(painter.hitTargets.horizontalGridYs.length, greaterThan(10));
@@ -605,18 +851,24 @@ void main() {
       painter.hitTargets.verticalGridXs,
     ]) {
       for (var index = 1; index < positions.length; index++) {
-        expect(positions[index] - positions[index - 1], closeTo(28, 1));
+        expect((positions[index] - positions[index - 1]) * 1.5, closeTo(58, 1));
       }
     }
-    expect(
-      painter.hitTargets.priceAxisLabels.length,
-      painter.hitTargets.horizontalGridYs.length,
-    );
+    expect(painter.hitTargets.priceAxisLabels, hasLength(17));
+    expect(painter.hitTargets.horizontalGridYs, hasLength(17));
     for (
       var index = 0;
       index < painter.hitTargets.priceAxisLabels.length;
       index++
     ) {
+      expect(
+        painter.hitTargets.priceAxisLabels[index].y,
+        closeTo(
+          painter.hitTargets.priceTop +
+              painter.hitTargets.priceHeight * index / 17,
+          .01,
+        ),
+      );
       expect(
         painter.hitTargets.priceAxisLabels[index].y,
         closeTo(painter.hitTargets.horizontalGridYs[index], .01),
@@ -645,7 +897,10 @@ void main() {
       painter.hitTargets.firstCandleCenterX +
           painter.hitTargets.candleWidth *
               (painter.hitTargets.visibleCandles.length - 1),
-      closeTo(painter.hitTargets.chartWidth - 8, .01),
+      closeTo(
+        painter.hitTargets.chartWidth - painter.hitTargets.candleWidth,
+        .01,
+      ),
     );
   });
 
@@ -668,14 +923,14 @@ void main() {
         'bottomAxisRect': const Rect.fromLTWH(0, 755 + 1 / 3, 384, 22),
         'firstResolvedTimestamp': DateTime.utc(2026, 7, 1),
         'lastResolvedTimestamp': DateTime.utc(2026, 7, 1, 6, 35),
-        'visibleCandleCount': 12,
+        'visibleCandleCount': 11,
         'currentPriceBadgeRect': const Rect.fromLTWH(
           318 + 2 / 3,
-          358.4306410256,
+          361.4906547618431,
           67,
           20,
         ),
-        'hitTargetMapping': const <int>[0, 6, 11],
+        'hitTargetMapping': const <int>[0, 5, 10],
       },
     ),
     (
@@ -696,14 +951,14 @@ void main() {
         'bottomAxisRect': const Rect.fromLTWH(0, 755 + 1 / 3, 384, 22),
         'firstResolvedTimestamp': DateTime.utc(2026, 7, 1),
         'lastResolvedTimestamp': DateTime.utc(2026, 7, 7, 12),
-        'visibleCandleCount': 12,
+        'visibleCandleCount': 11,
         'currentPriceBadgeRect': const Rect.fromLTWH(
           318 + 2 / 3,
-          179.3064102565,
+          209.90654761906865,
           67,
           20,
         ),
-        'hitTargetMapping': const <int>[0, 6, 11],
+        'hitTargetMapping': const <int>[0, 5, 10],
       },
     ),
   ]) {
@@ -858,7 +1113,7 @@ void main() {
                 .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
                 .painter!
             as Mt5CandlePainter;
-    expect(painter.visibleCandleCount, 12);
+    expect(painter.visibleCandleCount, 11);
     expect(painter.chartMinPrice, greaterThan(90));
     expect(painter.chartMaxPrice, lessThan(120));
   });
@@ -1199,6 +1454,114 @@ void main() {
     expect(find.byKey(const Key('market-manage-edit-icon')), findsOneWidget);
   });
 
+  testWidgets('one-click defaults to the current symbol position volume', (
+    tester,
+  ) async {
+    final container = createVideoReferenceContainer();
+    addTearDown(container.dispose);
+    container
+        .read(activeDemoAccountIdProvider.notifier)
+        .select(videoLargeAccountId);
+    expect(container.read(demoPositionsProvider).first.volume, 179);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'H1'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('chart-one-click-volume-text')))
+          .data,
+      '179',
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('chart-one-click-volume-text')))
+          .style
+          ?.fontWeight,
+      FontWeight.w700,
+    );
+  });
+
+  testWidgets('crosshair hint disappears after three seconds', (tester) async {
+    final container = createVideoReferenceContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'H1'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    const hintKey = Key('chart-crosshair-hint');
+    expect(find.byKey(hintKey), findsNothing);
+
+    await tester.tap(find.byKey(const Key('chart-crosshair-button')));
+    await tester.pump();
+
+    expect(find.byKey(hintKey), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(hintKey)).data,
+      'Di chuyển con trỏ hoặc nhấn vào biểu đồ để chuyển sang\nmột loại thước',
+    );
+    expect(tester.widget<Text>(find.byKey(hintKey)).style?.fontSize, 11.5);
+    expect(
+      (tester
+                  .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+                  .painter!
+              as Mt5CandlePainter)
+          .crosshairEnabled,
+      isTrue,
+    );
+
+    await tester.pump(const Duration(milliseconds: 2999));
+    expect(find.byKey(hintKey), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(find.byKey(hintKey), findsNothing);
+    expect(
+      (tester
+                  .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+                  .painter!
+              as Mt5CandlePainter)
+          .crosshairEnabled,
+      isTrue,
+    );
+
+    await tester.tap(find.byKey(const Key('chart-crosshair-button')));
+    await tester.pump();
+    expect(find.byKey(hintKey), findsNothing);
+    expect(
+      (tester
+                  .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+                  .painter!
+              as Mt5CandlePainter)
+          .crosshairEnabled,
+      isFalse,
+    );
+
+    await tester.tap(find.byKey(const Key('chart-crosshair-button')));
+    await tester.pump();
+    expect(find.byKey(hintKey), findsOneWidget);
+    await tester.tap(find.byKey(const Key('chart-crosshair-button')));
+    await tester.pump();
+    expect(find.byKey(hintKey), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.byKey(hintKey), findsNothing);
+  });
+
   testWidgets('chart volume and timeframe controls update', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -1236,6 +1599,14 @@ void main() {
     await tester.pump();
 
     expect(
+      tester
+          .widget<Text>(find.byKey(const Key('chart-toolbar-timeframe')))
+          .style
+          ?.color,
+      ChartReferenceTheme.light.toolbarInk,
+    );
+
+    expect(
       tester.getCenter(find.byKey(const Key('chart-one-click-toggle'))).dx,
       greaterThan(
         tester.getCenter(find.byKey(const Key('chart-windows-button'))).dx,
@@ -1251,22 +1622,17 @@ void main() {
     expect(find.byKey(const Key('chart-one-click-panel')), findsOneWidget);
     expect(find.text('0.25'), findsOneWidget);
     final oneClickPanel = find.byKey(const Key('chart-one-click-panel'));
-    final downChevron = tester.widget<Icon>(
-      find.descendant(
-        of: oneClickPanel,
-        matching: find.byIcon(CupertinoIcons.chevron_down),
-      ),
+    final downChevron = find.descendant(
+      of: oneClickPanel,
+      matching: find.byKey(const Key('chart-one-click-volume-down-chevron')),
     );
-    final upChevron = tester.widget<Icon>(
-      find.descendant(
-        of: oneClickPanel,
-        matching: find.byIcon(CupertinoIcons.chevron_up),
-      ),
+    final upChevron = find.descendant(
+      of: oneClickPanel,
+      matching: find.byKey(const Key('chart-one-click-volume-up-chevron')),
     );
-    expect(downChevron.color, ChartReferenceTheme.light.foreground);
-    expect(upChevron.color, ChartReferenceTheme.light.foreground);
-    expect(downChevron.size, 12);
-    expect(upChevron.size, 12);
+    expect(tester.getSize(downChevron), const Size(14, 12));
+    expect(tester.getSize(upChevron), const Size(14, 12));
+    expect(tester.getCenter(downChevron).dy, tester.getCenter(upChevron).dy);
     await tester.tap(find.byKey(const Key('chart-one-click-volume-field')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('chart-numeric-keypad-sheet')), findsOneWidget);
@@ -1285,7 +1651,9 @@ void main() {
     await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
     await tester.pump();
     expect(find.text('0.50'), findsOneWidget);
-    await tester.tap(find.byIcon(CupertinoIcons.chevron_up));
+    await tester.tap(
+      find.byKey(const Key('chart-one-click-volume-up-chevron')),
+    );
     await tester.pump();
     expect(find.text('0.51'), findsOneWidget);
     await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
@@ -1295,6 +1663,26 @@ void main() {
     await tester.tap(find.text('H4').first);
     await tester.pump();
     expect(find.text('H1'), findsOneWidget);
+    for (final period in const <String>[
+      'M1',
+      'M5',
+      'M15',
+      'M30',
+      'H1',
+      'H4',
+      'D1',
+      'W1',
+      'MN',
+    ]) {
+      final label = tester.widgetList<Text>(find.text(period)).first;
+      expect(
+        label.style?.fontFamily,
+        AppTypography.referencePlainFamily,
+        reason: period,
+      );
+      expect(label.style?.fontWeight, FontWeight.w700, reason: period);
+      expect(label.style?.fontVariations, isNull, reason: period);
+    }
     await tester.tap(find.text('H1'));
     await tester.pump();
     expect(find.text('H1'), findsWidgets);
@@ -1338,15 +1726,35 @@ void main() {
         .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
         .painter;
     expect(painter.measurementEnd, isNotNull);
+    final retainedMeasurementStart = painter.measurementStart as Offset;
+    final retainedMeasurementEnd = painter.measurementEnd as Offset;
+    final retainedCrosshairPosition = painter.crosshairPosition as Offset;
 
     await secondPointer.up();
     await tester.pump();
     painter = tester
         .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
         .painter;
+    expect(painter.measurementStart, retainedMeasurementStart);
+    expect(painter.measurementEnd, retainedMeasurementEnd);
+    expect(painter.crosshairPosition, retainedCrosshairPosition);
+
+    await firstPointer.up();
+    await tester.pump();
+    painter = tester
+        .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+        .painter;
+    expect(painter.measurementStart, retainedMeasurementStart);
+    expect(painter.measurementEnd, retainedMeasurementEnd);
+    expect(painter.crosshairPosition, retainedCrosshairPosition);
+
+    await tester.tap(find.byKey(const Key('chart-crosshair-button')));
+    await tester.pump();
+    painter = tester
+        .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+        .painter;
     expect(painter.measurementStart, isNull);
     expect(painter.measurementEnd, isNull);
-    await firstPointer.up();
     expect(tester.takeException(), isNull);
   });
 
@@ -1780,7 +2188,7 @@ void main() {
 
       await tester.pump(const Duration(seconds: 3));
       await tester.pump();
-      expect(find.textContaining('Gold US Dollar'), findsOneWidget);
+      expect(find.textContaining('Gold vs US Dollar'), findsOneWidget);
       expect(find.byKey(const Key('chart-pending-order-pill')), findsOneWidget);
       expect(painter.pendingOrderPrice, draggedPrice);
 
@@ -2156,7 +2564,10 @@ void main() {
         .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
         .painter;
     expect(painter.viewport, isNot(expandedViewport));
-    expect(painter.viewport.scrollOffset as double, greaterThanOrEqualTo(0));
+    expect(
+      painter.viewport.scrollOffset as double,
+      greaterThanOrEqualTo(painter.viewport.minScrollOffset as double),
+    );
 
     await tester.tap(chart);
     await tester.pump(const Duration(milliseconds: 80));
@@ -2200,10 +2611,10 @@ void main() {
                 as Mt5CandlePainter;
         final candle = visible[index];
         final expectedOhlc =
-            '${candle.open.toStringAsFixed(2)} '
-            '${candle.high.toStringAsFixed(2)} '
-            '${candle.low.toStringAsFixed(2)} '
-            '${candle.close.toStringAsFixed(2)}';
+            '${candle.open.toStringAsFixed(3)} '
+            '${candle.high.toStringAsFixed(3)} '
+            '${candle.low.toStringAsFixed(3)} '
+            '${candle.close.toStringAsFixed(3)}';
         final time = candle.time.isUtc ? candle.time.toLocal() : candle.time;
         String two(int value) => value.toString().padLeft(2, '0');
         final expectedTime =
@@ -2240,6 +2651,91 @@ void main() {
     await verifyCrosshairAtVisibleIndices();
     await tester.pump(const Duration(milliseconds: 60));
   });
+
+  testWidgets(
+    'same-gesture left pan and return restores the initial newest candle',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(384, 848));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            marketCandlesProvider.overrideWith(
+              (ref, request) => Stream.value(const <MarketCandle>[]),
+            ),
+            demoQuoteProvider.overrideWith((ref, symbol) {
+              final quote = ref
+                  .read(demoQuotesProvider)
+                  .firstWhere(
+                    (item) =>
+                        item.symbol.replaceAll('+', '') ==
+                        symbol.replaceAll('+', ''),
+                    orElse: () => ref.read(demoQuotesProvider).first,
+                  );
+              return Stream.value(quote);
+            }),
+          ],
+          child: const MaterialApp(
+            home: ChartScreen(symbol: 'XAUEUR', initialTimeframe: 'M1'),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final chart = find.byKey(const Key('chart-gesture-area'));
+      final initialPainter =
+          tester
+                  .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+                  .painter!
+              as Mt5CandlePainter;
+      final initialCandleCount = initialPainter.debugResolvedCandles.length;
+      final initialNewestTime = initialPainter.debugResolvedCandles.last.time;
+      final initialNewestCenter = initialPainter.viewport.candleCenterX(
+        candleIndex: initialCandleCount - 1,
+        plotWidth: initialPainter.hitTargets.chartWidth,
+        candleCount: initialCandleCount,
+      );
+      expect(initialPainter.viewport.scrollOffset, 0);
+      expect(
+        initialPainter.hitTargets.chartWidth - initialNewestCenter,
+        closeTo(28, .001),
+      );
+
+      final gesture = await tester.startGesture(tester.getCenter(chart));
+      await gesture.moveBy(const Offset(-200, 0));
+      await tester.pump();
+
+      var painter =
+          tester
+                  .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+                  .painter!
+              as Mt5CandlePainter;
+      expect(painter.viewport.scrollOffset, -84);
+
+      await gesture.moveBy(const Offset(200, 0));
+      await tester.pump();
+
+      painter =
+          tester
+                  .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+                  .painter!
+              as Mt5CandlePainter;
+      expect(painter.viewport.scrollOffset, 0);
+      expect(painter.viewport.barSpacing, 28);
+      expect(painter.viewport.rightPadding, 28);
+      expect(painter.debugResolvedCandles.last.time, initialNewestTime);
+      final newestCenter = painter.viewport.candleCenterX(
+        candleIndex: painter.debugResolvedCandles.length - 1,
+        plotWidth: painter.hitTargets.chartWidth,
+        candleCount: painter.debugResolvedCandles.length,
+      );
+      expect(newestCenter, closeTo(initialNewestCenter, .001));
+      expect(painter.hitTargets.chartWidth - newestCenter, closeTo(28, .001));
+
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 60));
+    },
+  );
 
   testWidgets('continuous 2-1-2 gesture rebases its focal candle', (
     tester,
@@ -2337,7 +2833,10 @@ void main() {
         ChartViewport.maximumBarSpacing,
       ),
     );
-    expect(viewport.scrollOffset, greaterThanOrEqualTo(0));
+    expect(
+      viewport.scrollOffset,
+      greaterThanOrEqualTo(viewport.minScrollOffset),
+    );
     expect(
       viewport.scrollOffset,
       lessThanOrEqualTo(
@@ -2350,6 +2849,128 @@ void main() {
 
     await third.up();
     await first.up();
+    await tester.pump(const Duration(milliseconds: 60));
+  });
+
+  testWidgets(
+    'one-finger vertical plot drag follows the finger without changing range',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(384, 848));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            marketCandlesProvider.overrideWith(
+              (ref, request) => Stream.value(const <MarketCandle>[]),
+            ),
+            demoQuoteProvider.overrideWith((ref, symbol) {
+              final quote = ref
+                  .read(demoQuotesProvider)
+                  .firstWhere(
+                    (item) =>
+                        item.symbol.replaceAll('+', '') ==
+                        symbol.replaceAll('+', ''),
+                    orElse: () => ref.read(demoQuotesProvider).first,
+                  );
+              return Stream.value(quote);
+            }),
+          ],
+          child: const MaterialApp(
+            home: ChartScreen(symbol: 'XAUEUR', initialTimeframe: 'M1'),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      Mt5CandlePainter painter() =>
+          tester
+                  .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+                  .painter!
+              as Mt5CandlePainter;
+
+      final chart = find.byKey(const Key('chart-gesture-area'));
+      final canvasTopLeft = tester.getTopLeft(
+        find.byKey(const Key('chart-canvas')),
+      );
+      final before = painter();
+      final rangeBefore = before.chartMaxPrice - before.chartMinPrice;
+      final centerBefore = (before.chartMaxPrice + before.chartMinPrice) / 2;
+      final start =
+          canvasTopLeft +
+          Offset(
+            before.hitTargets.chartWidth / 2,
+            before.hitTargets.priceTop + before.hitTargets.priceHeight / 2,
+          );
+      const dragDistance = 100.0;
+
+      await tester.dragFrom(start, const Offset(0, dragDistance));
+      await tester.pump();
+
+      final dragged = painter();
+      final rangeAfter = dragged.chartMaxPrice - dragged.chartMinPrice;
+      final centerAfter = (dragged.chartMaxPrice + dragged.chartMinPrice) / 2;
+      expect(dragged.priceViewport.isAuto, isFalse);
+      expect(rangeAfter, closeTo(rangeBefore, rangeBefore * .000001));
+      expect(
+        centerAfter - centerBefore,
+        closeTo(
+          rangeBefore * dragDistance / before.hitTargets.priceHeight,
+          rangeBefore * .01,
+        ),
+        reason:
+            'The reference video moves chart content by the same screen-space '
+            'distance as the finger.',
+      );
+      expect(
+        tester.getRect(chart).contains(start),
+        isTrue,
+        reason:
+            'The gesture must begin inside the plot, not on the price axis.',
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+    },
+  );
+
+  testWidgets('horizontal plot drag ignores small vertical finger jitter', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(384, 848));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          marketCandlesProvider.overrideWith(
+            (ref, request) => Stream.value(const <MarketCandle>[]),
+          ),
+          demoQuoteProvider.overrideWith((ref, symbol) {
+            final quote = ref
+                .read(demoQuotesProvider)
+                .firstWhere(
+                  (item) =>
+                      item.symbol.replaceAll('+', '') ==
+                      symbol.replaceAll('+', ''),
+                  orElse: () => ref.read(demoQuotesProvider).first,
+                );
+            return Stream.value(quote);
+          }),
+        ],
+        child: const MaterialApp(
+          home: ChartScreen(symbol: 'XAUEUR', initialTimeframe: 'M1'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final chart = find.byKey(const Key('chart-gesture-area'));
+    await tester.drag(chart, const Offset(-140, 5));
+    await tester.pump();
+
+    final painter =
+        tester
+                .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+                .painter!
+            as Mt5CandlePainter;
+    expect(painter.priceViewport, const ChartPriceViewport.auto());
     await tester.pump(const Duration(milliseconds: 60));
   });
 
@@ -2422,7 +3043,7 @@ void main() {
       reason: 'a diagonal price-axis release cannot start horizontal inertia',
     );
 
-    final staleAxis = await tester.startGesture(axisPoint, pointer: 71);
+    final staleAxis = await tester.startGesture(axisPoint, pointer: 7101);
     await staleAxis.moveBy(const Offset(0, -80));
     await tester.pump();
     expect(painter().priceViewport.isAuto, isFalse);
@@ -2708,8 +3329,8 @@ void main() {
         30.3333333333,
       ),
       const Key('chart-objects-button'): const Rect.fromLTRB(8, 14, 25, 31),
-      const Key('chart-windows-button'): const Rect.fromLTRB(12, 14, 30, 28),
-      const Key('chart-one-click-toggle'): const Rect.fromLTRB(10, 15, 28, 28),
+      const Key('chart-windows-button'): const Rect.fromLTRB(9, 11, 29, 27),
+      const Key('chart-one-click-toggle'): const Rect.fromLTRB(9, 12, 29, 26),
     };
     final actualMetrics = <Key, ({Rect bounds, int baseRed})>{};
     for (final key in expectedBounds.keys) {
@@ -2726,13 +3347,17 @@ void main() {
       if (entry.key == const Key('chart-crosshair-button') ||
           entry.key == const Key('chart-indicators-button') ||
           entry.key == const Key('chart-objects-button')) {
-        expect(metrics.baseRed, closeTo(64, 4), reason: '${entry.key} ink');
+        expect(
+          metrics.baseRed,
+          closeTo(AppColors.textSecondary.r * 255, 2),
+          reason: '${entry.key} must use the locked chart secondary ink',
+        );
       }
     }
   });
 
   testWidgets(
-    'Chart colored toolbar icons match the supplied sample palette and center treatment',
+    'Chart colored toolbar icons use the supplied muted reference palette',
     (tester) async {
       tester.view.physicalSize = const Size(384, 848);
       tester.view.devicePixelRatio = 1;
@@ -2769,67 +3394,54 @@ void main() {
       for (final metrics in [chartMode, windows]) {
         expect(
           metrics.redCore,
-          const Color(0xFFC85C4B),
-          reason: '$metrics red sampled from the supplied JPEG',
+          const Color(0xFFD65647),
+          reason: '$metrics red must match the supplied toolbar sample',
         );
         expect(
           metrics.blueCore,
-          const Color(0xFF4D85E6),
-          reason: '$metrics blue sampled from the supplied JPEG',
+          const Color(0xFF3D87EA),
+          reason: '$metrics blue must match the supplied toolbar sample',
         );
       }
       expect(
         chartMode.lightNeutralPixels,
-        greaterThanOrEqualTo(28),
-        reason:
-            '$chartMode must use the sample\'s broad light-gray center hand',
-      );
-      expect(
-        chartMode.darkNeutralPixels,
-        lessThanOrEqualTo(8),
-        reason: '$chartMode must not retain the old dark clock hand',
+        greaterThanOrEqualTo(20),
+        reason: '$chartMode must use the light center hand from the sample',
       );
       expect(
         windows.lightNeutralPixels,
-        greaterThanOrEqualTo(75),
-        reason: '$windows must retain the broad light center link',
-      );
-      expect(
-        windows.darkNeutralPixels,
-        lessThanOrEqualTo(8),
-        reason: '$windows must not outline the sample shapes in dark ink',
+        greaterThanOrEqualTo(20),
+        reason: '$windows must use the light center link from the sample',
       );
       expect(
         chartMode.coloredBounds.width,
-        closeTo(54, 1),
-        reason:
-            '$chartMode must match the supplied JPEG after mapping the '
-            '1280px source toolbar to the 590px device',
+        60,
+        reason: '$chartMode must match the supplied DPR 3 toolbar crop',
       );
       expect(
         chartMode.coloredBounds.height,
-        closeTo(42, 1),
-        reason: '$chartMode must preserve the mapped source contour height',
+        48,
+        reason: '$chartMode must preserve the supplied contour height',
       );
       expect(
         windows.coloredBounds.width,
-        closeTo(56, 1),
+        closeTo(60, 1),
         reason: '$windows must match the mapped supplied JPEG contour width',
       );
       expect(
         windows.coloredBounds.height,
-        closeTo(38, 1),
+        42,
         reason: '$windows must match the mapped supplied JPEG contour height',
       );
       expect(
         chartMode.neutralCore,
-        const Color(0xFFB4BFC0),
-        reason: '$chartMode must use the gray sampled from the clock hand',
+        const Color(0xFFB3BDBF),
+        reason: '$chartMode must use the measured light-gray center hand',
       );
       expect(
         windows.neutralCore,
-        const Color(0xFFB4BFC0),
-        reason: '$windows must use the gray sampled from the center link',
+        const Color(0xFFB3BDBF),
+        reason: '$windows must use the measured light-gray center link',
       );
       expect(
         chartMode.firstWideOpeningFromTop,
@@ -2837,6 +3449,99 @@ void main() {
         reason:
             '$chartMode ring must open vertically as early as the supplied '
             '3x reference',
+      );
+    },
+  );
+
+  testWidgets(
+    'Chart top-right icons match the supplied DPR 3 crop without clipping',
+    (tester) async {
+      tester.view.physicalSize = const Size(1206, 2622);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      const media = MediaQueryData(
+        size: Size(402, 874),
+        devicePixelRatio: 3,
+        padding: EdgeInsets.only(top: 20, bottom: 34),
+        viewPadding: EdgeInsets.only(top: 20, bottom: 34),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            marketCandlesProvider.overrideWith(
+              (ref, request) => Stream.value(const <MarketCandle>[]),
+            ),
+          ],
+          child: const MaterialApp(
+            home: RepaintBoundary(
+              key: Key('chart-icon-reference-capture'),
+              child: MediaQuery(
+                data: media,
+                child: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'M30'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final chartMode = await _chartButtonColorMetrics(
+        tester,
+        const Key('chart-windows-button'),
+      );
+      final windows = await _chartButtonColorMetrics(
+        tester,
+        const Key('chart-one-click-toggle'),
+      );
+
+      expect(chartMode.coloredBounds.size, const Size(60, 48));
+      expect(chartMode.redBounds.size, const Size(29, 48));
+      expect(chartMode.blueBounds.size, const Size(29, 48));
+      expect(
+        chartMode.redBounds.topLeft - chartMode.coloredBounds.topLeft,
+        Offset.zero,
+      );
+      expect(
+        chartMode.blueBounds.topLeft - chartMode.coloredBounds.topLeft,
+        const Offset(31, 0),
+      );
+
+      expect(
+        windows.coloredBounds.size,
+        const Size(60, 42),
+        reason: '$windows',
+      );
+      expect(windows.redBounds.size, const Size(29, 42));
+      expect(windows.blueBounds.size, const Size(29, 42));
+      expect(
+        windows.redBounds.topLeft - windows.coloredBounds.topLeft,
+        Offset.zero,
+      );
+      expect(
+        windows.blueBounds.topLeft - windows.coloredBounds.topLeft,
+        const Offset(31, 0),
+      );
+
+      Offset globalColoredCenter(Key key, Rect coloredBounds) {
+        final button = tester.getRect(find.byKey(key));
+        return Offset(
+          button.left * 3 + 12 + coloredBounds.center.dx,
+          button.top * 3 + 12 + coloredBounds.center.dy,
+        );
+      }
+
+      expect(
+        globalColoredCenter(
+          const Key('chart-windows-button'),
+          chartMode.coloredBounds,
+        ).dy,
+        globalColoredCenter(
+          const Key('chart-one-click-toggle'),
+          windows.coloredBounds,
+        ).dy,
       );
     },
   );
@@ -2887,81 +3592,101 @@ void main() {
         pixelRatio: 1.5,
       );
 
-      expect(chartMode.coloredBounds.width, 27);
-      expect(chartMode.coloredBounds.height, 21);
-      expect(chartMode.redBounds.size, const Size(13, 21));
-      expect(chartMode.blueBounds.size, const Size(13, 21));
+      expect(chartMode.coloredBounds.width, 30, reason: '$chartMode');
+      expect(chartMode.coloredBounds.height, 23, reason: '$chartMode');
+      expect(
+        chartMode.redBounds.size,
+        const Size(15, 23),
+        reason: '$chartMode',
+      );
+      expect(
+        chartMode.blueBounds.size,
+        const Size(15, 23),
+        reason: '$chartMode',
+      );
       expect(
         chartMode.redBounds.topLeft - chartMode.coloredBounds.topLeft,
         Offset.zero,
       );
       expect(
         chartMode.blueBounds.topLeft - chartMode.coloredBounds.topLeft,
-        const Offset(14, 0),
+        const Offset(15, 0),
       );
-      expect(chartMode.coloredPixels, closeTo(284, 12));
-      expect(chartMode.coloredRowWidths, hasLength(21));
-      expect(chartMode.neutralBounds.width, 6);
-      expect(chartMode.neutralBounds.height, 11);
+      expect(chartMode.coloredPixels, closeTo(341, 12));
+      expect(chartMode.coloredRowWidths, hasLength(23), reason: '$chartMode');
+      expect(chartMode.neutralBounds.width, inInclusiveRange(5, 6));
+      expect(chartMode.neutralBounds.height, inInclusiveRange(10, 11));
       expect(
         chartMode.neutralBounds.topLeft - chartMode.coloredBounds.topLeft,
-        const Offset(12, 5),
+        const Offset(14, 6),
       );
       _expectColoredContourRows(
         chartMode.coloredRowWidths,
         const <int, int>{
-          0: 14,
-          1: 18,
-          4: 13,
-          8: 12,
-          10: 10,
+          0: 12,
+          1: 17,
+          4: 15,
+          8: 14,
+          11: 14,
           14: 14,
-          18: 17,
-          20: 12,
+          18: 14,
+          20: 19,
+          22: 13,
         },
-        tolerance: 5,
-        reason: 'chartMode contour mapped from the supplied 1280px toolbar',
+        tolerance: 2,
+        reason: 'chartMode contour mapped from the supplied DPR 3 crop',
       );
       expect(
         chartMode.coreColorPixels / chartMode.coloredPixels,
         greaterThanOrEqualTo(.65),
         reason: '$chartMode must retain solid color instead of soft scaling',
       );
-      expect(windows.coloredBounds.width, 28);
-      expect(windows.coloredBounds.height, 19);
-      expect(windows.redBounds.size, const Size(13, 19));
-      expect(windows.blueBounds.size, const Size(13, 19));
+      expect(windows.coloredBounds.width, 31, reason: '$windows');
+      expect(windows.coloredBounds.height, 21);
+      expect(windows.redBounds.size, const Size(15, 21), reason: '$windows');
+      expect(windows.blueBounds.size, const Size(15, 21));
       expect(
         windows.redBounds.topLeft - windows.coloredBounds.topLeft,
         Offset.zero,
       );
       expect(
         windows.blueBounds.topLeft - windows.coloredBounds.topLeft,
-        const Offset(15, 0),
+        const Offset(16, 0),
       );
-      expect(windows.coloredPixels, closeTo(396, 40));
-      expect(windows.coloredRowWidths, hasLength(19));
-      expect(windows.neutralBounds.width, 10);
+      expect(windows.coloredPixels, closeTo(500, 20));
+      expect(windows.coloredRowWidths, hasLength(21));
+      expect(windows.neutralBounds.width, inInclusiveRange(9, 10));
       expect(windows.neutralBounds.height, 5);
       expect(
+        windows.darkNeutralPixels,
+        lessThan(5),
+        reason: 'The center bridge must remain white instead of dark ink.',
+      );
+      expect(
+        windows.backgroundOpeningPixels,
+        greaterThanOrEqualTo(50),
+        reason: 'The center bridge must retain the white reference opening.',
+      );
+      expect(
         windows.neutralBounds.topLeft - windows.coloredBounds.topLeft,
-        const Offset(9, 7),
+        const Offset(11, 8),
       );
       _expectColoredContourRows(
         windows.coloredRowWidths,
         const <int, int>{
-          0: 23,
-          1: 26,
-          4: 26,
-          5: 19,
-          7: 14,
-          10: 14,
-          13: 26,
-          17: 25,
-          18: 18,
+          0: 26,
+          1: 28,
+          4: 30,
+          6: 18,
+          8: 16,
+          10: 16,
+          12: 16,
+          15: 30,
+          19: 28,
+          20: 26,
         },
-        tolerance: 4,
-        reason: 'windows contour mapped from the supplied 1280px toolbar',
+        tolerance: 2,
+        reason: 'windows contour mapped from the supplied DPR 3 crop',
       );
       expect(
         windows.coreColorPixels / windows.coloredPixels,
@@ -2981,6 +3706,7 @@ void main() {
       bullish: Color(0xFF147D64),
       bearish: Color(0xFFB61F48),
       tradeBlue: Color(0xFF7257D7),
+      tradeRed: Color(0xFFCE3A26),
       plotTitleBlue: Color(0xFF684FC9),
       ticketBlue: Color(0xFF0A6CE0),
       axisBorder: Color(0xFF8E6F9E),
@@ -3086,16 +3812,16 @@ void main() {
         127,
       ),
       const Key('chart-windows-button'): const Rect.fromLTRB(
-        486,
-        104,
-        513,
-        125,
+        482,
+        100,
+        512,
+        123,
       ),
       const Key('chart-one-click-toggle'): const Rect.fromLTRB(
-        542,
-        105,
-        570,
-        124,
+        540,
+        101,
+        571,
+        122,
       ),
     };
     final actualGlobalInk = <Key, Rect>{};
@@ -3128,6 +3854,11 @@ void main() {
         reason: '${entry.key} global 590px reference ink; all=$actualGlobalInk',
       );
     }
+    expect(
+      actualGlobalInk[const Key('chart-windows-button')]!.center.dy,
+      actualGlobalInk[const Key('chart-one-click-toggle')]!.center.dy,
+      reason: 'the two colored top-right icons must share one visual center',
+    );
   });
 
   testWidgets('video two chart frame respects shell and safe-area geometry', (
@@ -3232,16 +3963,16 @@ void main() {
         46.5,
       ),
       const Key('chart-windows-button'): const Rect.fromLTRB(
+        13.5,
         17.5,
-        21.5,
-        44.5,
-        42.5,
+        43.5,
+        40.5,
       ),
       const Key('chart-one-click-toggle'): const Rect.fromLTRB(
-        14.5,
-        22.5,
-        42.5,
-        41.5,
+        13.5,
+        18.5,
+        43.5,
+        39.5,
       ),
     };
     final actualMetrics15 = <Key, ({Rect bounds, int baseRed})>{};
@@ -3294,7 +4025,7 @@ void main() {
     expect(
       (painter.hitTargets.horizontalGridYs[1] as double) * 1.5 -
           (painter.hitTargets.horizontalGridYs[0] as double) * 1.5,
-      closeTo(42, 1),
+      closeTo(59.65625, 1),
     );
     final originalChartFrame = painter.chartFrameRect as Rect;
     final originalPriceGrid = painter.priceGridRect as Rect;
@@ -3313,9 +4044,9 @@ void main() {
     final shiftedCanvas = physical(
       tester.getRect(find.byKey(const Key('chart-canvas'))),
     );
-    expect(oneClick.height, closeTo(58, .01));
+    expect(oneClick.height, closeTo(63, .01));
     expect(oneClick.top, closeTo(142, .01));
-    expect(oneClick.bottom, closeTo(200, .01));
+    expect(oneClick.bottom, closeTo(205, .01));
     expect(shiftedCanvas.top, closeTo(142, .01));
     expect(shiftedCanvas.bottom, 1161.5);
     expect(shiftedCanvas, physical(canvas));
@@ -3336,18 +4067,35 @@ void main() {
     );
     final buyLabel = find.descendant(of: panel, matching: find.text('Buy'));
     final buyLabelWidget = tester.widget<Text>(buyLabel);
-    expect(buyLabelWidget.style?.fontFamily, AppTypography.tabPlainFamily);
-    expect(buyLabelWidget.style?.fontSize, 7);
-    expect(buyLabelWidget.style?.letterSpacing, 1.75);
+    expect(
+      buyLabelWidget.style?.fontFamily,
+      AppTypography.referenceCondensedFamily,
+    );
+    expect(buyLabelWidget.style?.fontSize, 10);
+    expect(buyLabelWidget.style?.fontWeight, FontWeight.w700);
+    expect(buyLabelWidget.style?.fontVariations, isNull);
+    expect(buyLabelWidget.style?.color, Colors.white);
+    expect(buyLabelWidget.style?.letterSpacing, 1.2);
+    final sellLabel = find.descendant(of: panel, matching: find.text('SELL'));
+    final sellLabelWidget = tester.widget<Text>(sellLabel);
+    expect(
+      sellLabelWidget.style?.fontFamily,
+      AppTypography.referenceCondensedFamily,
+    );
+    expect(sellLabelWidget.style?.fontSize, 10);
+    expect(sellLabelWidget.style?.fontWeight, FontWeight.w700);
+    expect(sellLabelWidget.style?.fontVariations, isNull);
+    expect(sellLabelWidget.style?.color, Colors.white);
+    expect(sellLabelWidget.style?.letterSpacing, .42);
     expect(
       physical(tester.getRect(buyLabel)).left,
       closeTo(407, .01),
       reason: 'The 177px Buy ticket uses the measured 8px label inset.',
     );
-    expect(physical(tester.getRect(buyLabel)).top, closeTo(148.5, .01));
+    expect(physical(tester.getRect(buyLabel)).top, closeTo(146.5, .01));
     final volumeUp = find.descendant(
       of: panel,
-      matching: find.byIcon(CupertinoIcons.chevron_up),
+      matching: find.byKey(const Key('chart-one-click-volume-up-chevron')),
     );
     expect(volumeUp, findsOneWidget);
     await tester.tap(volumeUp);
@@ -3391,12 +4139,11 @@ void main() {
     for (final timeframe in timeframes) {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [
-            ...videoReferenceOverrides,
+          overrides: _videoReferenceOverridesWith(
             marketCandlesProvider.overrideWith(
               (ref, request) => Stream.value(const <MarketCandle>[]),
             ),
-          ],
+          ),
           child: MaterialApp(
             home: ChartScreen(
               key: ValueKey('standard-chrome-$timeframe'),
@@ -3418,10 +4165,41 @@ void main() {
               widget.text.toPlainText().startsWith('XAUUSD'),
         ),
       );
+      final titleText = tester.widget<Text>(
+        find.byKey(const Key('chart-plot-title')),
+      );
+      final titleSpan = titleText.textSpan! as TextSpan;
+      final symbolSpan = titleSpan.children!.first as TextSpan;
+      expect(
+        symbolSpan.style?.color,
+        ChartReferenceTheme.light.plotTitleBlue,
+        reason: '$timeframe XAUUSD uses the source-locked plot-title blue',
+      );
+      expect(
+        symbolSpan.style?.fontWeight,
+        FontWeight.w700,
+        reason: '$timeframe XAUUSD title weight',
+      );
+      expect(
+        symbolSpan.style?.fontVariations,
+        isNull,
+        reason: '$timeframe XAUUSD static-font weight',
+      );
+      final symbolArrow = tester.widget<Icon>(
+        find.descendant(
+          of: find.byKey(const Key('chart-symbol-chevron')),
+          matching: find.byType(Icon),
+        ),
+      );
+      expect(
+        symbolArrow.color,
+        ChartReferenceTheme.light.plotTitleBlue,
+        reason: '$timeframe XAUUSD chevron matches the plot-title blue',
+      );
       final renderedTimeframe = timeframe;
       expect(
         chartHeader.text.toPlainText(),
-        isNot(contains('$renderedTimeframe,')),
+        contains('$renderedTimeframe,'),
         reason: timeframe,
       );
       final priceAxis = painter.priceAxisRect as Rect;
@@ -3466,7 +4244,11 @@ void main() {
           (visible.length - 1) * (painter.hitTargets.candleWidth as double);
       expect(
         newestCenter,
-        closeTo((painter.hitTargets.chartWidth as double) - 8, .01),
+        closeTo(
+          (painter.hitTargets.chartWidth as double) -
+              (painter.hitTargets.candleWidth as double),
+          .01,
+        ),
         reason: '$timeframe newest candle right padding',
       );
       final currentPriceY =
@@ -3530,7 +4312,7 @@ void main() {
         .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
         .painter;
     expect(painter.viewport, const ChartViewport());
-    expect(painter.visibleCandleCount, 12);
+    expect(painter.visibleCandleCount, 11);
 
     final chart = find.byKey(const Key('chart-gesture-area'));
     final center = tester.getCenter(chart);
@@ -3602,12 +4384,11 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [
-            ...videoReferenceOverrides,
+          overrides: _videoReferenceOverridesWith(
             marketCandlesProvider.overrideWith(
               (ref, request) => Stream.value(const <MarketCandle>[]),
             ),
-          ],
+          ),
           child: const MaterialApp(
             home: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'H4'),
           ),
@@ -3702,12 +4483,11 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          ...videoReferenceOverrides,
+        overrides: _videoReferenceOverridesWith(
           marketCandlesProvider.overrideWith(
             (ref, request) => Stream.value(const <MarketCandle>[]),
           ),
-        ],
+        ),
         child: const MaterialApp(
           home: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'H4'),
         ),
@@ -3770,7 +4550,7 @@ void main() {
         .painter;
     expect(painter.priceAxisRect.width as double, closeTo(67 + 1 / 3, .01));
     expect(painter.viewport, const ChartViewport());
-    expect(painter.visibleCandleCount, 12);
+    expect(painter.visibleCandleCount, 11);
 
     final chart = find.byKey(const Key('chart-gesture-area'));
     final center = tester.getCenter(chart);
@@ -3807,8 +4587,7 @@ void main() {
     addTearDown(h1History.close);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          ...videoReferenceOverrides,
+        overrides: _videoReferenceOverridesWith(
           marketCandlesProvider.overrideWith((ref, request) {
             if (request.timeframe == 'H1') return h1History.stream;
             return Stream.value([
@@ -3821,7 +4600,7 @@ void main() {
               ),
             ]);
           }),
-        ],
+        ),
         child: const MaterialApp(
           home: ChartScreen(symbol: 'BTCUSD', initialTimeframe: 'H1'),
         ),
@@ -3957,6 +4736,7 @@ Future<
     int coreColorPixels,
     int lightNeutralPixels,
     int darkNeutralPixels,
+    int backgroundOpeningPixels,
     Color neutralCore,
     Rect neutralBounds,
     int firstWideOpeningFromTop,
@@ -4008,7 +4788,6 @@ _chartButtonColorMetrics(
   var maxBlueX = -1;
   var maxBlueY = -1;
   var coloredPixels = 0;
-  var coreColorPixels = 0;
   var lightNeutralPixels = 0;
   var darkNeutralPixels = 0;
   var minNeutralX = captured.width;
@@ -4035,7 +4814,6 @@ _chartButtonColorMetrics(
         minRedY = math.min(minRedY, y);
         maxRedX = math.max(maxRedX, x);
         maxRedY = math.max(maxRedY, y);
-        if (red == 200 && green == 92 && blue == 75) coreColorPixels++;
         redFrequency.update(argb, (count) => count + 1, ifAbsent: () => 1);
         lastRedByY[y] = math.max(lastRedByY[y] ?? -1, x);
       } else if (blue - red > 45 && blue - green > 25) {
@@ -4049,30 +4827,29 @@ _chartButtonColorMetrics(
         minBlueY = math.min(minBlueY, y);
         maxBlueX = math.max(maxBlueX, x);
         maxBlueY = math.max(maxBlueY, y);
-        if (red == 77 && green == 133 && blue == 230) coreColorPixels++;
         blueFrequency.update(argb, (count) => count + 1, ifAbsent: () => 1);
         firstBlueByY[y] = math.min(firstBlueByY[y] ?? captured.width, x);
       } else {
         final spread =
             math.max(red, math.max(green, blue)) -
             math.min(red, math.min(green, blue));
-        if (spread <= 16 && red >= 145 && red < 245) {
-          lightNeutralPixels++;
-          final neutralDistanceSquared =
-              math.pow(red - 180, 2) +
-              math.pow(green - 191, 2) +
-              math.pow(blue - 192, 2);
-          if (neutralDistanceSquared < 25 * 25) {
-            minNeutralX = math.min(minNeutralX, x);
-            minNeutralY = math.min(minNeutralY, y);
-            maxNeutralX = math.max(maxNeutralX, x);
-            maxNeutralY = math.max(maxNeutralY, y);
-          }
+        final neutralDistanceSquared =
+            math.pow(red - 184, 2) +
+            math.pow(green - 184, 2) +
+            math.pow(blue - 189, 2);
+        if (neutralDistanceSquared < 8 * 8) {
+          minNeutralX = math.min(minNeutralX, x);
+          minNeutralY = math.min(minNeutralY, y);
+          maxNeutralX = math.max(maxNeutralX, x);
+          maxNeutralY = math.max(maxNeutralY, y);
           neutralFrequency.update(
             argb,
             (count) => count + 1,
             ifAbsent: () => 1,
           );
+        }
+        if (spread <= 16 && red >= 145 && red < 245) {
+          lightNeutralPixels++;
         } else if (spread <= 8 && red < 145) {
           darkNeutralPixels++;
         }
@@ -4090,6 +4867,12 @@ _chartButtonColorMetrics(
     return Color(entry.key);
   }
 
+  int mostFrequentCount(Map<int, int> frequency) =>
+      frequency.values.reduce(math.max);
+
+  final coreColorPixels =
+      mostFrequentCount(redFrequency) + mostFrequentCount(blueFrequency);
+
   final wideOpeningThreshold = (4 * pixelRatio).round();
   final firstWideOpeningY = lastRedByY.keys
       .where(firstBlueByY.containsKey)
@@ -4102,6 +4885,18 @@ _chartButtonColorMetrics(
   }
   if (maxNeutralX < minNeutralX || maxNeutralY < minNeutralY) {
     throw StateError('No neutral center ink found for $buttonKey');
+  }
+  var backgroundOpeningPixels = 0;
+  for (var y = minY; y <= maxY; y++) {
+    for (var x = minX; x <= maxX; x++) {
+      final offset = (y * captured.width + x) * 4;
+      final red = captured.bytes!.getUint8(offset);
+      final green = captured.bytes!.getUint8(offset + 1);
+      final blue = captured.bytes!.getUint8(offset + 2);
+      if (red >= 248 && green >= 248 && blue >= 248) {
+        backgroundOpeningPixels++;
+      }
+    }
   }
 
   return (
@@ -4129,6 +4924,7 @@ _chartButtonColorMetrics(
     coreColorPixels: coreColorPixels,
     lightNeutralPixels: lightNeutralPixels,
     darkNeutralPixels: darkNeutralPixels,
+    backgroundOpeningPixels: backgroundOpeningPixels,
     neutralCore: mostFrequent(neutralFrequency, 'neutral'),
     neutralBounds: Rect.fromLTRB(
       minNeutralX.toDouble(),

@@ -109,15 +109,6 @@ Future<void> _pumpTrade(
   await tester.pump();
 }
 
-double _variableWeight(TextStyle? style) {
-  final weights = style?.fontVariations
-      ?.where((variation) => variation.axis == 'wght')
-      .toList();
-  expect(weights, isNotNull);
-  expect(weights, hasLength(1));
-  return weights!.single.value;
-}
-
 Future<void> _openContextualBulkDialog(WidgetTester tester) async {
   await tester.tap(find.byKey(const ValueKey('trade-position-x-buy-win')));
   await tester.pumpAndSettle();
@@ -139,8 +130,13 @@ void main() {
     final header = tester.widget<Text>(
       find.byKey(const Key('trade-header-profit')),
     );
-    expect(find.byKey(const Key('trade-header-currency')), findsOneWidget);
-    expect(header.style?.color, const Color(0xFFE42D30));
+    final currency = tester.widget<Text>(
+      find.byKey(const Key('trade-header-currency')),
+    );
+    expect(header.style?.color, const Color(0xFFDD4139));
+    expect(currency.style?.color, header.style?.color);
+    expect(currency.style?.fontWeight, header.style?.fontWeight);
+    expect(currency.style?.fontVariations, header.style?.fontVariations);
 
     final winningPrimary = tester.widget<Text>(
       find.byKey(const ValueKey('trade-position-primary-x-buy-win')),
@@ -149,10 +145,16 @@ void main() {
     expect(winningSpans.first.style?.color, const Color(0xFF000000));
     expect(winningSpans.last.style?.color, const Color(0xFF007AFF));
 
+    final sellingPrimary = tester.widget<Text>(
+      find.byKey(const ValueKey('trade-position-primary-x-sell-win')),
+    );
+    final sellingSpans = (sellingPrimary.textSpan! as TextSpan).children!;
+    expect(sellingSpans.last.style?.color, const Color(0xFFDD4139));
+
     final losingProfit = tester.widget<Text>(
       find.byKey(const ValueKey('trade-position-profit-x-buy-loss')),
     );
-    expect(losingProfit.style?.color, const Color(0xFFE42D30));
+    expect(losingProfit.style?.color, const Color(0xFFDD4139));
   });
 
   testWidgets('trade section strip renders the measured reference surface', (
@@ -194,7 +196,48 @@ void main() {
     expect(box.boxShadow, AppShadows.circularControl);
   });
 
-  testWidgets('iOS trade text compensates its lighter raster coverage', (
+  testWidgets('trade account button mirrors add control with a wallet glyph', (
+    tester,
+  ) async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+
+    final accountButton = find.byKey(const Key('trade-balance-button'));
+    final addButton = find.byKey(const Key('trade-add-button'));
+    expect(tester.getSize(accountButton), const Size.square(42.6666666667));
+    expect(
+      tester.getRect(accountButton).center.dy,
+      closeTo(tester.getRect(addButton).center.dy, .01),
+    );
+
+    final accountSurface = find.descendant(
+      of: accountButton,
+      matching: find.byKey(const Key('trade-account-surface')),
+    );
+    expect(accountSurface, findsOneWidget);
+    final decoration = tester.widget<DecoratedBox>(accountSurface).decoration;
+    expect(decoration, isA<BoxDecoration>());
+    final box = decoration as BoxDecoration;
+    expect(box.color, AppColors.surface);
+    expect(box.shape, BoxShape.circle);
+    expect(box.border, isNull);
+    expect(box.boxShadow, AppShadows.circularControl);
+    expect(
+      find.descendant(
+        of: accountButton,
+        matching: find.byKey(const Key('trade-wallet-glyph')),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(accountButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Số dư'), findsOneWidget);
+    expect(find.text('Tien nap'), findsOneWidget);
+  });
+
+  testWidgets('iOS trade text consumes the cross-platform winner roles', (
     tester,
   ) async {
     final container = _createContainer();
@@ -217,13 +260,51 @@ void main() {
       find.byKey(const ValueKey('trade-position-profit-x-buy-win')),
     );
 
-    expect(_variableWeight(header.style), 450);
-    expect(_variableWeight(section.style), 850);
-    expect(_variableWeight(primary.style), 400);
+    expect(
+      header.style?.fontFamily,
+      AppTypography.tradeHeaderProfit.fontFamily,
+    );
+    expect(
+      header.style?.fontWeight,
+      AppTypography.tradeHeaderProfit.fontWeight,
+    );
+    expect(header.style?.fontVariations, isNull);
+    expect(section.style, AppTypography.tradeSection);
+    expect(primary.style, AppTypography.tradePositionPrimary);
     final primarySpans = (primary.textSpan! as TextSpan).children!;
-    expect(_variableWeight(primarySpans.first.style), 500);
-    expect(_variableWeight(secondary.style), 350);
-    expect(_variableWeight(profit.style), 450);
+    expect(
+      primarySpans.first.style?.fontFamily,
+      AppTypography.tradePositionPrimary.fontFamily,
+    );
+    expect(
+      primarySpans.first.style?.fontWeight,
+      AppTypography.tradePositionPrimary.fontWeight,
+    );
+    expect(primarySpans.first.style?.fontVariations, isNull);
+    expect(
+      primarySpans.last.style?.fontFamily,
+      AppTypography.tradePositionSide.fontFamily,
+    );
+    expect(
+      primarySpans.last.style?.fontWeight,
+      AppTypography.tradePositionSide.fontWeight,
+    );
+    expect(primarySpans.last.style?.fontVariations, isNull);
+    expect(secondary.style, AppTypography.tradePositionSecondary);
+    expect(
+      profit.style?.fontFamily,
+      AppTypography.tradePositionProfit.fontFamily,
+    );
+    expect(
+      profit.style?.fontWeight,
+      AppTypography.tradePositionProfit.fontWeight,
+    );
+    expect(profit.style?.fontVariations, isNull);
+
+    final metricValue = tester.widget<Text>(
+      find.byKey(const ValueKey('trade-metric-value-Số dư:')),
+    );
+    expect(metricValue.style, AppTypography.tradeMetricValue);
   });
 
   testWidgets('trade reference typography keeps measured baselines', (
@@ -242,7 +323,7 @@ void main() {
     );
     expect(
       header.style,
-      AppTypography.tradeHeaderProfit.copyWith(color: AppColors.negative),
+      AppTypography.tradeHeaderProfit.copyWith(color: AppColors.tradeNegative),
     );
     final metric = tester.widget<Text>(
       find.byKey(const ValueKey('trade-metric-label-Số dư:')),
@@ -328,11 +409,63 @@ void main() {
       ),
       findsOneWidget,
     );
+    final priceStyle = tester.widget<MtPriceRangeText>(priceRange).style;
+    expect(priceStyle.color, const Color(0xFF201F21));
     expect(
-      tester.widget<MtPriceRangeText>(priceRange).style.color,
-      AppTypography.tradePositionSecondary.color,
+      priceStyle.fontFamily,
+      AppTypography.tradePositionSecondary.fontFamily,
     );
+    expect(priceStyle.fontSize, AppTypography.tradePositionSecondary.fontSize);
+    expect(
+      priceStyle.fontWeight,
+      AppTypography.tradePositionSecondary.fontWeight,
+    );
+    expect(priceStyle.fontVariations, isNull);
   });
+
+  testWidgets(
+    'trade position text uses winner roles without a width-axis override',
+    (tester) async {
+      final container = _createContainer();
+      addTearDown(container.dispose);
+      await _pumpTrade(tester, container);
+
+      final expected = <ValueKey<String>, TextStyle>{
+        const ValueKey('trade-position-primary-x-buy-win'):
+            AppTypography.tradePositionPrimary,
+        const ValueKey('trade-position-secondary-x-buy-win'):
+            AppTypography.tradePositionSecondary,
+        const ValueKey('trade-position-profit-x-buy-win'):
+            AppTypography.tradePositionProfit,
+      };
+      for (final entry in expected.entries) {
+        final key = entry.key;
+        final finder = find.byKey(key);
+        expect(finder, findsOneWidget, reason: '$key');
+        final text = tester.widget<Text>(finder);
+        expect(text.style?.fontFamily, entry.value.fontFamily);
+        expect(text.style?.fontWeight, entry.value.fontWeight);
+        expect(
+          text.style?.fontVariations?.where(
+                (variation) => variation.axis == 'wdth',
+              ) ??
+              const <FontVariation>[],
+          isEmpty,
+        );
+      }
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Transform &&
+              widget.key is ValueKey<String> &&
+              (widget.key! as ValueKey<String>).value.startsWith(
+                'trade-position-',
+              ),
+        ),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('trade virtualizes a 30-position batch', (tester) async {
     final positions = List<DemoPosition>.generate(
@@ -374,8 +507,10 @@ void main() {
     expect(scrollbar.radius, const Radius.circular(1.4));
     expect(
       scrollbar.padding,
-      const EdgeInsets.only(
-        top: TabReferenceMetrics.tradeScrollbarTopInset,
+      EdgeInsets.only(
+        top:
+            TabReferenceMetrics.tradeHeaderHeight +
+            TabReferenceMetrics.tradeScrollbarTopInset,
         bottom: TabReferenceMetrics.tradeScrollbarBottomInset,
       ),
     );

@@ -9,6 +9,37 @@ import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'test_support/video_reference_fixtures.dart';
 
 void main() {
+  testWidgets('server GUID is hidden behind a short numeric position ticket', (
+    tester,
+  ) async {
+    const position = DemoPosition(
+      id: '894faaa5-5d41-49bd-8a52-5daf0281d948',
+      symbol: 'XAUUSD',
+      side: 'BUY',
+      volume: .25,
+      openPrice: 4102.125,
+      currentPrice: 4102.396,
+      profit: 6.78,
+    );
+    final container = createVideoReferenceContainer(
+      overrides: [
+        demoPositionsProvider.overrideWithValue(const [position]),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(home: PositionDetailScreen(positionId: position.id)),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('#11615687251 buy 0.25 XAUUSD'), findsOneWidget);
+    expect(find.textContaining(position.id), findsNothing);
+  });
+
   testWidgets(
     'Exness position detail uses live bid ask and three price digits',
     (tester) async {

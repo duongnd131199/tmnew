@@ -110,6 +110,59 @@ void main() {
       );
     },
   );
+
+  test('first login accepts nullable production display metadata', () async {
+    adapter.response = <String, Object?>{
+      ..._loginResponse,
+      'account': <String, Object?>{
+        ..._loginResponse['account']! as Map<String, Object?>,
+        'brokerName': null,
+        'serverName': null,
+        'displayName': null,
+        'currency': null,
+        'status': null,
+      },
+      'bootstrap': <String, Object?>{
+        ..._bootstrapJson,
+        'device': <String, Object?>{'id': 'device-1', 'name': null},
+        'activeAccount': <String, Object?>{
+          ..._bootstrapJson['activeAccount']! as Map<String, Object?>,
+          'name': null,
+          'currency': null,
+          'status': null,
+        },
+        'wallet': <String, Object?>{
+          ..._bootstrapJson['wallet']! as Map<String, Object?>,
+          'currency': null,
+        },
+        'connection': <String, Object?>{
+          ..._bootstrapJson['connection']! as Map<String, Object?>,
+          'marketFeedStatus': null,
+        },
+      },
+    };
+
+    final result = await repository.login(
+      const AccountPasswordLoginRequest(
+        brokerId: 'yodo-demo',
+        serverId: 'yodo-demo-01',
+        login: '109740422',
+        password: 'synthetic-sentinel',
+      ),
+      installationId: '11111111-1111-4111-8111-111111111111',
+      metadata: const ExV2CommandMetadata(
+        idempotencyKey: '22222222-2222-4222-8222-222222222222',
+        correlationId: '33333333-3333-4333-8333-333333333333',
+      ),
+    );
+
+    expect(result.account.brokerName, 'yodo-demo');
+    expect(result.account.serverName, 'yodo-demo-01');
+    expect(result.bootstrap.device.name, 'Thiết bị');
+    expect(result.bootstrap.account.currency, 'USD');
+    expect(result.bootstrap.wallet.currency, 'USD');
+    expect(result.bootstrap.connection.marketFeedStatus, 'unknown');
+  });
 }
 
 final class _LoginAdapter implements HttpClientAdapter {

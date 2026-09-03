@@ -120,10 +120,8 @@ void main() {
 
     final subtitle = find.byKey(const Key('position-bulk-subtitle'));
     final text = tester.widget<Text>(subtitle);
-    expect(
-      text.data,
-      '#894faaa5-5d41-49bd-8a52-5daf0281d948 buy 0.25 BTCUSD 77348.51',
-    );
+    expect(text.data, '#11615687251 buy 0.25 BTCUSD 77348.51');
+    expect(text.data, isNot(contains(position.id)));
     expect(text.overflow, isNull);
     expect(
       find.ancestor(of: subtitle, matching: find.byType(FittedBox)),

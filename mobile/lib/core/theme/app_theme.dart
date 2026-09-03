@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'app_colors.dart';
 import 'app_radius.dart';
 import 'app_typography.dart';
+import 'reference_typography_profile.dart';
 
 abstract final class AppTheme {
   static const systemUiOverlayStyle = SystemUiOverlayStyle(
@@ -32,6 +33,9 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
       colorScheme: scheme,
       textTheme: AppTypography.textTheme,
+      extensions: const <ReferenceTypographyProfile>[
+        ReferenceTypographyProfile(profile: defaultTypographyProfile),
+      ],
       dividerColor: AppColors.divider,
       splashColor: AppColors.primaryMuted.withValues(alpha: .42),
       highlightColor: AppColors.primaryMuted.withValues(alpha: .28),

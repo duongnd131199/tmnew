@@ -104,7 +104,7 @@ class ChartIndicatorsScreen extends ConsumerWidget {
                                       .toggle(indicator),
                                   icon: const Icon(
                                     CupertinoIcons.minus_circle_fill,
-                                    color: AppColors.negative,
+                                    color: AppColors.tradingNegativeText,
                                     size: 20,
                                   ),
                                 ),
@@ -125,7 +125,7 @@ class ChartIndicatorsScreen extends ConsumerWidget {
                 child: Text(
                   'Thêm chỉ số, vui lòng nhấn trên tiêu đề của cửa sổ',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: AppColors.tradingSecondaryText,
                     fontSize: 10.5,
                     height: 1.2,
                   ),

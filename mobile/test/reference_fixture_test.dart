@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/features/market_watch/data/data_sources/mock_quote_service.dart';
+import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 import 'test_support/video_reference_fixtures.dart';
@@ -16,21 +18,46 @@ void main() {
     container.dispose();
   });
 
-  test('video two watchlist contains XAUUSD+ and BTCUSD fixtures', () {
-    final symbols = container.read(marketSymbolsProvider);
-    final quotes = {
-      for (final quote in container.read(demoQuotesProvider))
-        quote.symbol: quote,
-    };
+  test(
+    'video two watchlist contains timestamped quotes and D1 fixtures',
+    () async {
+      final symbols = container.read(marketSymbolsProvider);
+      final quotes = {
+        for (final quote in container.read(demoQuotesProvider))
+          quote.symbol: quote,
+      };
 
-    expect(symbols, const ['XAUUSD+', 'BTCUSD']);
-    expect(quotes['XAUUSD+']!.name, 'Gold US Dollar');
-    expect(quotes['XAUUSD+']!.bid, 4104.09);
-    expect(quotes['XAUUSD+']!.ask, 4104.22);
-    expect(quotes['BTCUSD']!.name, 'Bitcoin');
-    expect(quotes['BTCUSD']!.bid, 65175.98);
-    expect(quotes['BTCUSD']!.ask, 65193.10);
-  });
+      expect(symbols, const ['XAUUSD+', 'BTCUSD']);
+      expect(quotes['XAUUSD+']!.name, 'Gold US Dollar');
+      expect(quotes['XAUUSD+']!.bid, 4104.09);
+      expect(quotes['XAUUSD+']!.ask, 4104.22);
+      expect(
+        quotes['XAUUSD+']!.sourceTimestamp,
+        DateTime.utc(2026, 8, 31, 4, 32, 31),
+      );
+      expect(quotes['BTCUSD']!.name, 'Bitcoin');
+      expect(quotes['BTCUSD']!.bid, 65175.98);
+      expect(quotes['BTCUSD']!.ask, 65193.10);
+      expect(
+        quotes['BTCUSD']!.sourceTimestamp,
+        DateTime.utc(2026, 8, 31, 4, 32, 30),
+      );
+
+      final xauDailyProvider = marketCandlesProvider(
+        const MarketDataRequest('XAUUSD+', 'D1'),
+      );
+      final xauDailySubscription = container.listen(
+        xauDailyProvider,
+        (previous, next) {},
+      );
+      addTearDown(xauDailySubscription.close);
+      final xauDaily = await container.read(xauDailyProvider.future);
+      expect(xauDaily, hasLength(2));
+      expect(xauDaily.first.close, 4104.09);
+      expect(xauDaily.last.low, 4104.09);
+      expect(xauDaily.last.high, 4104.22);
+    },
+  );
 
   test('account list and default Vantage positions match video two', () {
     final accounts = container.read(demoAccountsProvider);

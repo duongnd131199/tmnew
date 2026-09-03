@@ -101,6 +101,7 @@ final class ChartPriceViewport {
 
 final class ChartPriceViewportController {
   static const double dragExponentPerLogicalPixel = .00104;
+  static const double plotPanScreenSpaceGain = 1;
   static const double minimumRange = 1e-12;
   static const double maximumRange = 1e15;
   static const double maximumAbsolutePrice = 1e15;
@@ -108,6 +109,9 @@ final class ChartPriceViewportController {
   double _startRange = 1;
   double _anchorFraction = .5;
   double _anchorPrice = 0;
+  double _panStartRange = 1;
+  double _panStartCenter = 0;
+  double _panStartFocalY = 0;
 
   void beginDrag({
     required ChartPriceViewport viewport,
@@ -146,6 +150,34 @@ final class ChartPriceViewportController {
       (_anchorFraction - .5) * nextRange,
     );
     return ChartPriceViewport.manual(centerPrice: nextCenter, range: nextRange);
+  }
+
+  void beginPan({
+    required ChartPriceViewport viewport,
+    required double focalY,
+    required ChartPriceRange displayedRange,
+  }) {
+    final resolved = viewport.resolve(displayedRange);
+    _panStartRange = resolved.range.clamp(minimumRange, maximumRange);
+    _panStartCenter = resolved.centerPrice.isFinite ? resolved.centerPrice : 0;
+    _panStartFocalY = focalY.isFinite ? focalY : 0;
+  }
+
+  ChartPriceViewport updatePan({
+    required double focalY,
+    required double priceHeight,
+  }) {
+    final safeHeight = priceHeight.isFinite && priceHeight > 0
+        ? priceHeight
+        : 1.0;
+    final safeFocalY = focalY.isFinite ? focalY : _panStartFocalY;
+    final screenDelta = safeFocalY - _panStartFocalY;
+    final priceDelta =
+        screenDelta / safeHeight * _panStartRange * plotPanScreenSpaceGain;
+    return ChartPriceViewport.manual(
+      centerPrice: _saturatingAdd(_panStartCenter, priceDelta),
+      range: _panStartRange,
+    );
   }
 
   ChartPriceViewport reset() => const ChartPriceViewport.auto();

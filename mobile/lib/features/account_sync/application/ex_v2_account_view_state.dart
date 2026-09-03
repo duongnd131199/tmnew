@@ -18,6 +18,47 @@ final class ExV2AccountPresentation {
   final String? accessPoint;
 }
 
+final class ExV2AccountMetricSnapshot {
+  const ExV2AccountMetricSnapshot({
+    required this.balance,
+    required this.equity,
+    required this.margin,
+    required this.freeMargin,
+    required this.marginLevel,
+    required this.profit,
+    required this.historySummary,
+  });
+
+  factory ExV2AccountMetricSnapshot.fromState(ExV2AccountViewState state) {
+    final optimisticRealizedProfit = state._optimisticRealizedProfit;
+    return ExV2AccountMetricSnapshot(
+      balance: state.balance,
+      equity: state.equity,
+      margin: state.margin,
+      freeMargin: state.freeMargin,
+      marginLevel: state.marginLevel,
+      profit: state.profit,
+      historySummary: ExV2HistorySummary(
+        deposit: state.historySummary.deposit,
+        withdrawal: state.historySummary.withdrawal,
+        realizedProfit:
+            state.historySummary.realizedProfit + optimisticRealizedProfit,
+        swap: state.historySummary.swap,
+        commission: state.historySummary.commission,
+        netChange: state.historySummary.netChange + optimisticRealizedProfit,
+      ),
+    );
+  }
+
+  final double balance;
+  final double equity;
+  final double margin;
+  final double freeMargin;
+  final double marginLevel;
+  final double profit;
+  final ExV2HistorySummary historySummary;
+}
+
 final class ExV2AccountViewState {
   const ExV2AccountViewState({
     required this.bootstrap,
@@ -34,7 +75,9 @@ final class ExV2AccountViewState {
     this.notifications = const [],
     this.settings = const {},
     this.presentation,
-    this.hasLiveValuation = false,
+    this.liveValuationPositionIds = const <String>{},
+    this.pendingCloseValuationPositions = const <DemoPosition>[],
+    this.lockedAccountMetrics,
     this.pendingOperationIds = const {},
   });
 
@@ -56,6 +99,10 @@ final class ExV2AccountViewState {
     deals: bootstrap.recentDeals
         .map(ExV2DemoMapper.deal)
         .toList(growable: false),
+    deposits: bootstrap.recentDeposits
+        .map((deposit) => deposit.toJson())
+        .toList(growable: false),
+    historySummary: bootstrap.historySummary,
   );
 
   final ExV2Bootstrap bootstrap;
@@ -72,22 +119,111 @@ final class ExV2AccountViewState {
   final List<JsonMap> notifications;
   final JsonMap settings;
   final ExV2AccountPresentation? presentation;
-  final bool hasLiveValuation;
+  final Set<String> liveValuationPositionIds;
+  final List<DemoPosition> pendingCloseValuationPositions;
+  final ExV2AccountMetricSnapshot? lockedAccountMetrics;
   final Set<String> pendingOperationIds;
 
   String get accountCode => bootstrap.account.accountCode;
-  double get balance => bootstrap.summary.balance;
-  double get profit => hasLiveValuation
-      ? positions.fold<double>(0, (total, position) => total + position.profit)
-      : bootstrap.summary.profit;
+  bool get hasLiveValuation =>
+      positions.isNotEmpty &&
+      positions.every(
+        (position) => liveValuationPositionIds.contains(position.id),
+      );
+  bool get _hasOptimisticClose => pendingCloseValuationPositions.isNotEmpty;
+  bool get _hasCompleteOptimisticValuation =>
+      _hasOptimisticClose &&
+      positions.every(
+        (position) => liveValuationPositionIds.contains(position.id),
+      ) &&
+      pendingCloseValuationPositions.every(
+        (position) => liveValuationPositionIds.contains(position.id),
+      );
+
+  double get _preCloseVolume {
+    final pendingIds = pendingCloseValuationPositions
+        .map((position) => position.id)
+        .toSet();
+    return <DemoPosition>[
+      ...positions.where((position) => !pendingIds.contains(position.id)),
+      ...pendingCloseValuationPositions,
+    ].fold<double>(0, (total, position) => total + position.volume);
+  }
+
+  double _closedRatio(DemoPosition original) {
+    final remaining = positions
+        .where((position) => position.id == original.id)
+        .map((position) => position.volume)
+        .firstOrNull;
+    if (original.volume <= 0) return 0;
+    return ((original.volume - (remaining ?? 0)) / original.volume).clamp(
+      0.0,
+      1.0,
+    );
+  }
+
+  double get _optimisticRealizedProfit {
+    final totalVolume = _preCloseVolume;
+    if (!_hasOptimisticClose || totalVolume <= 0) return 0;
+    return pendingCloseValuationPositions.fold<double>(0, (total, position) {
+      final positionProfit = liveValuationPositionIds.contains(position.id)
+          ? position.profit
+          : bootstrap.summary.profit * position.volume / totalVolume;
+      return total + positionProfit * _closedRatio(position);
+    });
+  }
+
+  double get _optimisticMarginReduction {
+    final totalVolume = _preCloseVolume;
+    if (!_hasOptimisticClose || totalVolume <= 0) return 0;
+    final closedVolume = pendingCloseValuationPositions.fold<double>(
+      0,
+      (total, position) => total + position.volume * _closedRatio(position),
+    );
+    return bootstrap.summary.margin * closedVolume / totalVolume;
+  }
+
+  double get balance =>
+      lockedAccountMetrics?.balance ??
+      bootstrap.summary.balance + _optimisticRealizedProfit;
+  double get profit =>
+      lockedAccountMetrics?.profit ??
+      (_hasOptimisticClose
+          ? _hasCompleteOptimisticValuation
+                ? positions.fold<double>(
+                    0,
+                    (total, position) => total + position.profit,
+                  )
+                : bootstrap.summary.profit - _optimisticRealizedProfit
+          : hasLiveValuation
+          ? positions.fold<double>(
+              0,
+              (total, position) => total + position.profit,
+            )
+          : bootstrap.summary.profit);
   double get equity =>
-      hasLiveValuation ? balance + profit : bootstrap.summary.equity;
-  double get margin => bootstrap.summary.margin;
+      lockedAccountMetrics?.equity ??
+      (_hasOptimisticClose || hasLiveValuation
+          ? balance + profit
+          : bootstrap.summary.equity);
+  double get margin =>
+      lockedAccountMetrics?.margin ??
+      (bootstrap.summary.margin - _optimisticMarginReduction).clamp(
+        0.0,
+        double.infinity,
+      );
   double get freeMargin =>
-      hasLiveValuation ? equity - margin : bootstrap.summary.freeMargin;
-  double get marginLevel => hasLiveValuation
-      ? (margin == 0 ? 0 : equity / margin * 100)
-      : bootstrap.summary.marginLevel;
+      lockedAccountMetrics?.freeMargin ??
+      (_hasOptimisticClose || hasLiveValuation
+          ? equity - margin
+          : bootstrap.summary.freeMargin);
+  double get marginLevel =>
+      lockedAccountMetrics?.marginLevel ??
+      (_hasOptimisticClose || hasLiveValuation
+          ? (margin == 0 ? 0 : equity / margin * 100)
+          : bootstrap.summary.marginLevel);
+  ExV2HistorySummary get displayHistorySummary =>
+      lockedAccountMetrics?.historySummary ?? historySummary;
   ExV2Wallet get wallet => bootstrap.wallet;
   ExV2Performance get performance => bootstrap.performance;
 
@@ -116,7 +252,10 @@ final class ExV2AccountViewState {
     List<JsonMap>? notifications,
     JsonMap? settings,
     ExV2AccountPresentation? presentation,
-    bool? hasLiveValuation,
+    Set<String>? liveValuationPositionIds,
+    List<DemoPosition>? pendingCloseValuationPositions,
+    ExV2AccountMetricSnapshot? lockedAccountMetrics,
+    bool clearLockedAccountMetrics = false,
     Set<String>? pendingOperationIds,
   }) => ExV2AccountViewState(
     bootstrap: bootstrap ?? this.bootstrap,
@@ -133,7 +272,13 @@ final class ExV2AccountViewState {
     notifications: notifications ?? this.notifications,
     settings: settings ?? this.settings,
     presentation: presentation ?? this.presentation,
-    hasLiveValuation: hasLiveValuation ?? this.hasLiveValuation,
+    liveValuationPositionIds:
+        liveValuationPositionIds ?? this.liveValuationPositionIds,
+    pendingCloseValuationPositions:
+        pendingCloseValuationPositions ?? this.pendingCloseValuationPositions,
+    lockedAccountMetrics: clearLockedAccountMetrics
+        ? null
+        : lockedAccountMetrics ?? this.lockedAccountMetrics,
     pendingOperationIds: pendingOperationIds ?? this.pendingOperationIds,
   );
 
@@ -141,21 +286,31 @@ final class ExV2AccountViewState {
     required String symbol,
     required double bid,
     required double ask,
-  }) => copyWith(
-    positions: [
-      for (final position in positions)
-        if (position.symbol != symbol)
-          position
-        else
-          _withPrice(position, bid: bid, ask: ask),
-    ],
-    hasLiveValuation: true,
-  );
+  }) {
+    final matchingPositionIds = positions
+        .where((position) => position.symbol == symbol)
+        .map((position) => position.id)
+        .toSet();
+    if (matchingPositionIds.isEmpty) return this;
+    return copyWith(
+      positions: [
+        for (final position in positions)
+          if (!matchingPositionIds.contains(position.id))
+            position
+          else
+            _withPrice(position, bid: bid, ask: ask),
+      ],
+      liveValuationPositionIds: Set<String>.unmodifiable({
+        ...liveValuationPositionIds,
+        ...matchingPositionIds,
+      }),
+    );
+  }
 
   ExV2AccountViewState preserveLiveValuationFrom(
     ExV2AccountViewState previous,
   ) {
-    if (!previous.hasLiveValuation ||
+    if (previous.liveValuationPositionIds.isEmpty ||
         previous.bootstrap.account.id != bootstrap.account.id ||
         previous.bootstrap.summary.accountId != bootstrap.summary.accountId) {
       return this;
@@ -163,17 +318,30 @@ final class ExV2AccountViewState {
     final previousPositions = {
       for (final position in previous.positions) position.id: position,
     };
+    final preservablePositionIds = positions
+        .where((position) {
+          final previousPosition = previousPositions[position.id];
+          return previous.liveValuationPositionIds.contains(position.id) &&
+              previousPosition != null &&
+              previousPosition.symbol == position.symbol &&
+              previousPosition.side == position.side;
+        })
+        .map((position) => position.id)
+        .toSet();
     return copyWith(
       positions: [
         for (final position in positions)
-          if (previousPositions[position.id] case final previousPosition?
-              when previousPosition.symbol == position.symbol &&
-                  previousPosition.side == position.side)
-            _withCurrentPrice(position, previousPosition.currentPrice)
+          if (preservablePositionIds.contains(position.id))
+            _withCurrentPrice(
+              position,
+              previousPositions[position.id]!.currentPrice,
+            )
           else
             position,
       ],
-      hasLiveValuation: true,
+      liveValuationPositionIds: Set<String>.unmodifiable(
+        preservablePositionIds,
+      ),
     );
   }
 

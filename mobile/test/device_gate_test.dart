@@ -83,7 +83,12 @@ void main() {
             exV2EnabledProvider.overrideWithValue(true),
             deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
           ],
-          child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
+          child: const MaterialApp(
+            home: DeviceGate(
+              enableDevelopmentTokenImport: true,
+              child: Text('SERVER APP'),
+            ),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -100,6 +105,42 @@ void main() {
       expect(find.byKey(const Key('account-login-field')), findsNothing);
       expect(find.byKey(const Key('account-password-field')), findsNothing);
       expect(find.text('SERVER APP'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'release missing token opens the real account login flow instead of token import',
+    (tester) async {
+      var addAccountCalls = 0;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            exV2EnabledProvider.overrideWithValue(true),
+            deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
+          ],
+          child: MaterialApp(
+            home: DeviceGate(
+              enableDevelopmentTokenImport: false,
+              onAddAccount: () => addAccountCalls += 1,
+              child: const Text('SERVER APP'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('account-login-required')), findsOneWidget);
+      expect(
+        find.byKey(const Key('dev-device-token-import-screen')),
+        findsNothing,
+      );
+      expect(find.text('Đăng nhập'), findsOneWidget);
+
+      await tester.tap(find.text('Đăng nhập'));
+      await tester.pumpAndSettle();
+
+      expect(addAccountCalls, 1);
+      expect(find.text('SERVER APP'), findsOneWidget);
     },
   );
 
@@ -246,6 +287,44 @@ void main() {
     expect(find.text('SERVER APP'), findsNothing);
   });
 
+  testWidgets('bootstrap HTTP error shows safe production diagnostics', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('test-token'),
+          ),
+          exV2AccountProvider.overrideWithBuild(
+            (ref, controller) async => throw const ExV2RequestFailure(
+              statusCode: 502,
+              code: 'BOOTSTRAP_UNAVAILABLE',
+              correlationId: '11111111-1111-4111-8111-111111111111',
+              message: 'upstream detail must stay hidden',
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Không thể tải tài khoản.'), findsOneWidget);
+    expect(find.textContaining('HTTP 502'), findsOneWidget);
+    expect(
+      find.textContaining('Mã lỗi: BOOTSTRAP_UNAVAILABLE'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Mã tra cứu: 11111111-1111-4111-8111-111111111111'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('upstream detail'), findsNothing);
+    expect(find.text('SERVER APP'), findsNothing);
+  });
+
   testWidgets('rejected device token returns to token activation explicitly', (
     tester,
   ) async {
@@ -282,6 +361,57 @@ void main() {
     );
     expect(find.text('SERVER APP'), findsNothing);
   });
+
+  testWidgets(
+    'release rejected token deletes it and continues to real account login',
+    (tester) async {
+      final store = _MemoryTokenStore('expired-token');
+      var addAccountCalls = 0;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            exV2EnabledProvider.overrideWithValue(true),
+            deviceTokenStoreProvider.overrideWithValue(store),
+            exV2AccountProvider.overrideWithBuild(
+              (ref, controller) async => throw const ExV2RequestFailure(
+                statusCode: 401,
+                code: 'INVALID_DEVICE_TOKEN',
+                message: 'Invalid device token',
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            home: DeviceGate(
+              enableDevelopmentTokenImport: false,
+              onAddAccount: () => addAccountCalls += 1,
+              child: const Text('SERVER APP'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('device-authentication-error')),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Đăng nhập lại'));
+      await tester.pumpAndSettle();
+
+      expect(await store.read(), isNull);
+      expect(find.byKey(const Key('account-login-required')), findsOneWidget);
+      expect(
+        find.byKey(const Key('dev-device-token-import-screen')),
+        findsNothing,
+      );
+
+      await tester.tap(find.text('Đăng nhập'));
+      await tester.pumpAndSettle();
+
+      expect(addAccountCalls, 1);
+      expect(find.text('SERVER APP'), findsOneWidget);
+    },
+  );
 
   testWidgets('bootstrap error retry remains protected by the watchdog', (
     tester,

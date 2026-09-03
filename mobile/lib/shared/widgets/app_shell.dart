@@ -6,10 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_shadows.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/reference_typography_profile.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/chart/data/chart_market_warmup_provider.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/widgets/mt5_toolbar_icons.dart';
+import 'package:trading_mobile/shared/widgets/mt_tab_header_fade.dart';
 
 class AppTabScope extends InheritedWidget {
   const AppTabScope({required this.index, required super.child, super.key});
@@ -21,6 +24,22 @@ class AppTabScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(AppTabScope oldWidget) => index != oldWidget.index;
+}
+
+class MtTabTextScope extends StatelessWidget {
+  const MtTabTextScope({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = ReferenceTypographyProfile.maybeOf(context)?.profile;
+    if (profile == null || profile == TypographyProfile.reference) return child;
+    return DefaultTextStyle.merge(
+      style: AppTypography.tabDefault,
+      child: child,
+    );
+  }
 }
 
 class AppShell extends ConsumerStatefulWidget {
@@ -129,9 +148,11 @@ class _AppShellState extends ConsumerState<AppShell>
                     )
                   : KeyedSubtree(
                       key: ValueKey(accountGeneration.value),
-                      child: AppTabScope(
-                        index: widget.navigationShell.currentIndex,
-                        child: widget.navigationShell,
+                      child: MtTabTextScope(
+                        child: AppTabScope(
+                          index: widget.navigationShell.currentIndex,
+                          child: widget.navigationShell,
+                        ),
                       ),
                     ),
             ),
@@ -180,6 +201,16 @@ class MtBottomNavigationBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final navigationSurface = isDark
+        ? AppColors.darkNavigationSurface
+        : AppColors.navigationSurface;
+    final navigationSelectedSurface = isDark
+        ? AppColors.darkNavigationSelectedSurface
+        : AppColors.navigationSelectedSurface;
+    final navigationUnselected = isDark
+        ? AppColors.darkNavigationUnselected
+        : AppColors.navigationUnselected;
     final selectionOverhangs =
         TabReferenceMetrics.bottomNavigationSelectionOverhangs(selectedIndex);
     final tradeProfit = ref.watch(
@@ -189,111 +220,135 @@ class MtBottomNavigationBar extends ConsumerWidget {
       height: TabReferenceMetrics.bottomNavigationHeight,
       child: ColoredBox(
         color: Colors.transparent,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            TabReferenceMetrics.bottomNavigationLeftInset,
-            TabReferenceMetrics.bottomNavigationTopInset,
-            TabReferenceMetrics.bottomNavigationRightInset,
-            TabReferenceMetrics.bottomNavigationBottomInset,
-          ),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: SizedBox(
-              width: TabReferenceMetrics.bottomNavigationCapsuleWidth,
-              height: double.infinity,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.navigationSurface,
-                  borderRadius: BorderRadius.circular(
-                    TabReferenceMetrics.bottomNavigationCapsuleRadius,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            if (selectedIndex != 0)
+              const Positioned(
+                left: 0,
+                top:
+                    TabReferenceMetrics.bottomNavigationHeight -
+                    TabReferenceMetrics.bottomNavigationFadeHeight,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: MtTabNavigationFade(
+                    decorationKey: Key('bottom-navigation-content-fade'),
                   ),
-                  boxShadow: AppShadows.navigation,
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(
-                    TabReferenceMetrics.bottomNavigationCapsuleRadius,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: TabReferenceMetrics
-                          .bottomNavigationContentHorizontalInset,
-                    ),
-                    child: Row(
-                      key: ValueKey(selectedIndex),
-                      children: List.generate(_items.length, (index) {
-                        final selected = selectedIndex == index;
-                        final itemSelectedColor =
-                            _items[index].$1 == _MtNavKind.trade
-                            ? tradeProfit < 0
-                                  ? AppColors.negative
-                                  : selectedColor
-                            : selectedColor;
-                        return Expanded(
-                          child: Semantics(
-                            key: ValueKey(
-                              'bottom-nav-target-${_items[index].$1.name}',
-                            ),
-                            selected: selected,
-                            label: _items[index].$2,
-                            button: true,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(
-                                TabReferenceMetrics
-                                    .bottomNavigationInteractionRadius,
-                              ),
-                              onTap: () => onTap(index),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: TabReferenceMetrics
-                                      .bottomNavigationItemVerticalInset,
-                                ),
-                                child: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    if (selected)
-                                      Positioned(
-                                        left: -selectionOverhangs.left,
-                                        right: -selectionOverhangs.right,
-                                        top:
-                                            TabReferenceMetrics.bottomNavigationSelectionTopInset(
-                                              selectedIndex,
+              ),
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  TabReferenceMetrics.bottomNavigationLeftInset,
+                  TabReferenceMetrics.bottomNavigationTopInset,
+                  TabReferenceMetrics.bottomNavigationRightInset,
+                  TabReferenceMetrics.bottomNavigationBottomInset,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    width: TabReferenceMetrics.bottomNavigationCapsuleWidth,
+                    height: double.infinity,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: navigationSurface,
+                        borderRadius: BorderRadius.circular(
+                          TabReferenceMetrics.bottomNavigationCapsuleRadius,
+                        ),
+                        boxShadow: AppShadows.navigation,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          TabReferenceMetrics.bottomNavigationCapsuleRadius,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: TabReferenceMetrics
+                                .bottomNavigationContentHorizontalInset,
+                          ),
+                          child: Row(
+                            key: ValueKey(selectedIndex),
+                            children: List.generate(_items.length, (index) {
+                              final selected = selectedIndex == index;
+                              final itemSelectedColor =
+                                  _items[index].$1 == _MtNavKind.trade
+                                  ? tradeProfit < 0
+                                        ? AppColors.negative
+                                        : selectedColor
+                                  : selectedColor;
+                              return Expanded(
+                                child: Semantics(
+                                  key: ValueKey(
+                                    'bottom-nav-target-${_items[index].$1.name}',
+                                  ),
+                                  selected: selected,
+                                  label: _items[index].$2,
+                                  button: true,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(
+                                      TabReferenceMetrics
+                                          .bottomNavigationInteractionRadius,
+                                    ),
+                                    onTap: () => onTap(index),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: TabReferenceMetrics
+                                            .bottomNavigationItemVerticalInset,
+                                      ),
+                                      child: Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          if (selected)
+                                            Positioned(
+                                              left: -selectionOverhangs.left,
+                                              right: -selectionOverhangs.right,
+                                              top:
+                                                  TabReferenceMetrics.bottomNavigationSelectionTopInset(
+                                                    selectedIndex,
+                                                  ),
+                                              bottom:
+                                                  TabReferenceMetrics.bottomNavigationSelectionBottomInset(
+                                                    selectedIndex,
+                                                  ),
+                                              child: DecoratedBox(
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      navigationSelectedSurface,
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        TabReferenceMetrics
+                                                            .bottomNavigationSelectionRadius,
+                                                      ),
+                                                ),
+                                              ),
                                             ),
-                                        bottom:
-                                            TabReferenceMetrics.bottomNavigationSelectionBottomInset(
-                                              selectedIndex,
-                                            ),
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            color: AppColors
-                                                .navigationSelectedSurface,
-                                            borderRadius: BorderRadius.circular(
-                                              TabReferenceMetrics
-                                                  .bottomNavigationSelectionRadius,
+                                          Positioned.fill(
+                                            child: _NavItem(
+                                              kind: _items[index].$1,
+                                              label: _items[index].$2,
+                                              selected: selected,
+                                              selectedColor: itemSelectedColor,
+                                              unselectedColor:
+                                                  navigationUnselected,
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                    Positioned.fill(
-                                      child: _NavItem(
-                                        kind: _items[index].$1,
-                                        label: _items[index].$2,
-                                        selected: selected,
-                                        selectedColor: itemSelectedColor,
+                                        ],
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                            }),
                           ),
-                        );
-                      }),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -306,47 +361,39 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.selectedColor,
+    required this.unselectedColor,
   });
 
   final _MtNavKind kind;
   final String label;
   final bool selected;
   final Color selectedColor;
+  final Color unselectedColor;
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? selectedColor : AppColors.navigationUnselected;
-    final labelOffset = TabReferenceMetrics.bottomNavigationLabelOffset(
-      kind.index,
-      selected,
+    final variant = _navigationTypographyVariant(kind, selected);
+    final colorRole = selected
+        ? selectedColor == AppColors.negative
+              ? ReferenceTextColorRole.negative
+              : ReferenceTextColorRole.navigationSelected
+        : ReferenceTextColorRole.navigationUnselected;
+    final labelStyle = AppTypography.forRole(
+      context,
+      ReferenceTextRole.navigationLabel,
+      colorRole: colorRole,
+      variant: variant,
     );
-    final labelStyle =
-        (selected
-                ? AppTypography.navigationLabelSelected
-                : AppTypography.navigationLabel)
-            .copyWith(
-              color: color,
-              fontVariations: <FontVariation>[
-                FontVariation(
-                  'wght',
-                  TabReferenceMetrics.bottomNavigationLabelWeight(
-                    kind.index,
-                    selected,
-                  ),
-                ),
-              ],
-              letterSpacing: selected
-                  ? switch (kind) {
-                      _MtNavKind.quotes => .4,
-                      _MtNavKind.chart => .5,
-                      _MtNavKind.trade => .5,
-                      _MtNavKind.history => .5,
-                      _MtNavKind.settings => .3,
-                    }
-                  : kind == _MtNavKind.history
-                  ? .4
-                  : null,
-            );
+    final labelGeometry = AppTypography.geometryForRole(
+      context,
+      ReferenceTextRole.navigationLabel,
+      variant: variant,
+    );
+    final color = selected
+        ? labelStyle.color == selectedColor
+              ? labelStyle.color!
+              : selectedColor
+        : unselectedColor;
     return Stack(
       alignment: Alignment.topCenter,
       children: [
@@ -358,16 +405,14 @@ class _NavItem extends StatelessWidget {
           left: 0,
           right: 0,
           top: TabReferenceMetrics.bottomNavigationLabelTop,
-          child: Transform.translate(
-            offset: Offset(labelOffset.x, labelOffset.y),
-            child: Text(
+          child: _applyTypographyGeometry(
+            labelGeometry,
+            Text(
               label,
               key: ValueKey('bottom-nav-label-${kind.name}'),
               maxLines: 1,
               textAlign: TextAlign.center,
-              style: selected
-                  ? AppTypography.tabColorInk(context, labelStyle)
-                  : labelStyle,
+              style: labelStyle.copyWith(color: color),
             ),
           ),
         ),
@@ -377,6 +422,42 @@ class _NavItem extends StatelessWidget {
 }
 
 enum _MtNavKind { quotes, chart, trade, history, settings }
+
+TypographyVariantId _navigationTypographyVariant(
+  _MtNavKind kind,
+  bool selected,
+) => switch ((kind, selected)) {
+  (_MtNavKind.quotes, true) => TypographyVariantId.navigationQuotesSelected,
+  (_MtNavKind.quotes, false) => TypographyVariantId.navigationQuotesUnselected,
+  (_MtNavKind.chart, true) => TypographyVariantId.navigationChartSelected,
+  (_MtNavKind.chart, false) => TypographyVariantId.navigationChartUnselected,
+  (_MtNavKind.trade, true) => TypographyVariantId.navigationTradeSelected,
+  (_MtNavKind.trade, false) => TypographyVariantId.navigationTradeUnselected,
+  (_MtNavKind.history, true) => TypographyVariantId.navigationHistorySelected,
+  (_MtNavKind.history, false) =>
+    TypographyVariantId.navigationHistoryUnselected,
+  (_MtNavKind.settings, true) => TypographyVariantId.navigationSettingsSelected,
+  (_MtNavKind.settings, false) =>
+    TypographyVariantId.navigationSettingsUnselected,
+};
+
+Widget _applyTypographyGeometry(TypographyTextGeometry geometry, Widget child) {
+  var transformed = child;
+  if (geometry.scaleX != 1 || geometry.scaleY != 1) {
+    transformed = Transform.scale(
+      scaleX: geometry.scaleX,
+      scaleY: geometry.scaleY,
+      child: transformed,
+    );
+  }
+  if (geometry.dx != 0 || geometry.dy != 0) {
+    transformed = Transform.translate(
+      offset: Offset(geometry.dx, geometry.dy),
+      child: transformed,
+    );
+  }
+  return transformed;
+}
 
 class _MtNavIcon extends StatelessWidget {
   const _MtNavIcon(this.kind, {required this.color, required this.selected});
@@ -424,6 +505,7 @@ class _MtNavIcon extends StatelessWidget {
         ),
         child: Transform.scale(
           scaleX: TabReferenceMetrics.bottomNavigationHistoryIconScaleX,
+          scaleY: TabReferenceMetrics.bottomNavigationHistoryIconScaleX,
           alignment: Alignment.topCenter,
           child: icon,
         ),
@@ -574,41 +656,30 @@ class _MtNavIconPainter extends CustomPainter {
           canvas.drawPath(path, pathStroke);
           break;
         case _MtNavKind.history:
-          canvas.drawArc(
-            const Rect.fromLTWH(3.5, 3.5, 20.5, 19.5),
-            math.pi * .9777777778,
-            math.pi * 1.7611111111,
-            false,
-            stroke,
-          );
-          final arrow = Path()
-            ..moveTo(.6, 13.3)
-            ..lineTo(5, 11.05)
-            ..lineTo(selected ? 4 : 4.75, selected ? 14.5 : 15.05)
-            ..close();
-          canvas.drawPath(arrow, fill);
-          canvas.drawLine(
-            const Offset(13.85, 14.25),
-            const Offset(13.85, 9),
-            stroke,
-          );
-          canvas.drawLine(
-            const Offset(13.85, 14.25),
-            const Offset(17.6, 18.35),
-            stroke,
+          paintMtHistoryClockLayer(
+            canvas,
+            stroke: stroke,
+            fill: fill,
+            selected: selected,
           );
           break;
         case _MtNavKind.settings:
           const center = Offset(13.5, 13.5);
           const toothRadii = <double>[8.65, 8.65, 10.65, 10.65, 8.65, 8.65];
           const toothAngles = <double>[-.5, -.31, -.18, .18, .31, .5];
+          const toothCount = 6;
+          const horizontalCompensation = 1.08;
+          const toothStep = math.pi * 2 / toothCount;
           final gear = Path();
-          for (var tooth = 0; tooth < 8; tooth++) {
-            final toothCenter = -math.pi / 2 + tooth * math.pi / 4;
+          for (var tooth = 0; tooth < toothCount; tooth++) {
+            final toothCenter = -math.pi / 2 + tooth * toothStep;
             for (var point = 0; point < toothRadii.length; point++) {
-              final angle = toothCenter + toothAngles[point] * math.pi / 4;
+              final angle = toothCenter + toothAngles[point] * toothStep;
               final offset = Offset(
-                center.dx + math.cos(angle) * toothRadii[point],
+                center.dx +
+                    math.cos(angle) *
+                        toothRadii[point] *
+                        horizontalCompensation,
                 center.dy + math.sin(angle) * toothRadii[point],
               );
               if (tooth == 0 && point == 0) {
@@ -620,7 +691,10 @@ class _MtNavIconPainter extends CustomPainter {
           }
           gear.close();
           canvas.drawPath(gear, stroke);
-          canvas.drawCircle(const Offset(13.5, 13.8), 3.6, stroke);
+          canvas.drawOval(
+            Rect.fromCenter(center: center, width: 6.5, height: 6.9),
+            stroke,
+          );
           break;
       }
     }
@@ -631,7 +705,7 @@ class _MtNavIconPainter extends CustomPainter {
       (_MtNavKind.chart, _) => (2.38, 1.50, .565),
       (_MtNavKind.trade, _) => (2.65, 1.35, .565),
       (_MtNavKind.history, _) => (2.78, 1.15, .565),
-      (_MtNavKind.settings, _) => (2.45, 1.70, .565),
+      (_MtNavKind.settings, _) => (2.65, 1.85, .565),
     };
     draw(
       strokeWidth: outerWidth,

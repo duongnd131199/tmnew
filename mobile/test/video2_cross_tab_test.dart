@@ -284,6 +284,46 @@ void main() {
       expect(addInk.bounds.bottom, closeTo(41.5, .01));
       expect(addInk.pixels, inInclusiveRange(112, 126));
 
+      final accountButton = physical(
+        tester.getRect(find.byKey(const Key('trade-balance-button'))),
+      );
+      expect(accountButton.left, closeTo(23, .01));
+      expect(accountButton.top, closeTo(addButton.top, .01));
+      expect(accountButton.right, closeTo(87, .01));
+      expect(accountButton.bottom, closeTo(addButton.bottom, .01));
+      final walletInk = await _tradeButtonInkMetrics(
+        tester,
+        const Key('trade-balance-button'),
+        pixelRatio: 1.5,
+        maximumLuminance: 190,
+      );
+      expect(walletInk.bounds.left, closeTo(17.5, 1));
+      expect(walletInk.bounds.top, closeTo(20, 1));
+      expect(walletInk.bounds.right, closeTo(49.5, 1));
+      expect(walletInk.bounds.bottom, closeTo(43, 1));
+      expect(walletInk.pixels, inInclusiveRange(340, 390));
+      expect(walletInk.medianLuminance, inInclusiveRange(112, 118));
+      expect(
+        walletInk.inkByRow[26],
+        greaterThanOrEqualTo(28),
+        reason: 'The wallet header separator must be above the four dots.',
+      );
+      expect(
+        walletInk.inkByRow[32],
+        inInclusiveRange(12, 20),
+        reason: 'The wallet body must contain four circular dots.',
+      );
+      expect(
+        walletInk.inkByRow[36],
+        lessThanOrEqualTo(10),
+        reason: 'The reference has no filled bar below the dots.',
+      );
+      expect(
+        walletInk.inkByRow[40],
+        greaterThanOrEqualTo(28),
+        reason: 'The wallet bottom edge must close the outlined body.',
+      );
+
       final first = tester.getRect(
         find.byKey(ValueKey('trade-position-${positions[0].id}')),
       );
@@ -517,10 +557,12 @@ void main() {
   );
 }
 
-Future<({Rect bounds, int pixels})> _tradeButtonInkMetrics(
+Future<({Rect bounds, List<int> inkByRow, int medianLuminance, int pixels})>
+_tradeButtonInkMetrics(
   WidgetTester tester,
   Key buttonKey, {
   required double pixelRatio,
+  double maximumLuminance = 100,
 }) async {
   final buttonRect = tester.getRect(find.byKey(buttonKey));
   final boundary = tester.renderObject<RenderRepaintBoundary>(
@@ -549,6 +591,12 @@ Future<({Rect bounds, int pixels})> _tradeButtonInkMetrics(
   var maxX = -1;
   var maxY = -1;
   var pixels = 0;
+  final inkByRow = List<int>.filled(
+    physicalButtonRect.height.ceil(),
+    0,
+    growable: false,
+  );
+  final luminances = <int>[];
   for (var y = searchRect.top.floor(); y < searchRect.bottom.ceil(); y++) {
     for (var x = searchRect.left.floor(); x < searchRect.right.ceil(); x++) {
       final offset = (y * captured.width + x) * 4;
@@ -556,8 +604,14 @@ Future<({Rect bounds, int pixels})> _tradeButtonInkMetrics(
       final green = captured.bytes!.getUint8(offset + 1);
       final blue = captured.bytes!.getUint8(offset + 2);
       final alpha = captured.bytes!.getUint8(offset + 3);
-      if (alpha < 128 || (red + green + blue) / 3 >= 100) continue;
+      final luminance = ((red + green + blue) / 3).round();
+      if (alpha < 128 || luminance >= maximumLuminance) continue;
       pixels++;
+      luminances.add(luminance);
+      final buttonY = y - physicalButtonRect.top.floor();
+      if (buttonY >= 0 && buttonY < inkByRow.length) {
+        inkByRow[buttonY]++;
+      }
       minX = math.min(minX, x);
       minY = math.min(minY, y);
       maxX = math.max(maxX, x);
@@ -567,6 +621,7 @@ Future<({Rect bounds, int pixels})> _tradeButtonInkMetrics(
   if (maxX < minX || maxY < minY) {
     throw StateError('No Trade icon ink found for $buttonKey');
   }
+  luminances.sort();
   return (
     bounds: Rect.fromLTRB(
       minX.toDouble(),
@@ -574,6 +629,8 @@ Future<({Rect bounds, int pixels})> _tradeButtonInkMetrics(
       (maxX + 1).toDouble(),
       (maxY + 1).toDouble(),
     ).shift(-physicalButtonRect.topLeft),
+    inkByRow: inkByRow,
     pixels: pixels,
+    medianLuminance: luminances[luminances.length ~/ 2],
   );
 }

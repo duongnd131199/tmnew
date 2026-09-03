@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -6,15 +8,19 @@ import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_shadows.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/reference_typography_profile.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/chart/application/chart_timeframe_session.dart';
 import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/features/chart/presentation/navigation/chart_navigation.dart';
+import 'package:trading_mobile/features/market_watch/domain/market_quote_display.dart';
 import 'package:trading_mobile/features/market_watch/domain/market_symbol_policy.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
+import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
+import 'package:trading_mobile/shared/widgets/mt_tab_header_fade.dart';
 import 'package:trading_mobile/shared/widgets/mt5_toolbar_icons.dart';
 
 class MarketWatchScreen extends ConsumerStatefulWidget {
@@ -27,6 +33,12 @@ class MarketWatchScreen extends ConsumerStatefulWidget {
 class _MarketWatchScreenState extends ConsumerState<MarketWatchScreen> {
   bool compactMode = false;
   String? revealedSymbol;
+  final Map<
+    String,
+    ({double bid, double ask, DateTime? sourceTimestamp, DateTime receivedAt})
+  >
+  _receiptTimes = {};
+  final _quoteRetention = _MarketQuoteRetention();
 
   @override
   void didChangeDependencies() {
@@ -49,13 +61,72 @@ class _MarketWatchScreenState extends ConsumerState<MarketWatchScreen> {
         )
         .whereType<DemoQuote>()
         .toList();
+    final safeTop = MediaQuery.paddingOf(context).top;
+    final headerExtent = safeTop + TabReferenceMetrics.quoteHeaderHeight;
 
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _QuotesHeader(
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: visibleQuotes.isEmpty
+                ? Padding(
+                    padding: EdgeInsets.only(top: headerExtent),
+                    child: const _EmptyQuotes(),
+                  )
+                : compactMode
+                ? _CompactQuotes(
+                    quotes: visibleQuotes,
+                    columns: columns,
+                    topInset: headerExtent,
+                    receivedAtFor: _receivedAtFor,
+                    retention: _quoteRetention,
+                    onTap: (quote) => _showSymbolMenu(context, quote),
+                  )
+                : ListView.builder(
+                    padding: EdgeInsets.only(top: headerExtent),
+                    itemCount: visibleQuotes.length,
+                    itemBuilder: (context, index) {
+                      final quote = visibleQuotes[index];
+                      return _SwipeQuoteRow(
+                        quote: quote,
+                        receivedAtFor: _receivedAtFor,
+                        retention: _quoteRetention,
+                        revealed: revealedSymbol == quote.symbol,
+                        onReveal: () =>
+                            setState(() => revealedSymbol = quote.symbol),
+                        onHide: () => setState(() => revealedSymbol = null),
+                        onTap: () => _showSymbolMenu(context, quote),
+                        onOrder: () => context.push(
+                          '/order?symbol=${Uri.encodeQueryComponent(quote.symbol)}',
+                        ),
+                        onDelete: canRemoveMarketSymbol(quote.symbol)
+                            ? () => ref
+                                  .read(marketSymbolsProvider.notifier)
+                                  .remove(quote.symbol)
+                            : null,
+                        onChart: () =>
+                            context.go(_rememberedChartLocation(quote.symbol)),
+                      );
+                    },
+                  ),
+          ),
+          Positioned(
+            left: 0,
+            top: 0,
+            right: 0,
+            height: headerExtent,
+            child: const IgnorePointer(
+              child: MtTabHeaderFade(
+                decorationKey: Key('market-header-overlay'),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: safeTop,
+            right: 0,
+            height: TabReferenceMetrics.quoteHeaderHeight,
+            child: _QuotesHeader(
               compactMode: compactMode,
               onToggleView: () => setState(() => compactMode = !compactMode),
               onManage: () => context.push(
@@ -63,44 +134,8 @@ class _MarketWatchScreenState extends ConsumerState<MarketWatchScreen> {
               ),
               onSearch: () => context.push('/market/search'),
             ),
-            Expanded(
-              child: visibleQuotes.isEmpty
-                  ? const _EmptyQuotes()
-                  : compactMode
-                  ? _CompactQuotes(
-                      quotes: visibleQuotes,
-                      columns: columns,
-                      onTap: (quote) => _showSymbolMenu(context, quote),
-                    )
-                  : ListView.builder(
-                      padding: EdgeInsets.zero,
-                      itemCount: visibleQuotes.length,
-                      itemBuilder: (context, index) {
-                        final quote = visibleQuotes[index];
-                        return _SwipeQuoteRow(
-                          quote: quote,
-                          revealed: revealedSymbol == quote.symbol,
-                          onReveal: () =>
-                              setState(() => revealedSymbol = quote.symbol),
-                          onHide: () => setState(() => revealedSymbol = null),
-                          onTap: () => _showSymbolMenu(context, quote),
-                          onOrder: () => context.push(
-                            '/order?symbol=${Uri.encodeQueryComponent(quote.symbol)}',
-                          ),
-                          onDelete: canRemoveMarketSymbol(quote.symbol)
-                              ? () => ref
-                                    .read(marketSymbolsProvider.notifier)
-                                    .remove(quote.symbol)
-                              : null,
-                          onChart: () => context.go(
-                            _rememberedChartLocation(quote.symbol),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -110,6 +145,24 @@ class _MarketWatchScreenState extends ConsumerState<MarketWatchScreen> {
         .read(chartTimeframeSessionProvider.notifier)
         .timeframeFor(symbol);
     return chartLocationForSymbol(symbol, timeframe: timeframe);
+  }
+
+  DateTime _receivedAtFor(DemoQuote quote) {
+    final retained = _receiptTimes[quote.symbol];
+    if (retained != null &&
+        retained.bid == quote.bid &&
+        retained.ask == quote.ask &&
+        retained.sourceTimestamp == quote.sourceTimestamp) {
+      return retained.receivedAt;
+    }
+    final receivedAt = quote.sourceTimestamp ?? ref.read(marketClockProvider)();
+    _receiptTimes[quote.symbol] = (
+      bid: quote.bid,
+      ask: quote.ask,
+      sourceTimestamp: quote.sourceTimestamp,
+      receivedAt: receivedAt,
+    );
+    return receivedAt;
   }
 
   void _showSymbolMenu(BuildContext context, DemoQuote quote) {
@@ -197,7 +250,7 @@ class _MarketWatchScreenState extends ConsumerState<MarketWatchScreen> {
                   if (canRemoveMarketSymbol(quote.symbol))
                     _SheetAction(
                       label: 'Xoa',
-                      color: AppColors.negative,
+                      color: AppColors.tradingNegativeText,
                       onTap: () {
                         ref
                             .read(marketSymbolsProvider.notifier)
@@ -218,6 +271,25 @@ class _MarketWatchScreenState extends ConsumerState<MarketWatchScreen> {
         ),
       ),
     );
+  }
+}
+
+class _MarketQuoteRetention {
+  final Map<String, List<MarketCandle>> _dailyCandles = {};
+  final Map<String, MarketQuoteDisplay> _displays = {};
+
+  List<MarketCandle>? candlesFor(String symbol) => _dailyCandles[symbol];
+
+  MarketQuoteDisplay? displayFor(String symbol) => _displays[symbol];
+
+  void retain({
+    required String symbol,
+    required List<MarketCandle> candles,
+    required MarketQuoteDisplay display,
+    required bool isAvailable,
+  }) {
+    _dailyCandles[symbol] = candles;
+    if (isAvailable) _displays[symbol] = display;
   }
 }
 
@@ -242,8 +314,8 @@ class _QuotesHeader extends StatelessWidget {
       child: Stack(
         children: [
           Positioned(
-            left: 17.3,
-            top: 30.6666666667,
+            left: 16,
+            top: TabReferenceMetrics.quoteHeaderControlTop,
             child: _RoundToolbarButton(
               key: const Key('market-toggle-view'),
               tooltip: 'View',
@@ -254,18 +326,22 @@ class _QuotesHeader extends StatelessWidget {
           Positioned(
             left: 0,
             right: 0,
-            top: 41.5,
+            top: TabReferenceMetrics.quoteHeaderTitleTop,
             child: IgnorePointer(
-              child: const Text(
+              child: Text(
                 'Gia',
                 textAlign: TextAlign.center,
-                style: AppTypography.pricesToolbarTitle,
+                style: AppTypography.forRole(
+                  context,
+                  ReferenceTextRole.pricesToolbarTitle,
+                  colorRole: ReferenceTextColorRole.primary,
+                ),
               ),
             ),
           ),
           Positioned(
-            right: 66.7,
-            top: 30,
+            right: 72,
+            top: TabReferenceMetrics.quoteHeaderControlTop,
             child: _RoundToolbarButton(
               key: const Key('market-manage-button'),
               tooltip: 'Sửa',
@@ -286,15 +362,15 @@ class _QuotesHeader extends StatelessWidget {
                           MtToolbarIconKind.edit,
                           key: Key('market-manage-edit-icon'),
                           color: AppColors.textPrimary,
-                          size: 18,
+                          size: 20,
                         ),
                       ),
                     ),
             ),
           ),
           Positioned(
-            right: 16.6333333333,
-            top: 30,
+            right: 16.5,
+            top: TabReferenceMetrics.quoteHeaderControlTop,
             child: _RoundToolbarButton(
               key: const Key('market-search-button'),
               tooltip: 'Tìm kiếm',
@@ -335,9 +411,9 @@ class _MarketListIconPainter extends CustomPainter {
     final rule = Paint()
       ..color = AppColors.textPrimary
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
+      ..strokeWidth = 1.9
       ..strokeCap = StrokeCap.square;
-    const rows = [3.0, 7.25, 11.0, 14.5];
+    const rows = [3.0, 7.5, 12.0, 16.5];
     for (var index = 0; index < rows.length; index++) {
       final y = rows[index];
       canvas.drawRect(
@@ -346,7 +422,7 @@ class _MarketListIconPainter extends CustomPainter {
       );
       canvas.drawLine(
         Offset(6.2, y),
-        Offset(index == rows.length - 1 ? 11.25 : 15.8, y),
+        Offset(index == rows.length - 1 ? 11.25 : 17.3, y),
         rule,
       );
     }
@@ -363,7 +439,7 @@ class _MarketSearchIcon extends StatelessWidget {
   Widget build(BuildContext context) => Transform.translate(
     offset: const Offset(-.3333333333, -.6666666667),
     child: Transform.scale(
-      scale: .88,
+      scale: 1,
       child: const CustomPaint(
         size: Size.square(29),
         painter: _MarketSearchIconPainter(),
@@ -413,7 +489,7 @@ class _RoundToolbarButton extends StatelessWidget {
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: SizedBox.square(
-            dimension: 42.667,
+            dimension: TabReferenceMetrics.quoteHeaderButtonSize,
             child: Center(
               child: DecoratedBox(
                 decoration: const BoxDecoration(
@@ -422,7 +498,7 @@ class _RoundToolbarButton extends StatelessWidget {
                   boxShadow: AppShadows.navigation,
                 ),
                 child: SizedBox.square(
-                  dimension: 40,
+                  dimension: TabReferenceMetrics.quoteHeaderVisualDiameter,
                   child: Center(child: child),
                 ),
               ),
@@ -438,11 +514,17 @@ class _CompactQuotes extends StatelessWidget {
   const _CompactQuotes({
     required this.quotes,
     required this.columns,
+    required this.topInset,
+    required this.receivedAtFor,
+    required this.retention,
     required this.onTap,
   });
 
   final List<DemoQuote> quotes;
   final List<String> columns;
+  final double topInset;
+  final DateTime Function(DemoQuote) receivedAtFor;
+  final _MarketQuoteRetention retention;
   final ValueChanged<DemoQuote> onTap;
 
   @override
@@ -469,9 +551,27 @@ class _CompactQuotes extends StatelessWidget {
         child: SizedBox(
           width: tableWidth,
           height: constraints.maxHeight,
-          child: Column(
+          child: Stack(
             children: [
-              SizedBox(
+              Positioned.fill(
+                child: ListView.builder(
+                  padding: EdgeInsets.only(top: topInset + 31),
+                  itemCount: quotes.length,
+                  itemBuilder: (context, index) => _CompactQuoteRow(
+                    quote: quotes[index],
+                    columns: columns,
+                    symbolWidth: symbolWidth,
+                    columnWidths: columnWidths,
+                    receivedAtFor: receivedAtFor,
+                    retention: retention,
+                    onTap: () => onTap(quotes[index]),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: topInset,
                 height: 31,
                 child: Row(
                   children: [
@@ -486,19 +586,6 @@ class _CompactQuotes extends StatelessWidget {
                         width: columnWidths[index],
                       ),
                   ],
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  padding: EdgeInsets.zero,
-                  itemCount: quotes.length,
-                  itemBuilder: (context, index) => _CompactQuoteRow(
-                    quote: quotes[index],
-                    columns: columns,
-                    symbolWidth: symbolWidth,
-                    columnWidths: columnWidths,
-                    onTap: () => onTap(quotes[index]),
-                  ),
                 ),
               ),
             ],
@@ -535,7 +622,7 @@ class _CompactHeaderCell extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            color: AppColors.textSecondary,
+            color: AppColors.tradingSecondaryText,
             fontSize: 11.5,
             height: 1,
           ),
@@ -545,12 +632,14 @@ class _CompactHeaderCell extends StatelessWidget {
   );
 }
 
-class _CompactQuoteRow extends ConsumerWidget {
+class _CompactQuoteRow extends ConsumerStatefulWidget {
   const _CompactQuoteRow({
     required this.quote,
     required this.columns,
     required this.symbolWidth,
     required this.columnWidths,
+    required this.receivedAtFor,
+    required this.retention,
     required this.onTap,
   });
 
@@ -558,77 +647,92 @@ class _CompactQuoteRow extends ConsumerWidget {
   final List<String> columns;
   final double symbolWidth;
   final List<double> columnWidths;
+  final DateTime Function(DemoQuote) receivedAtFor;
+  final _MarketQuoteRetention retention;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CompactQuoteRow> createState() => _CompactQuoteRowState();
+}
+
+class _CompactQuoteRowState extends ConsumerState<_CompactQuoteRow> {
+  @override
+  Widget build(BuildContext context) {
+    final quote = widget.quote;
     final live = ref.watch(demoQuoteProvider(quote.symbol)).value ?? quote;
-    final meta = _QuoteMeta.fromTick(
+    final snapshot = _watchQuoteDisplay(
+      ref,
       live,
-      receivedAt: ref.read(marketClockProvider)(),
+      widget.retention.candlesFor(live.symbol),
+      widget.retention.displayFor(live.symbol),
+      receivedAt: widget.receivedAtFor(live),
     );
-    final dailyColor = meta.points >= 0
+    final display = snapshot.display;
+    widget.retention.retain(
+      symbol: live.symbol,
+      candles: snapshot.candles,
+      display: display,
+      isAvailable: snapshot.isAvailable,
+    );
+    final dailyColor = !snapshot.isAvailable
+        ? AppColors.pricesSecondary
+        : (display.pointChange ?? 0) >= 0
         ? AppColors.primary
-        : AppColors.negative;
+        : AppColors.pricesNegativeText;
     return InkWell(
-      onTap: onTap,
-      onLongPress: onTap,
+      onTap: widget.onTap,
+      onLongPress: widget.onTap,
       child: SizedBox(
         height: 33,
-        child: Stack(
+        child: Row(
           children: [
-            if (live.symbol.startsWith('XAUUSD'))
-              const Positioned(
-                left: 0,
-                top: 0,
-                child: _QuoteCorner(color: AppColors.primary),
+            SizedBox(
+              width: widget.symbolWidth,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 6.7),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _marketWatchDisplaySymbol(live.symbol),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 12.2,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                    ),
+                  ),
+                ),
               ),
-            Row(
-              children: [
-                SizedBox(
-                  width: symbolWidth,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 6.7),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        _marketWatchDisplaySymbol(live.symbol),
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 12.2,
-                          fontWeight: FontWeight.w700,
-                          height: 1,
-                        ),
+            ),
+            for (var index = 0; index < widget.columns.length; index++)
+              SizedBox(
+                width: widget.columnWidths[index],
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: widget.columns[index] == 'Ngày %' ? 4 : 6,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      _compactValue(
+                        widget.columns[index],
+                        live,
+                        display,
+                        isAvailable: snapshot.isAvailable,
+                      ),
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: widget.columns[index] == 'Ngày %'
+                            ? dailyColor
+                            : AppColors.textPrimary,
+                        fontSize: 11.8,
+                        height: 1,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ),
                 ),
-                for (var index = 0; index < columns.length; index++)
-                  SizedBox(
-                    width: columnWidths[index],
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        right: columns[index] == 'Ngày %' ? 4 : 6,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          _compactValue(columns[index], live, meta),
-                          maxLines: 1,
-                          style: TextStyle(
-                            color: columns[index] == 'Ngày %'
-                                ? dailyColor
-                                : AppColors.textPrimary,
-                            fontSize: 11.8,
-                            height: 1,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+              ),
           ],
         ),
       ),
@@ -642,27 +746,40 @@ double _compactColumnWidth(String column) {
   return 96;
 }
 
-String _compactValue(String column, DemoQuote quote, _QuoteMeta meta) {
+String _compactValue(
+  String column,
+  DemoQuote quote,
+  MarketQuoteDisplay display, {
+  required bool isAvailable,
+}) {
   return switch (column) {
-    'Chào mua' => _formatQuoteValue(quote.bid),
-    'Chào bán' => _formatQuoteValue(quote.ask),
-    'Ngày %' => meta.percent,
-    'Giá mua cao' || 'Giá bán cao' || 'Giá cuối cao' => meta.high,
-    'Giá mua thấp' || 'Giá bán thấp' || 'Giá cuối thấp' => meta.low,
-    'Giá cuối' => _formatQuoteValue(quote.bid),
-    'Thời gian' => meta.time,
-    'Spread' => meta.spread,
+    'Chào mua' =>
+      isAvailable ? _formatQuoteValue(quote.bid, display.digits) : '--',
+    'Chào bán' =>
+      isAvailable ? _formatQuoteValue(quote.ask, display.digits) : '--',
+    'Ngày %' => _formatPercent(display.percentChange),
+    'Giá mua cao' ||
+    'Giá bán cao' ||
+    'Giá cuối cao' => _formatStatistic(display.high, display.digits),
+    'Giá mua thấp' ||
+    'Giá bán thấp' ||
+    'Giá cuối thấp' => _formatStatistic(display.low, display.digits),
+    'Giá cuối' =>
+      isAvailable ? _formatQuoteValue(quote.bid, display.digits) : '--',
+    'Thời gian' => _formatUtcTime(display.timestamp),
+    'Spread' => isAvailable ? display.spreadPoints.toString() : '--',
     _ => '',
   };
 }
 
-String _formatQuoteValue(double value) {
-  return value.toStringAsFixed(2);
-}
+String _formatQuoteValue(double value, int digits) =>
+    value.toStringAsFixed(digits);
 
 class _SwipeQuoteRow extends StatefulWidget {
   const _SwipeQuoteRow({
     required this.quote,
+    required this.receivedAtFor,
+    required this.retention,
     required this.revealed,
     required this.onReveal,
     required this.onHide,
@@ -673,6 +790,8 @@ class _SwipeQuoteRow extends StatefulWidget {
   });
 
   final DemoQuote quote;
+  final DateTime Function(DemoQuote) receivedAtFor;
+  final _MarketQuoteRetention retention;
   final bool revealed;
   final VoidCallback onReveal;
   final VoidCallback onHide;
@@ -795,7 +914,7 @@ class _SwipeQuoteRowState extends State<_SwipeQuoteRow> {
                   onTap: widget.onOrder,
                   child: const Icon(
                     CupertinoIcons.add,
-                    color: AppColors.textSecondary,
+                    color: AppColors.tradingSecondaryText,
                     size: 30,
                   ),
                 ),
@@ -808,7 +927,7 @@ class _SwipeQuoteRowState extends State<_SwipeQuoteRow> {
                 height: 48,
                 child: _QuoteSwipeAction(
                   key: ValueKey('market-delete-${widget.quote.symbol}'),
-                  color: AppColors.negative,
+                  color: AppColors.tradingNegativeText,
                   onTap: widget.onDelete!,
                   child: const Icon(
                     CupertinoIcons.trash,
@@ -853,6 +972,8 @@ class _SwipeQuoteRowState extends State<_SwipeQuoteRow> {
               ),
               child: _QuoteRow(
                 quote: widget.quote,
+                receivedAtFor: widget.receivedAtFor,
+                retention: widget.retention,
                 onTap: widget.revealed ? widget.onHide : widget.onTap,
               ),
             ),
@@ -941,9 +1062,16 @@ class _SwipeChartIconPainter extends CustomPainter {
 }
 
 class _QuoteRow extends ConsumerStatefulWidget {
-  const _QuoteRow({required this.quote, required this.onTap});
+  const _QuoteRow({
+    required this.quote,
+    required this.receivedAtFor,
+    required this.retention,
+    required this.onTap,
+  });
 
   final DemoQuote quote;
+  final DateTime Function(DemoQuote) receivedAtFor;
+  final _MarketQuoteRetention retention;
   final VoidCallback onTap;
 
   @override
@@ -952,37 +1080,87 @@ class _QuoteRow extends ConsumerStatefulWidget {
 
 class _QuoteRowState extends ConsumerState<_QuoteRow> {
   DemoQuote? _previousTick;
-  Color _lastBidColor = AppColors.primary;
-  Color _lastAskColor = AppColors.primary;
+  ReferenceTextColorRole? _lastBidColorRole;
+  ReferenceTextColorRole? _lastAskColorRole;
+  String? _displaySymbol;
+  int? _lastPointChange;
 
   @override
   Widget build(BuildContext context) {
     final live =
         ref.watch(demoQuoteProvider(widget.quote.symbol)).value ?? widget.quote;
-    final meta = _QuoteMeta.fromTick(
+    if (_displaySymbol != live.symbol) {
+      _displaySymbol = live.symbol;
+      _previousTick = null;
+      _lastBidColorRole = null;
+      _lastAskColorRole = null;
+      _lastPointChange = null;
+    }
+    final snapshot = _watchQuoteDisplay(
+      ref,
       live,
-      receivedAt: ref.read(marketClockProvider)(),
+      widget.retention.candlesFor(live.symbol),
+      widget.retention.displayFor(live.symbol),
+      receivedAt: widget.receivedAtFor(live),
     );
-    final previous = _previousTick?.symbol == live.symbol
-        ? _previousTick
-        : null;
-    final bidColor = _tickColor(
-      current: live.bid,
-      previous: previous?.bid,
-      retained: _lastBidColor,
+    final display = snapshot.display;
+    widget.retention.retain(
+      symbol: live.symbol,
+      candles: snapshot.candles,
+      display: display,
+      isAvailable: snapshot.isAvailable,
     );
-    final askColor = _tickColor(
-      current: live.ask,
-      previous: previous?.ask,
-      retained: _lastAskColor,
-    );
-    _previousTick = live;
-    _lastBidColor = bidColor;
-    _lastAskColor = askColor;
-    final dailyColor = meta.points >= 0
-        ? AppColors.primary
-        : AppColors.negative;
-    final isBtcUsd = live.symbol == 'BTCUSD';
+    final typographyVariant = _quoteTypographyVariant(live.symbol);
+    final dailyColorRole = !snapshot.isAvailable
+        ? ReferenceTextColorRole.secondary
+        : switch (display.pointChange) {
+            final points? when points < 0 => ReferenceTextColorRole.negative,
+            final points? when points >= 0 => ReferenceTextColorRole.positive,
+            _ => ReferenceTextColorRole.secondary,
+          };
+    late final ReferenceTextColorRole bidColorRole;
+    late final ReferenceTextColorRole askColorRole;
+    if (!snapshot.isAvailable) {
+      _previousTick = null;
+      _lastBidColorRole = null;
+      _lastAskColorRole = null;
+      _lastPointChange = null;
+      bidColorRole = ReferenceTextColorRole.secondary;
+      askColorRole = ReferenceTextColorRole.secondary;
+    } else {
+      final retainedTick = _previousTick?.symbol == live.symbol
+          ? _previousTick
+          : null;
+      final tickMoved =
+          retainedTick != null &&
+          (retainedTick.bid != live.bid || retainedTick.ask != live.ask);
+      if (_lastPointChange == null &&
+          display.pointChange != null &&
+          !tickMoved) {
+        _previousTick = null;
+        _lastBidColorRole = null;
+        _lastAskColorRole = null;
+      }
+      _lastPointChange = display.pointChange;
+      final previous = _previousTick?.symbol == live.symbol
+          ? _previousTick
+          : null;
+      bidColorRole = _tickColorRole(
+        current: live.bid,
+        previous: previous?.bid,
+        retained: _lastBidColorRole,
+        initial: dailyColorRole,
+      );
+      askColorRole = _tickColorRole(
+        current: live.ask,
+        previous: previous?.ask,
+        retained: _lastAskColorRole,
+        initial: dailyColorRole,
+      );
+      _previousTick = live;
+      _lastBidColorRole = bidColorRole;
+      _lastAskColorRole = askColorRole;
+    }
     return InkWell(
       onTap: widget.onTap,
       onLongPress: widget.onTap,
@@ -990,179 +1168,142 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
         height: TabReferenceMetrics.quoteRowHeight,
         child: Stack(
           children: [
-            if (live.symbol.startsWith('XAUUSD'))
-              const Positioned(
-                left: 0,
-                top: 0,
-                child: _QuoteCorner(color: AppColors.primary),
-              ),
             Positioned(
-              left: isBtcUsd ? 7.3333333333 : 6.6666666667,
-              top: isBtcUsd ? 8.6666666667 : 8,
-              child: Transform.scale(
-                scaleX: 1.1,
-                scaleY: isBtcUsd ? .87 : 1,
-                alignment: Alignment.topLeft,
-                child: Text.rich(
-                  key: ValueKey('market-change-${live.symbol}'),
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: meta.points > 0
-                            ? '+${meta.points} '
-                            : '${meta.points} ',
-                        style: const TextStyle(
-                          color: AppColors.pricesSecondary,
-                        ),
+              left: 8,
+              top: 8,
+              child: Text.rich(
+                key: ValueKey('market-change-${live.symbol}'),
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: _formatPointChange(display.pointChange),
+                      style: AppTypography.forRole(
+                        context,
+                        ReferenceTextRole.quoteChange,
+                        colorRole: ReferenceTextColorRole.secondary,
+                        variant: typographyVariant,
                       ),
-                      TextSpan(
-                        text: meta.percent,
-                        style: AppTypography.tabColorInk(
-                          context,
-                          TextStyle(
-                            color: dailyColor,
-                            letterSpacing: isBtcUsd ? .65 : .8,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  style: AppTypography.quoteChange,
+                    ),
+                    TextSpan(
+                      text: _formatPercent(display.percentChange),
+                      style: AppTypography.forRole(
+                        context,
+                        ReferenceTextRole.quoteChange,
+                        colorRole: dailyColorRole,
+                        variant: typographyVariant,
+                      ).copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+                style: AppTypography.forRole(
+                  context,
+                  ReferenceTextRole.quoteChange,
+                  colorRole: ReferenceTextColorRole.secondary,
+                  variant: typographyVariant,
                 ),
               ),
             ),
             Positioned(
               left: 8,
-              top: 25.4,
+              top: 27.3333333333,
               child: Text(
                 _marketWatchDisplaySymbol(live.symbol),
                 key: ValueKey('market-symbol-${live.symbol}'),
-                style: isBtcUsd
-                    ? AppTypography.quoteSymbol.copyWith(fontSize: 15)
-                    : AppTypography.quoteSymbol,
-              ),
-            ),
-            Positioned(
-              left: 7.3333333333,
-              top: 48,
-              child: Transform.scale(
-                scaleY: .93,
-                alignment: Alignment.topLeft,
-                child: Row(
-                  children: [
-                    if (isBtcUsd)
-                      const SizedBox(
-                        key: ValueKey('market-delay-BTCUSD'),
-                        width: 13.3333333333,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Icon(
-                            CupertinoIcons.clock,
-                            color: AppColors.pricesSecondary,
-                            size: 11.3333333333,
-                          ),
-                        ),
-                      ),
-                    Transform.translate(
-                      offset: Offset(-.6666666667, isBtcUsd ? 1.3333333333 : 0),
-                      child: Transform.scale(
-                        scaleX: isBtcUsd ? 1.13 : 1.11,
-                        alignment: Alignment.topLeft,
-                        child: Text(
-                          meta.time,
-                          key: ValueKey('market-time-${live.symbol}'),
-                          style: AppTypography.quoteTimeMeta,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: isBtcUsd ? 7.3333333333 : 6.3333333333),
-                    Transform.translate(
-                      offset: Offset(0, isBtcUsd ? .6666666667 : 0),
-                      child: const _SpreadGlyph(),
-                    ),
-                    const SizedBox(width: 4),
-                    Transform.translate(
-                      offset: Offset(
-                        isBtcUsd ? -.6666666667 : 0,
-                        isBtcUsd ? .6666666667 : 0,
-                      ),
-                      child: Transform.scale(
-                        scaleX: isBtcUsd ? 1 : 1.15,
-                        alignment: Alignment.topLeft,
-                        child: Text(
-                          meta.spread,
-                          key: ValueKey('market-spread-${live.symbol}'),
-                          style: AppTypography.quoteTimeMeta,
-                        ),
-                      ),
-                    ),
-                  ],
+                style: AppTypography.forRole(
+                  context,
+                  ReferenceTextRole.quoteSymbol,
+                  colorRole: ReferenceTextColorRole.primary,
+                  variant: typographyVariant,
                 ),
               ),
             ),
             Positioned(
-              right: 86.6333333333,
-              top: 15.6666666667,
-              width: 76,
+              left: 7.3333333333,
+              top: 51,
+              child: Row(
+                children: [
+                  Text(
+                    _formatUtcTime(display.timestamp),
+                    key: ValueKey('market-time-${live.symbol}'),
+                    style: AppTypography.forRole(
+                      context,
+                      ReferenceTextRole.quoteTimeMeta,
+                      colorRole: ReferenceTextColorRole.secondary,
+                      variant: typographyVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const _SpreadGlyph(),
+                  const SizedBox(width: 4),
+                  Text(
+                    snapshot.isAvailable
+                        ? display.spreadPoints.toString()
+                        : '--',
+                    key: ValueKey('market-spread-${live.symbol}'),
+                    style: AppTypography.forRole(
+                      context,
+                      ReferenceTextRole.quoteSpreadMeta,
+                      colorRole: ReferenceTextColorRole.secondary,
+                      variant: typographyVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              right: 103.3,
+              top: 16,
+              width: 92,
               child: Align(
                 alignment: Alignment.centerRight,
-                child: _quotePriceInk(
-                  isBtcUsd: isBtcUsd,
-                  child: _QuotePrice(
-                    value: _formatPrice(live.bid),
-                    color: bidColor,
-                    textKey: ValueKey('market-bid-${live.symbol}'),
-                  ),
+                child: _QuotePrice(
+                  value: snapshot.isAvailable
+                      ? _formatQuoteValue(live.bid, display.digits)
+                      : '--',
+                  colorRole: bidColorRole,
+                  variant: typographyVariant,
+                  textKey: ValueKey('market-bid-${live.symbol}'),
+                  pipetteKey: ValueKey('market-bid-pipette-${live.symbol}'),
                 ),
               ),
             ),
             Positioned(
               right: 7.3,
-              top: 15.6666666667,
-              width: 76,
+              top: 16,
+              width: 92,
               child: Align(
                 alignment: Alignment.centerRight,
-                child: _quotePriceInk(
-                  isBtcUsd: isBtcUsd,
-                  child: _QuotePrice(
-                    value: _formatPrice(live.ask),
-                    color: askColor,
-                    textKey: ValueKey('market-ask-${live.symbol}'),
-                  ),
+                child: _QuotePrice(
+                  value: snapshot.isAvailable
+                      ? _formatQuoteValue(live.ask, display.digits)
+                      : '--',
+                  colorRole: askColorRole,
+                  variant: typographyVariant,
+                  textKey: ValueKey('market-ask-${live.symbol}'),
+                  pipetteKey: ValueKey('market-ask-pipette-${live.symbol}'),
                 ),
               ),
             ),
             Positioned(
-              right: 86.8,
-              top:
-                  49.3333333333 +
-                  (isBtcUsd ? TabReferenceMetrics.quoteBtcRangeOffsetY : 0),
-              child: Transform.scale(
-                scaleY: .86,
-                alignment: Alignment.topRight,
-                child: _QuoteRange(
-                  label: 'L:',
-                  value: meta.low,
-                  labelKey: ValueKey('market-low-label-${live.symbol}'),
-                  valueKey: ValueKey('market-low-${live.symbol}'),
-                ),
+              right: 103.3,
+              top: 52,
+              child: _QuoteRange(
+                label: 'L:',
+                value: _formatStatistic(display.low, display.digits),
+                labelKey: ValueKey('market-low-label-${live.symbol}'),
+                valueKey: ValueKey('market-low-${live.symbol}'),
+                variant: typographyVariant,
               ),
             ),
             Positioned(
-              right: isBtcUsd ? 6.6666666667 : 7.3333333333,
-              top: 49.3333333333 + (isBtcUsd ? .6666666667 : 0),
-              child: Transform.scale(
-                scaleY: isBtcUsd ? .93 : .86,
-                alignment: Alignment.topRight,
-                child: _QuoteRange(
-                  label: 'H:',
-                  value: meta.high,
-                  labelKey: ValueKey('market-high-label-${live.symbol}'),
-                  valueKey: ValueKey('market-high-${live.symbol}'),
-                  valueStyle: isBtcUsd
-                      ? AppTypography.quoteBtcHighMeta
-                      : AppTypography.quoteRangeValue,
-                ),
+              right: 7.3,
+              top: 52,
+              child: _QuoteRange(
+                label: 'H:',
+                value: _formatStatistic(display.high, display.digits),
+                labelKey: ValueKey('market-high-label-${live.symbol}'),
+                valueKey: ValueKey('market-high-${live.symbol}'),
+                variant: typographyVariant,
               ),
             ),
           ],
@@ -1171,22 +1312,17 @@ class _QuoteRowState extends ConsumerState<_QuoteRow> {
     );
   }
 
-  Color _tickColor({
+  ReferenceTextColorRole _tickColorRole({
     required double current,
     required double? previous,
-    required Color retained,
+    required ReferenceTextColorRole? retained,
+    required ReferenceTextColorRole initial,
   }) {
-    if (previous == null) return retained;
-    if (current > previous) return AppColors.primary;
-    if (current < previous) return AppColors.negative;
-    return retained;
+    if (previous == null) return retained ?? initial;
+    if (current > previous) return ReferenceTextColorRole.positive;
+    if (current < previous) return ReferenceTextColorRole.negative;
+    return retained ?? initial;
   }
-
-  String _formatPrice(double value) => value.toStringAsFixed(2);
-}
-
-Widget _quotePriceInk({required bool isBtcUsd, required Widget child}) {
-  return child;
 }
 
 class _QuoteRange extends StatelessWidget {
@@ -1195,22 +1331,40 @@ class _QuoteRange extends StatelessWidget {
     required this.value,
     required this.labelKey,
     required this.valueKey,
-    this.valueStyle = AppTypography.quoteRangeValue,
+    required this.variant,
   });
 
   final String label;
   final String value;
   final Key labelKey;
   final Key valueKey;
-  final TextStyle valueStyle;
+  final TypographyVariantId variant;
 
   @override
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Text(label, key: labelKey, style: AppTypography.quoteRangeLabel),
+      Text(
+        label,
+        key: labelKey,
+        style: AppTypography.forRole(
+          context,
+          ReferenceTextRole.quoteRangeLabel,
+          colorRole: ReferenceTextColorRole.secondary,
+          variant: variant,
+        ),
+      ),
       const SizedBox(width: 4),
-      Text(value, key: valueKey, style: valueStyle),
+      Text(
+        value,
+        key: valueKey,
+        style: AppTypography.forRole(
+          context,
+          ReferenceTextRole.quoteRangeValue,
+          colorRole: ReferenceTextColorRole.secondary,
+          variant: variant,
+        ),
+      ),
     ],
   );
 }
@@ -1218,19 +1372,47 @@ class _QuoteRange extends StatelessWidget {
 class _QuotePrice extends StatelessWidget {
   const _QuotePrice({
     required this.value,
-    required this.color,
+    required this.colorRole,
+    required this.variant,
     required this.textKey,
+    required this.pipetteKey,
   });
 
   final String value;
-  final Color color;
+  final ReferenceTextColorRole colorRole;
+  final TypographyVariantId variant;
   final Key textKey;
+  final Key pipetteKey;
 
   @override
   Widget build(BuildContext context) {
-    final splitAt = value.length > 2 ? value.length - 2 : 0;
-    final leading = value.substring(0, splitAt);
-    final pipDigits = value.substring(splitAt);
+    final decimalAt = value.lastIndexOf('.');
+    final fractionLength = decimalAt < 0 ? 0 : value.length - decimalAt - 1;
+    final hasPipette = fractionLength >= 3;
+    final pipetteAt = hasPipette ? value.length - 1 : value.length;
+    final emphasizedLength = math.min(2, fractionLength - (hasPipette ? 1 : 0));
+    final emphasizedAt = pipetteAt - emphasizedLength;
+    final leading = value.substring(0, emphasizedAt);
+    final emphasized = value.substring(emphasizedAt, pipetteAt);
+    final pipette = hasPipette ? value.substring(pipetteAt) : null;
+    final majorRole = variant == TypographyVariantId.quoteBtc
+        ? ReferenceTextRole.quotePriceBtcMajor
+        : ReferenceTextRole.quotePriceMajor;
+    final minorRole = variant == TypographyVariantId.quoteBtc
+        ? ReferenceTextRole.quotePriceBtcMinor
+        : ReferenceTextRole.quotePriceMinor;
+    final majorStyle = AppTypography.forRole(
+      context,
+      majorRole,
+      colorRole: colorRole,
+      variant: variant,
+    );
+    final minorStyle = AppTypography.forRole(
+      context,
+      minorRole,
+      colorRole: colorRole,
+      variant: variant,
+    );
 
     return FittedBox(
       fit: BoxFit.scaleDown,
@@ -1239,128 +1421,97 @@ class _QuotePrice extends StatelessWidget {
         key: textKey,
         TextSpan(
           children: [
-            TextSpan(text: leading, style: AppTypography.quotePriceMajor),
-            TextSpan(text: pipDigits, style: AppTypography.quotePriceMinor),
+            TextSpan(text: leading, style: majorStyle),
+            if (emphasized.isNotEmpty)
+              TextSpan(text: emphasized, style: minorStyle),
+            if (pipette != null)
+              WidgetSpan(
+                alignment: PlaceholderAlignment.baseline,
+                baseline: TextBaseline.alphabetic,
+                child: Transform.translate(
+                  offset: const Offset(
+                    0,
+                    TabReferenceMetrics.quotePricePipetteOffsetY,
+                  ),
+                  child: Text(
+                    pipette,
+                    key: pipetteKey,
+                    style: AppTypography.forRole(
+                      context,
+                      ReferenceTextRole.quotePricePipette,
+                      colorRole: colorRole,
+                      variant: variant,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
         maxLines: 1,
-        style: TextStyle(color: color, height: 1),
+        style: majorStyle,
       ),
     );
   }
 }
 
-String _marketWatchDisplaySymbol(String symbol) =>
-    symbol == 'BTCUSD' ? 'BTC' : displayTradingSymbol(symbol);
+String _marketWatchDisplaySymbol(String symbol) => displayTradingSymbol(symbol);
 
-class _QuoteMeta {
-  const _QuoteMeta({
-    required this.points,
-    required this.percent,
-    required this.time,
-    required this.spread,
-    required this.low,
-    required this.high,
-  });
-
-  factory _QuoteMeta.fromTick(DemoQuote quote, {DateTime? receivedAt}) {
-    final digits = _priceDigits(quote);
-    final factor = switch (digits) {
-      2 => 100.0,
-      3 => 1000.0,
-      4 => 10000.0,
-      _ => 100000.0,
+TypographyVariantId _quoteTypographyVariant(String symbol) =>
+    switch (_marketWatchDisplaySymbol(symbol).toUpperCase()) {
+      'XAUUSD' => TypographyVariantId.quoteXau,
+      'BTCUSD' => TypographyVariantId.quoteBtc,
+      _ => TypographyVariantId.quoteOther,
     };
-    final percentFactor = 1 + quote.changePercent / 100;
-    final inferredPreviousClose = percentFactor.abs() < .0000001
-        ? quote.bid
-        : quote.bid / percentFactor;
-    final referenceClose = quote.previousClose ?? inferredPreviousClose;
-    final points = ((quote.bid - referenceClose) * factor).round();
-    final percent = '${quote.changePercent.toStringAsFixed(2)}%';
-    final spread = ((quote.ask - quote.bid).abs() * factor).round().toString();
-    final rangeValues = [referenceClose, quote.bid, quote.ask];
-    final dailyLow =
-        quote.dailyLow ??
-        rangeValues.reduce((value, next) => value < next ? value : next);
-    final dailyHigh =
-        quote.dailyHigh ??
-        rangeValues.reduce((value, next) => value > next ? value : next);
-    final tickTime = (receivedAt ?? DateTime.now()).subtract(
-      const Duration(hours: 4),
-    );
 
-    return _QuoteMeta(
-      points: points,
-      percent: percent,
-      time:
-          '${_twoDigits(tickTime.hour)}:'
-          '${_twoDigits(tickTime.minute)}:'
-          '${_twoDigits(tickTime.second)}',
-      spread: spread,
-      low: _fixed(dailyLow, digits),
-      high: _fixed(dailyHigh, digits),
-    );
-  }
-
-  static int _priceDigits(DemoQuote quote) {
-    if (quote.symbol.startsWith('XAU') || quote.symbol == 'BTCUSD') return 2;
-    if (quote.bid.abs() >= 100) return 3;
-    return 5;
-  }
-
-  static String _fixed(double value, int digits) =>
-      value.toStringAsFixed(digits);
-
-  static String _twoDigits(int value) => value.toString().padLeft(2, '0');
-
-  final int points;
-  final String percent;
-  final String time;
-  final String spread;
-  final String low;
-  final String high;
-}
-
-class _QuoteCorner extends StatelessWidget {
-  const _QuoteCorner({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Transform.translate(
-    offset: const Offset(0, TabReferenceMetrics.quoteCornerOffsetY),
-    child: CustomPaint(
-      size: const Size(
-        TabReferenceMetrics.quoteCornerWidth,
-        TabReferenceMetrics.quoteCornerHeight,
-      ),
-      painter: _QuoteCornerPainter(color),
-    ),
+({MarketQuoteDisplay display, List<MarketCandle> candles, bool isAvailable})
+_watchQuoteDisplay(
+  WidgetRef ref,
+  DemoQuote quote,
+  List<MarketCandle>? retainedCandles,
+  MarketQuoteDisplay? retainedDisplay, {
+  required DateTime receivedAt,
+}) {
+  final candleState = ref.watch(
+    marketCandlesProvider(MarketDataRequest(quote.symbol, 'D1')),
+  );
+  final candles = candleState.asData?.value ?? retainedCandles ?? const [];
+  final isAvailable = isUsableMarketQuote(quote);
+  return (
+    display: isAvailable
+        ? buildMarketQuoteDisplay(
+            quote: quote,
+            dailyCandles: candles,
+            receivedAt: receivedAt,
+            retainedDisplay: retainedDisplay,
+          )
+        : buildUnavailableMarketQuoteDisplay(
+            quote: quote,
+            receivedAt: receivedAt,
+          ),
+    candles: candles,
+    isAvailable: isAvailable,
   );
 }
 
-class _QuoteCornerPainter extends CustomPainter {
-  const _QuoteCornerPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawPath(
-      Path()
-        ..moveTo(0, 0)
-        ..lineTo(size.width, 0)
-        ..lineTo(0, size.height)
-        ..close(),
-      Paint()..color = color,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _QuoteCornerPainter oldDelegate) =>
-      oldDelegate.color != color;
+String _formatPointChange(int? value) {
+  if (value == null) return '-- ';
+  return value > 0 ? '+$value ' : '$value ';
 }
+
+String _formatPercent(double? value) =>
+    value == null ? '--' : '${value.toStringAsFixed(2)}%';
+
+String _formatStatistic(double? value, int digits) =>
+    value == null ? '--' : value.toStringAsFixed(digits);
+
+String _formatUtcTime(DateTime value) {
+  final utc = value.toUtc();
+  return '${_twoDigits(utc.hour)}:'
+      '${_twoDigits(utc.minute)}:'
+      '${_twoDigits(utc.second)}';
+}
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
 class _SpreadGlyph extends StatelessWidget {
   const _SpreadGlyph();
@@ -1379,7 +1530,7 @@ class _SpreadGlyphPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppColors.pricesSecondary
+      ..color = AppColors.pricesSpread
       ..strokeWidth = 1.15
       ..strokeCap = StrokeCap.square;
     canvas.drawLine(const Offset(1, 1), const Offset(1, 4), paint);
@@ -1445,7 +1596,7 @@ class _EmptyQuotes extends StatelessWidget {
     return const Center(
       child: Text(
         'Không có mã giao dịch',
-        style: TextStyle(color: AppColors.textSecondary),
+        style: TextStyle(color: AppColors.tradingSecondaryText),
       ),
     );
   }

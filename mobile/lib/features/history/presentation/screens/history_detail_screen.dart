@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 
 class HistoryDetailScreen extends StatelessWidget {
   const HistoryDetailScreen({required this.dealId, super.key});
@@ -9,7 +10,7 @@ class HistoryDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(dealId)),
+      appBar: AppBar(title: Text(displayTradingTicketId(dealId))),
       body: const Padding(
         padding: EdgeInsets.all(AppSpacing.md),
         child: Column(

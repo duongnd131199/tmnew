@@ -2,15 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/core/audio/order_success_sound.dart';
 import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
 import 'package:trading_mobile/features/market_watch/presentation/screens/market_watch_screen.dart';
 import 'package:trading_mobile/features/order/presentation/screens/new_order_screen.dart';
 import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.dart';
+import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 import 'test_support/video_reference_fixtures.dart';
+
+class _RecordingOrderSuccessSoundPlayer implements OrderSuccessSoundPlayer {
+  int playCount = 0;
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> play() async {
+    playCount += 1;
+  }
+
+  @override
+  Future<void> warmUp() async {}
+}
 
 void main() {
   void useVideoViewport(WidgetTester tester) {
@@ -22,9 +39,16 @@ void main() {
     });
   }
 
-  ProviderContainer createContainer({bool withCandles = false}) {
+  ProviderContainer createContainer({
+    bool withCandles = false,
+    OrderSuccessSoundPlayer? orderSuccessSoundPlayer,
+  }) {
     return createVideoReferenceContainer(
       overrides: [
+        if (orderSuccessSoundPlayer != null)
+          orderSuccessSoundPlayerProvider.overrideWithValue(
+            orderSuccessSoundPlayer,
+          ),
         demoQuoteProvider.overrideWith((ref, symbol) {
           final quote = ref
               .read(demoQuotesProvider)
@@ -364,6 +388,42 @@ void main() {
     expect(find.textContaining('hoàn tất'), findsOneWidget);
   });
 
+  testWidgets('close form hides a server GUID behind a short numeric ticket', (
+    tester,
+  ) async {
+    const position = DemoPosition(
+      id: '894faaa5-5d41-49bd-8a52-5daf0281d948',
+      symbol: 'XAUUSD',
+      side: 'BUY',
+      volume: .25,
+      openPrice: 4102.125,
+      currentPrice: 4102.396,
+      profit: 6.78,
+    );
+    final container = createVideoReferenceContainer(
+      overrides: [
+        demoPositionsProvider.overrideWithValue(const [position]),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: NewOrderScreen(
+            symbol: position.symbol,
+            closePositionId: position.id,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('#11615687251 buy 0.25'), findsOneWidget);
+    expect(find.textContaining(position.id), findsNothing);
+  });
+
   testWidgets('position tap, swipe and context dialog follow the video', (
     tester,
   ) async {
@@ -585,6 +645,53 @@ void main() {
     );
   });
 
+  testWidgets('close by chooser hides both server GUIDs', (tester) async {
+    useVideoViewport(tester);
+    const source = DemoPosition(
+      id: '894faaa5-5d41-49bd-8a52-5daf0281d948',
+      symbol: 'XAUUSD',
+      side: 'BUY',
+      volume: .25,
+      openPrice: 4102.125,
+      currentPrice: 4102.396,
+      profit: 6.78,
+    );
+    const opposite = DemoPosition(
+      id: '5ff94719-e61a-4c05-bbab-bb6f81c15369',
+      symbol: 'XAUUSD',
+      side: 'SELL',
+      volume: .25,
+      openPrice: 4102.500,
+      currentPrice: 4102.396,
+      profit: -2.60,
+    );
+    final container = createVideoReferenceContainer(
+      overrides: [
+        demoPositionsProvider.overrideWithValue(const [source, opposite]),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: TradeScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(ValueKey('trade-position-${source.id}')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Đóng bởi'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.textContaining('#11615687251'), findsOneWidget);
+    expect(find.textContaining('#71383708458'), findsOneWidget);
+    expect(find.textContaining(source.id), findsNothing);
+    expect(find.textContaining(opposite.id), findsNothing);
+  });
+
   testWidgets(
     'trade position follows the finger, resists overscroll and snaps smoothly',
     (tester) async {
@@ -782,6 +889,71 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('CHART XAUUSD+'), findsOneWidget);
     expect(router.state.uri.queryParameters['timeframe'], 'H4');
+  });
+
+  testWidgets('successful chart one-click order plays one confirmation sound', (
+    tester,
+  ) async {
+    useVideoViewport(tester);
+    final soundPlayer = _RecordingOrderSuccessSoundPlayer();
+    final container = createContainer(
+      withCandles: true,
+      orderSuccessSoundPlayer: soundPlayer,
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'H4'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
+    await tester.pump();
+
+    final positionsBefore = container.read(demoPositionsProvider).length;
+
+    await tester.tap(find.byKey(const Key('chart-ticket-buy')));
+    await tester.pump();
+
+    expect(
+      container.read(demoPositionsProvider),
+      hasLength(positionsBefore + 1),
+    );
+    expect(soundPlayer.playCount, 1);
+  });
+
+  testWidgets('successful chart pending order plays one confirmation sound', (
+    tester,
+  ) async {
+    useVideoViewport(tester);
+    final soundPlayer = _RecordingOrderSuccessSoundPlayer();
+    final container = createContainer(
+      withCandles: true,
+      orderSuccessSoundPlayer: soundPlayer,
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: ChartScreen(symbol: 'XAUUSD+', initialTimeframe: 'H4'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.longPress(find.byKey(const Key('chart-gesture-area')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('chart-pending-order-pill')));
+    await tester.pump();
+
+    expect(container.read(demoPendingOrdersProvider), hasLength(1));
+    expect(soundPlayer.playCount, 1);
   });
 
   testWidgets(

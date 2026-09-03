@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 3,
+  "sourcePackage": {
+    "package": "net.metaquotes.metatrader5",
+    "versionName": "500.6140",
+    "versionCode": 6140,
+    "downloadUrl": "https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk",
+    "retrievedAt": "2026-08-31",
+    "apkSha256": "c76582495cdd55061a38942bae9a4d2d33ed140840af94dec82cc6ad7001782b",
+    "licenseTextSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  "fonts": [
+    {
+      "file": "Roboto-Regular.ttf",
+      "assetPath": "assets/fonts/mt5-reference/Roboto-Regular.ttf",
+      "family": "Roboto",
+      "subfamily": "Regular",
+      "fullName": "Roboto Regular",
+      "nameVersion": "Version 1.200310; 2013",
+      "headRevision": 1.0,
+      "unitsPerEm": 2048,
+      "os2WeightClass": 400,
+      "byteLength": 114976,
+      "archivePath": "assets/fonts/Roboto-Regular.ttf",
+      "sourceUrl": "https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk",
+      "retrievedAt": "2026-08-31",
+      "flutterFamily": "Mt5ReferenceRoboto",
+      "weight": 400,
+      "sha256": "f87925e2be4c38abba7920ec54e5634f0538ba6368d758e4da300d9af12c9d27",
+      "license": "Apache-2.0",
+      "licenseEvidencePath": "assets/fonts/mt5-reference/LICENSE-Apache-2.0.txt",
+      "licenseEvidenceSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "sourceArtifact": {
+        "kind": "apkEntry",
+        "url": "https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk",
+        "sha256": "c76582495cdd55061a38942bae9a4d2d33ed140840af94dec82cc6ad7001782b",
+        "archivePath": "assets/fonts/Roboto-Regular.ttf",
+        "retrievedAt": "2026-08-31"
+      },
+      "redistributable": true,
+      "approvedRoleGroups": [
+        "navigation",
+        "settings",
+        "toolbar",
+        "tradeMetrics",
+        "historySummary",
+        "chartCanvas"
+      ],
+      "axes": []
+    },
+    {
+      "file": "Roboto-Bold.ttf",
+      "assetPath": "assets/fonts/mt5-reference/Roboto-Bold.ttf",
+      "family": "Roboto",
+      "subfamily": "Bold",
+      "fullName": "Roboto Bold",
+      "nameVersion": "Version 1.100141; 2013",
+      "headRevision": 1.0,
+      "unitsPerEm": 2048,
+      "os2WeightClass": 700,
+      "byteLength": 135820,
+      "archivePath": "assets/fonts/Roboto-Bold.ttf",
+      "sourceUrl": "https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk",
+      "retrievedAt": "2026-08-31",
+      "flutterFamily": "Mt5ReferenceRoboto",
+      "weight": 700,
+      "sha256": "9287925cae90ac480804094ff0876832065e2db116470da1f524d79ed9c18b70",
+      "license": "Apache-2.0",
+      "licenseEvidencePath": "assets/fonts/mt5-reference/LICENSE-Apache-2.0.txt",
+      "licenseEvidenceSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "sourceArtifact": {
+        "kind": "apkEntry",
+        "url": "https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk",
+        "sha256": "c76582495cdd55061a38942bae9a4d2d33ed140840af94dec82cc6ad7001782b",
+        "archivePath": "assets/fonts/Roboto-Bold.ttf",
+        "retrievedAt": "2026-08-31"
+      },
+      "redistributable": true,
+      "approvedRoleGroups": [
+        "navigation",
+        "settings",
+        "toolbar",
+        "tradeMetrics",
+        "historySummary",
+        "chartCanvas"
+      ],
+      "axes": []
+    },
+    {
+      "file": "RobotoCondensed-Regular.ttf",
+      "assetPath": "assets/fonts/mt5-reference/RobotoCondensed-Regular.ttf",
+      "family": "Roboto Condensed",
+      "subfamily": "Regular",
+      "fullName": "Roboto Condensed Regular",
+      "nameVersion": "Version 1.200311; 2013",
+      "headRevision": 1.0,
+      "unitsPerEm": 2048,
+      "os2WeightClass": 400,
+      "byteLength": 114575,
+      "archivePath": "assets/fonts/RobotoCondensed-Regular.ttf",
+      "sourceUrl": "https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk",
+      "retrievedAt": "2026-08-31",
+      "flutterFamily": "Mt5ReferenceRobotoCondensed",
+      "weight": 400,
+      "sha256": "f66f4e3088a52aa5e685a45d9a532c28d8de4bf1cf267586961018e5af488ec8",
+      "license": "Apache-2.0",
+      "licenseEvidencePath": "assets/fonts/mt5-reference/LICENSE-Apache-2.0.txt",
+      "licenseEvidenceSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "sourceArtifact": {
+        "kind": "apkEntry",
+        "url": "https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk",
+        "sha256": "c76582495cdd55061a38942bae9a4d2d33ed140840af94dec82cc6ad7001782b",
+        "archivePath": "assets/fonts/RobotoCondensed-Regular.ttf",
+        "retrievedAt": "2026-08-31"
+      },
+      "redistributable": true,
+      "approvedRoleGroups": [
+        "pricesDense",
+        "chartTicket",
+        "tradeDense",
+        "historyDense"
+      ],
+      "axes": []
+    },
+    {
+      "file": "RobotoCondensed-Bold.ttf",
+      "assetPath": "assets/fonts/mt5-reference/RobotoCondensed-Bold.ttf",
+      "family": "Roboto Condensed",
+      "subfamily": "Bold",
+      "fullName": "Roboto Condensed Bold",
+      "nameVersion": "Version 1.200311; 2013",
+      "headRevision": 1.0,
+      "unitsPerEm": 2048,
+      "os2WeightClass": 700,
+      "byteLength": 115036,
+      "archivePath": "assets/fonts/RobotoCondensed-Bold.ttf",
+      "sourceUrl": "https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk",
+      "retrievedAt": "2026-08-31",
+      "flutterFamily": "Mt5ReferenceRobotoCondensed",
+      "weight": 700,
+      "sha256": "ae01d956edc5a944ebbbd0c1d344b03973ab634419bc06093ce89f737e7e6e9a",
+      "license": "Apache-2.0",
+      "licenseEvidencePath": "assets/fonts/mt5-reference/LICENSE-Apache-2.0.txt",
+      "licenseEvidenceSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "sourceArtifact": {
+        "kind": "apkEntry",
+        "url": "https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk",
+        "sha256": "c76582495cdd55061a38942bae9a4d2d33ed140840af94dec82cc6ad7001782b",
+        "archivePath": "assets/fonts/RobotoCondensed-Bold.ttf",
+        "retrievedAt": "2026-08-31"
+      },
+      "redistributable": true,
+      "approvedRoleGroups": [
+        "pricesDense",
+        "chartTicket",
+        "tradeDense",
+        "historyDense"
+      ],
+      "axes": []
+    },
+    {
+      "file": "RobotoCondensed-Variable.ttf",
+      "assetPath": "assets/fonts/RobotoCondensed-Variable.ttf",
+      "family": "Roboto Condensed",
+      "subfamily": "Regular",
+      "fullName": "Roboto Condensed Regular",
+      "nameVersion": "Version 3.008; 2023",
+      "headRevision": 3.00799560546875,
+      "unitsPerEm": 2048,
+      "os2WeightClass": 400,
+      "byteLength": 371616,
+      "archivePath": "RobotoCondensed-Variable.ttf",
+      "sourceUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/robotocondensed/RobotoCondensed%5Bwght%5D.ttf",
+      "retrievedAt": "2026-08-26",
+      "flutterFamily": "Mt5ReferenceRobotoCondensedVariable",
+      "weight": 400,
+      "sha256": "dace262afcee68a5276f200d8026c57221735c0118ab5fda8c2c0d3dc409a8d0",
+      "license": "Apache-2.0",
+      "licenseEvidencePath": "assets/fonts/LICENSE-RobotoCondensed-Apache-2.0.txt",
+      "licenseEvidenceSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "sourceArtifact": {
+        "kind": "directFontFile",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/robotocondensed/RobotoCondensed%5Bwght%5D.ttf",
+        "sha256": "dace262afcee68a5276f200d8026c57221735c0118ab5fda8c2c0d3dc409a8d0",
+        "archivePath": "RobotoCondensed-Variable.ttf",
+        "retrievedAt": "2026-08-26"
+      },
+      "redistributable": true,
+      "approvedRoleGroups": [
+        "tradeMetrics",
+        "tradeDense",
+        "historySummary"
+      ],
+      "axes": [
+        {
+          "tag": "wght",
+          "minimum": 100,
+          "default": 400,
+          "maximum": 900
+        }
+      ]
+    }
+  ]
+}

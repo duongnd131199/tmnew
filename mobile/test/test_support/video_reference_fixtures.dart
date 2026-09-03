@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
+import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 const videoPrimaryAccountId = '10001001';
@@ -72,13 +74,14 @@ const videoDemoAccountProfiles = <DemoAccountProfile>[
   ),
 ];
 
-const videoDemoQuotes = <DemoQuote>[
+final videoDemoQuotes = <DemoQuote>[
   DemoQuote(
     symbol: 'XAUUSD+',
     name: 'Gold US Dollar',
     bid: 4104.09,
     ask: 4104.22,
     changePercent: 0,
+    sourceTimestamp: DateTime.utc(2026, 8, 31, 4, 32, 31),
   ),
   DemoQuote(
     symbol: 'XAUUSD',
@@ -86,6 +89,7 @@ const videoDemoQuotes = <DemoQuote>[
     bid: 4104.09,
     ask: 4104.22,
     changePercent: 0,
+    sourceTimestamp: DateTime.utc(2026, 8, 31, 4, 32, 31),
   ),
   DemoQuote(
     symbol: 'BTCUSD',
@@ -93,8 +97,45 @@ const videoDemoQuotes = <DemoQuote>[
     bid: 65175.98,
     ask: 65193.10,
     changePercent: 0,
+    sourceTimestamp: DateTime.utc(2026, 8, 31, 4, 32, 30),
   ),
 ];
+
+final videoReferenceDailyCandles = <String, List<MarketCandle>>{
+  for (final symbol in const ['XAUUSD+', 'XAUUSD'])
+    symbol: [
+      MarketCandle(
+        time: DateTime.utc(2026, 8, 30),
+        open: 4104.40,
+        high: 4105.00,
+        low: 4103.80,
+        close: 4104.09,
+      ),
+      MarketCandle(
+        time: DateTime.utc(2026, 8, 31),
+        open: 4104.09,
+        high: 4104.22,
+        low: 4104.09,
+        close: 4104.09,
+      ),
+    ],
+  'BTCUSD': [
+    MarketCandle(
+      time: DateTime.utc(2026, 8, 30),
+      open: 65120,
+      high: 65220,
+      low: 65080,
+      close: 65175.98,
+    ),
+    MarketCandle(
+      time: DateTime.utc(2026, 8, 31),
+      open: 65175.98,
+      high: 65193.10,
+      low: 65175.98,
+      close: 65175.98,
+    ),
+  ],
+};
 
 double videoMarginCalculator(String accountId, int positionCount) =>
     switch (accountId) {
@@ -110,11 +151,25 @@ List<Override> get videoReferenceOverrides => [
   demoTradingSeedProvider.overrideWithValue(videoTradingSeed),
   demoMarginCalculatorProvider.overrideWithValue(videoMarginCalculator),
   demoQuotesProvider.overrideWithValue(videoDemoQuotes),
+  marketCandlesProvider.overrideWith(
+    (ref, request) => Stream.value(
+      videoReferenceDailyCandles[request.symbol] ?? const <MarketCandle>[],
+    ),
+  ),
 ];
 
 ProviderContainer createVideoReferenceContainer({
   List<Override> overrides = const [],
-}) => ProviderContainer(overrides: [...videoReferenceOverrides, ...overrides]);
+}) => ProviderContainer(
+  overrides: [
+    for (final defaultOverride in videoReferenceOverrides)
+      if (!overrides.any(
+        (override) => identical(override.origin, defaultOverride.origin),
+      ))
+        defaultOverride,
+    ...overrides,
+  ],
+);
 
 DemoTradingState videoTradingSeed(String accountId) {
   return switch (accountId) {

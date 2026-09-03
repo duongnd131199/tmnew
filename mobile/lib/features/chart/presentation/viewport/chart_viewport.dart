@@ -13,7 +13,8 @@ class ChartViewport {
   static const double minimumBarSpacing = 4;
   static const double maximumBarSpacing = 48;
   static const double defaultBarSpacing = 28;
-  static const double defaultRightPadding = 8;
+  static const double defaultRightPadding = defaultBarSpacing;
+  static const int maximumFutureCandleSlots = 4;
 
   final double barSpacing;
   final double scrollOffset;
@@ -36,21 +37,29 @@ class ChartViewport {
       barSpacing,
       defaultBarSpacing,
     ).clamp(minimumBarSpacing, maximumBarSpacing);
-    final padding = math.max(0.0, _finite(rightPadding, defaultRightPadding));
+    final padding = spacing;
     final candidate = ChartViewport(
       barSpacing: spacing,
-      scrollOffset: math.max(0.0, _finite(scrollOffset, 0)),
+      scrollOffset: _finite(scrollOffset, 0),
       rightPadding: padding,
     );
     return candidate.copyWith(
       scrollOffset: candidate.scrollOffset.clamp(
-        0.0,
+        candidate.minScrollOffset,
         candidate.maxScrollOffset(
           plotWidth: plotWidth,
           candleCount: candleCount,
         ),
       ),
     );
+  }
+
+  double get minScrollOffset {
+    final spacing = _finite(
+      barSpacing,
+      defaultBarSpacing,
+    ).clamp(minimumBarSpacing, maximumBarSpacing);
+    return -(maximumFutureCandleSlots - 1) * spacing;
   }
 
   double maxScrollOffset({
@@ -63,7 +72,7 @@ class ChartViewport {
       barSpacing,
       defaultBarSpacing,
     ).clamp(minimumBarSpacing, maximumBarSpacing);
-    final padding = math.max(0.0, _finite(rightPadding, defaultRightPadding));
+    final padding = spacing;
     return math.max(0.0, (candleCount - 1) * spacing - (width - padding));
   }
 
@@ -170,9 +179,42 @@ class ChartViewport {
 class ChartViewportController {
   static const double inertiaProjectionSeconds = .18;
 
+  ChartViewport? _panStartViewport;
+  double _panStartFocalPoint = 0;
   ChartViewport? _scaleStartViewport;
   double _scaleFocalCandle = 0;
   double _scaleStartGestureScale = 1;
+
+  void beginPan({
+    required ChartViewport viewport,
+    required double focalPoint,
+    required double plotWidth,
+    required int candleCount,
+  }) {
+    _panStartViewport = viewport.bounded(
+      plotWidth: plotWidth,
+      candleCount: candleCount,
+    );
+    _panStartFocalPoint = focalPoint.isFinite ? focalPoint : 0;
+  }
+
+  ChartViewport updatePan({
+    required double focalPoint,
+    required double plotWidth,
+    required int candleCount,
+  }) {
+    final start = (_panStartViewport ?? const ChartViewport()).bounded(
+      plotWidth: plotWidth,
+      candleCount: candleCount,
+    );
+    final currentFocalPoint = focalPoint.isFinite ? focalPoint : 0;
+    return start
+        .copyWith(
+          scrollOffset:
+              start.scrollOffset + currentFocalPoint - _panStartFocalPoint,
+        )
+        .bounded(plotWidth: plotWidth, candleCount: candleCount);
+  }
 
   void beginScale({
     required ChartViewport viewport,
@@ -215,12 +257,18 @@ class ChartViewportController {
     final width = math.max(0.0, plotWidth.isFinite ? plotWidth : 0.0);
     final focal = focalPoint.isFinite ? focalPoint : 0;
     final newestIndex = math.max(0, candleCount - 1);
-    final offset =
-        focal -
-        (width - start.rightPadding) +
-        (newestIndex - _scaleFocalCandle) * spacing;
+    final currentFutureSlotCount = (1 - start.scrollOffset / start.barSpacing)
+        .clamp(1.0, ChartViewport.maximumFutureCandleSlots.toDouble());
+    final focalOffset =
+        focal - (width - spacing) + (newestIndex - _scaleFocalCandle) * spacing;
+    final preservedFutureOffset = -(currentFutureSlotCount - 1) * spacing;
+    final offset = math.max(focalOffset, preservedFutureOffset);
     return start
-        .copyWith(barSpacing: spacing, scrollOffset: offset)
+        .copyWith(
+          barSpacing: spacing,
+          scrollOffset: offset,
+          rightPadding: spacing,
+        )
         .bounded(plotWidth: width, candleCount: candleCount);
   }
 

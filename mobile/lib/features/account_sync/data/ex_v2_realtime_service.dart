@@ -7,12 +7,16 @@ final class ExV2RealtimeEvent {
   const ExV2RealtimeEvent({
     required this.name,
     required this.data,
+    this.eventId,
+    this.correlationId,
     this.version,
     this.accountId,
   });
 
   final String name;
   final Map<String, dynamic> data;
+  final String? eventId;
+  final String? correlationId;
   final int? version;
   final String? accountId;
 }
@@ -32,6 +36,8 @@ final class ExV2RealtimeService {
     'PositionUpdated',
     'PositionClosed',
     'DealCreated',
+    'CloseExecutionCommitted',
+    'DepositRequestUpdated',
     'HistoryUpdated',
     'WalletUpdated',
     'DepositUpdated',
@@ -96,6 +102,8 @@ final class ExV2RealtimeService {
       ExV2RealtimeEvent(
         name: name,
         data: data,
+        eventId: data['eventId']?.toString(),
+        correlationId: data['correlationId']?.toString(),
         version: versionValue is num ? versionValue.toInt() : null,
         accountId: data['accountId']?.toString(),
       ),

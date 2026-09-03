@@ -14,6 +14,7 @@ import 'package:trading_mobile/features/chart/presentation/rendering/chart_rende
 import 'package:trading_mobile/features/chart/presentation/rendering/mt5_candle_painter.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
 import 'package:trading_mobile/features/chart/presentation/theme/chart_reference_theme.dart';
+import 'package:trading_mobile/features/chart/presentation/viewport/chart_price_viewport.dart';
 import 'package:trading_mobile/features/chart/presentation/viewport/chart_viewport.dart';
 import 'package:trading_mobile/features/market_watch/presentation/screens/market_watch_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
@@ -26,12 +27,17 @@ const _foreground = 0xFF000000;
 const _grid = 0xFFE8E8E8;
 const _bullish = 0xFF26A69A;
 const _bearish = 0xFFEF5350;
-const _tradeBlue = 0xFF3183FF;
-const _plotTitleBlue = 0xFF3985E9;
+const _tradeBlue = 0xFF007AFF;
+const _tradeRed = 0xFFDD4139;
+const _toolbarInk = 0xFF3C3C43;
+const _toolbarAccentRed = 0xFFD65647;
+const _toolbarAccentBlue = 0xFF3D87EA;
+const _toolbarAccentNeutral = 0xFFB3BDBF;
+const _plotTitleBlue = 0xFF3D87EA;
 const _ticketBlue = 0xFF007AFF;
 const _axisBorder = 0xFFD8D8D8;
-const _axisText = 0xFF404040;
-const _plotSubtitleText = 0xFF404040;
+const _axisText = 0xFF3C3C43;
+const _plotSubtitleText = 0xFF3C3C43;
 const _priceLine = 0xFF26A69A;
 const _renderSize = Size(384, 600);
 const _hostilePrimary = Color(0xFFFF00E5);
@@ -47,6 +53,7 @@ const _alternateTheme = ChartReferenceTheme(
   bullish: Color(0xFF147D64),
   bearish: Color(0xFFB61F48),
   tradeBlue: Color(0xFF7257D7),
+  tradeRed: Color(0xFFCE3A26),
   plotTitleBlue: Color(0xFF684FC9),
   ticketBlue: Color(0xFF0A6CE0),
   axisBorder: Color(0xFF8E6F9E),
@@ -60,6 +67,7 @@ ChartReferenceTheme _replaceTheme(
   Color? bullish,
   Color? bearish,
   Color? tradeBlue,
+  Color? tradeRed,
   Color? ticketBlue,
   Color? priceLine,
 }) => ChartReferenceTheme(
@@ -69,6 +77,7 @@ ChartReferenceTheme _replaceTheme(
   bullish: bullish ?? source.bullish,
   bearish: bearish ?? source.bearish,
   tradeBlue: tradeBlue ?? source.tradeBlue,
+  tradeRed: tradeRed ?? source.tradeRed,
   plotTitleBlue: source.plotTitleBlue,
   ticketBlue: ticketBlue ?? source.ticketBlue,
   axisBorder: source.axisBorder,
@@ -103,20 +112,23 @@ Mt5CandlePainter _painter({
   String? pendingOrderType,
   double? pendingOrderPrice,
   double barSpacing = ChartViewport.defaultBarSpacing,
+  ChartViewport? viewport,
+  ChartPriceViewport priceViewport = const ChartPriceViewport.auto(),
   DateTime? tickTime,
   String symbol = 'TEST',
   String timeframe = 'M5',
 }) {
   final resolvedCandles = candles ?? _candles();
   final resolvedPrice = currentPrice ?? resolvedCandles.last.close;
-  final viewport = ChartViewport(barSpacing: barSpacing);
+  final resolvedViewport = viewport ?? ChartViewport(barSpacing: barSpacing);
   final snapshot = ChartRenderSnapshot.evolve(
     history: resolvedCandles,
     liveTail: const <MarketCandle>[],
     resolvedCandles: resolvedCandles,
     historyRevision: 0,
     liveCandleRevision: 0,
-    viewport: viewport,
+    viewport: resolvedViewport,
+    priceViewport: priceViewport,
     overlayValues: <Object?>[
       crosshairEnabled,
       for (final position in positions) ...<Object?>[
@@ -247,6 +259,23 @@ final class _RenderedPixels {
       }
     }
     return count;
+  }
+
+  int minimumRgb(Rect region) {
+    final left = region.left.floor().clamp(0, width - 1);
+    final top = region.top.floor().clamp(0, height - 1);
+    final right = region.right.ceil().clamp(left + 1, width);
+    final bottom = region.bottom.ceil().clamp(top + 1, height);
+    var minimum = 0xFF;
+    for (var y = top; y < bottom; y++) {
+      for (var x = left; x < right; x++) {
+        final offset = (y * width + x) * 4;
+        minimum = math.min(minimum, rgba[offset]);
+        minimum = math.min(minimum, rgba[offset + 1]);
+        minimum = math.min(minimum, rgba[offset + 2]);
+      }
+    }
+    return minimum;
   }
 
   int countUnambiguousRole(
@@ -608,9 +637,9 @@ void _expectFullyDerivedOverlayTheme(WidgetTester tester, Finder finder) {
     scheme.outlineVariant,
     _alternateTheme.axisBorder.withValues(alpha: .65),
   );
-  expect(scheme.error, _alternateTheme.bearish);
+  expect(scheme.error, _alternateTheme.tradeRed);
   expect(scheme.onError, _alternateTheme.background);
-  expect(scheme.errorContainer, _over(_alternateTheme.bearish, .16));
+  expect(scheme.errorContainer, _over(_alternateTheme.tradeRed, .16));
   expect(scheme.onErrorContainer, _alternateTheme.foreground);
   expect(scheme.surfaceDim, _over(_alternateTheme.foreground, .12));
   expect(scheme.surfaceBright, _alternateTheme.background);
@@ -674,6 +703,14 @@ void _expectTextButtonStates(WidgetTester tester, Finder buttonFinder) {
 }
 
 void main() {
+  test('chart source locks remain independent from the Trade palette', () {
+    expect(AppColors.tradingPositiveText.toARGB32(), _tradeBlue);
+    expect(AppColors.tradingNegativeText.toARGB32(), _tradeRed);
+    expect(AppColors.tradingPrimaryText.toARGB32(), _foreground);
+    expect(AppColors.chartPlotTitleBlue.toARGB32(), _plotTitleBlue);
+    expect(AppColors.textSecondary.toARGB32(), _axisText);
+  });
+
   test('painter exposes the exact immutable MT5 light palette', () {
     const light = ChartReferenceTheme.light;
     expect(light.background.toARGB32(), _background);
@@ -682,7 +719,18 @@ void main() {
     expect(light.bullish.toARGB32(), _bullish);
     expect(light.bearish.toARGB32(), _bearish);
     expect(light.tradeBlue.toARGB32(), _tradeBlue);
-    expect(light.plotTitleBlue.toARGB32(), _plotTitleBlue);
+    expect(light.tradeRed.toARGB32(), _tradeRed);
+    expect(light.toolbarInk.toARGB32(), _toolbarInk);
+    expect(
+      ChartReferenceTheme.toolbarAccentBlue.toARGB32(),
+      _toolbarAccentBlue,
+    );
+    expect(ChartReferenceTheme.toolbarAccentRed.toARGB32(), _toolbarAccentRed);
+    expect(
+      ChartReferenceTheme.toolbarAccentNeutral.toARGB32(),
+      _toolbarAccentNeutral,
+    );
+    expect(light.plotTitleBlue.toARGB32(), _tradeBlue);
     expect(light.ticketBlue.toARGB32(), _ticketBlue);
     expect(light.axisBorder.toARGB32(), _axisBorder);
     expect(light.axisText.toARGB32(), _axisText);
@@ -694,11 +742,16 @@ void main() {
     final painter = _painter(theme: _alternateTheme, barSpacing: 48);
     final pixels = await _renderPainter(painter);
     final visible = painter.hitTargets.visibleCandles;
-    final bullishIndex = visible.indexWhere(
-      (candle) => candle.close > candle.open,
+    final visibleIndices = List<int>.generate(visible.length, (index) => index);
+    final bullishIndex = visibleIndices.firstWhere(
+      (index) =>
+          visible[index].close > visible[index].open &&
+          _candleX(painter, index) > painter.hitTargets.candleWidth,
     );
-    final bearishIndex = visible.indexWhere(
-      (candle) => candle.close < candle.open,
+    final bearishIndex = visibleIndices.firstWhere(
+      (index) =>
+          visible[index].close < visible[index].open &&
+          _candleX(painter, index) > painter.hitTargets.candleWidth,
     );
 
     final bullish = _candleBodyAndWickRoleCounts(
@@ -870,6 +923,77 @@ void main() {
         wrongPainter.debugCurrentPriceBadgeRect!,
       ),
       greaterThan(100),
+    );
+  });
+
+  test(
+    'horizontal pan keeps realtime overlay inside the vertical price range',
+    () async {
+      final candles = _candles(allBearish: true);
+      final painter = _painter(
+        theme: _alternateTheme,
+        candles: candles,
+        currentPrice: 100.5,
+        viewport: const ChartViewport(scrollOffset: 10000),
+      );
+      final pixels = await _renderPainter(painter);
+      final targets = painter.hitTargets;
+      final currentY = _priceY(painter, painter.currentPrice);
+
+      expect(targets.visibleCandles, isNot(contains(candles.last)));
+      expect(currentY, inInclusiveRange(targets.priceTop, targets.chartHeight));
+      expect(
+        pixels.countUnambiguousRole(
+          _alternateTheme.priceLine,
+          _alternateTheme,
+          Rect.fromLTRB(8, currentY - 2, targets.chartWidth - 8, currentY + 2),
+        ),
+        greaterThan(0),
+        reason: 'Horizontal candle visibility must not hide an in-range price.',
+      );
+      expect(
+        painter.debugCurrentPriceBadgeRect,
+        isNotNull,
+        reason:
+            'The in-range price badge must remain visible after horizontal pan.',
+      );
+    },
+  );
+
+  test('vertical price range hides the realtime line and badge', () async {
+    final candles = _candles(allBearish: true);
+    final painter = _painter(
+      theme: _alternateTheme,
+      candles: candles,
+      currentPrice: 105.1,
+      symbol: 'XAUUSD+',
+      timeframe: 'M1',
+      priceViewport: const ChartPriceViewport.manual(
+        centerPrice: 100,
+        range: 10,
+      ),
+    );
+    final pixels = await _renderPainter(painter);
+    final targets = painter.hitTargets;
+    final currentY = _priceY(painter, painter.currentPrice);
+
+    expect(targets.visibleCandles, contains(candles.last));
+    expect(currentY, lessThan(targets.priceTop));
+    expect(currentY, greaterThan(0));
+    expect(
+      pixels.countUnambiguousRole(
+        _alternateTheme.priceLine,
+        _alternateTheme,
+        Rect.fromLTRB(8, currentY - 2, targets.chartWidth - 8, currentY + 2),
+      ),
+      0,
+      reason: 'An out-of-range price line must not leak into the chart header.',
+    );
+    expect(
+      painter.debugCurrentPriceBadgeRect,
+      isNull,
+      reason:
+          'An out-of-range realtime price must not clamp into an axis badge.',
     );
   });
 
@@ -1109,6 +1233,35 @@ void main() {
     );
   });
 
+  test('SELL position annotation uses the Trade negative text ink', () async {
+    const openPrice = 103.0;
+    final painter = _painter(
+      symbol: 'XAUUSD+',
+      timeframe: 'M1',
+      positions: const [
+        DemoPosition(
+          id: 'sell',
+          symbol: 'XAUUSD+',
+          side: 'SELL',
+          volume: .1,
+          openPrice: openPrice,
+          currentPrice: 104,
+          profit: -4.5,
+        ),
+      ],
+    );
+    final pixels = await _renderPainter(painter);
+    final y = _priceY(painter, openPrice);
+
+    expect(
+      pixels.countArgb(
+        0xFFDD4139,
+        Rect.fromLTRB(4, y - 20, painter.hitTargets.chartWidth, y + 2),
+      ),
+      greaterThan(0),
+    );
+  });
+
   test('M1 position label uses the measured line clearance', () async {
     const openPrice = 103.0;
     final painter = _painter(
@@ -1140,6 +1293,38 @@ void main() {
     expect(bounds.bottom, lessThan(y));
   });
 
+  test(
+    'position price-tag text keeps the measured centered frame inset',
+    () async {
+      const openPrice = 103.0;
+      final painter = _painter(
+        theme: _alternateTheme,
+        symbol: 'XAUUSD+',
+        timeframe: 'M1',
+        positions: const [
+          DemoPosition(
+            id: 'buy-price-tag',
+            symbol: 'XAUUSD+',
+            side: 'BUY',
+            volume: .1,
+            openPrice: openPrice,
+            currentPrice: 104,
+            profit: 4.5,
+          ),
+        ],
+      );
+      await _renderPainter(painter);
+      final layout = painter.hitTargets.positionPriceTagLayouts.single;
+
+      expect(layout.frame.height, 15);
+      expect(
+        layout.textOrigin.dy - layout.frame.top,
+        1.5,
+        reason: 'The price digits need the measured optical top inset.',
+      );
+    },
+  );
+
   test('M1 time-axis ink starts at the axis origin', () async {
     final painter = _painter(
       theme: _alternateTheme,
@@ -1163,12 +1348,20 @@ void main() {
     expect(bounds!.top - axis.top, lessThanOrEqualTo(3));
   });
 
-  test('M1 axis uses the measured #404040 semantic ink', () async {
+  test('M1 axis uses the locked secondary #3C3C43 ink', () async {
     final painter = _painter(symbol: 'XAUUSD+', timeframe: 'M1');
     final pixels = await _renderPainter(painter);
     final axis = painter.hitTargets.priceAxisRect;
 
-    expect(pixels.countArgb(0xFF404040, axis, tolerance: 1), greaterThan(0));
+    expect(pixels.countArgb(_axisText, axis, tolerance: 1), greaterThan(0));
+  });
+
+  test('BTC H1 axis uses the locked secondary #3C3C43 ink', () async {
+    final painter = _painter(symbol: 'BTCUSD', timeframe: 'H1');
+    final pixels = await _renderPainter(painter);
+    final axis = painter.hitTargets.priceAxisRect;
+
+    expect(pixels.countArgb(_axisText, axis, tolerance: 1), greaterThan(0));
   });
 
   test('canvas background, grid, axes and frame use light roles', () async {
@@ -1196,7 +1389,7 @@ void main() {
     );
     expect(
       pixels.countArgb(
-        _foreground,
+        _axisText,
         Rect.fromLTRB(chartWidth, 0, _renderSize.width, _renderSize.height),
       ),
       greaterThan(0),
@@ -1209,6 +1402,15 @@ void main() {
       ),
       greaterThan(0),
     );
+  });
+
+  test('chart grid renders with softened ink over the white surface', () async {
+    final painter = _painter(candles: _candles(allBearish: true));
+    final pixels = await _renderPainter(painter);
+    final gridY = painter.hitTargets.horizontalGridYs[1];
+    final gridBand = Rect.fromLTRB(6, gridY - 1, 8, gridY + 1);
+
+    expect(pixels.minimumRgb(gridBand), greaterThanOrEqualTo(246));
   });
 
   testWidgets('an actual outside-Chart screen renders the app light theme', (
@@ -1394,7 +1596,7 @@ void main() {
 
     expect(surface, _alternateTheme.background);
     _expectFullyDerivedOverlayTheme(tester, selectedFinder);
-    expect(selectedColor, _alternateTheme.bearish);
+    expect(selectedColor, _alternateTheme.tradeRed);
     expect(unselectedColor, _alternateTheme.foreground.withValues(alpha: .55));
     expect(barrierColor, _alternateTheme.foreground.withValues(alpha: .32));
     expect(
@@ -1566,7 +1768,7 @@ void main() {
       badge.deflate(2),
     );
     final priceAxisPixels = pixels.countRoleBlend(
-      _alternateTheme.foreground,
+      _alternateTheme.axisText,
       _alternateTheme.background,
       Rect.fromLTWH(targets.chartWidth + 4, priceLabel.y - 8, badge.width, 16),
     );

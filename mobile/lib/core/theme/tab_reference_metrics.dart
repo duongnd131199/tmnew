@@ -11,6 +11,7 @@ abstract final class TabReferenceMetrics {
   static const topSafeInset = 24.0;
 
   static const bottomNavigationHeight = 79.0;
+  static const bottomNavigationFadeHeight = 103.0;
   static const bottomNavigationLeftInset = 18.6666666667;
   static const bottomNavigationTopInset = 2.1666666667;
   static const bottomNavigationRightInset = 0.0;
@@ -58,10 +59,10 @@ abstract final class TabReferenceMetrics {
     _ => (left: 4.0, right: 4.0),
   };
 
-  static const bottomNavigationSettingsIconOffsetX = .6666666667;
+  static const bottomNavigationSettingsIconOffsetX = -.3333333333;
   static const bottomNavigationSettingsIconOffsetY = 0.0;
-  static const bottomNavigationSettingsIconScaleX = .89;
-  static const bottomNavigationSettingsIconScaleY = .94;
+  static const bottomNavigationSettingsIconScaleX = .96;
+  static const bottomNavigationSettingsIconScaleY = .90;
   static const bottomNavigationChartIconOffsetX = .1666666667;
   static const bottomNavigationChartIconOffsetY = 1.3333333333;
   static const bottomNavigationChartIconScaleX = .93;
@@ -76,8 +77,13 @@ abstract final class TabReferenceMetrics {
   static const bottomNavigationQuotesIconScaleX = .90;
   static const bottomNavigationQuotesIconScaleY = .94;
 
-  static const quoteHeaderHeight = 78.6666666667;
-  static const quoteRowHeight = 66.6666666667;
+  static const quoteHeaderHeight = 91.6666666667;
+  static const quoteHeaderControlTop = 40.0;
+  static const quoteHeaderTitleTop = 49.0;
+  static const quoteHeaderButtonSize = 44.0;
+  static const quoteHeaderVisualDiameter = 43.3333333333;
+  static const quoteRowHeight = 72.0;
+  static const quotePricePipetteOffsetY = -8.0;
   static const quoteBtcRangeOffsetY = 1.3333333333;
   // Legacy compatibility values are no longer consumed by Prices.
   static const quoteBtcMetaTop = 46.0;
@@ -125,16 +131,16 @@ abstract final class TabReferenceMetrics {
       offsetY: -.6666666667,
       scaleX: 1.049,
       scaleY: 1.03,
-      weight: 300,
+      weight: 400,
     ),
     TargetPlatform.iOS => (
       offsetX: -.6666666667,
       offsetY: 0,
       scaleX: 1.032,
       scaleY: 1.08,
-      weight: 335,
+      weight: 400,
     ),
-    _ => (offsetX: 0, offsetY: -.6666666667, scaleX: 1, scaleY: 1, weight: 300),
+    _ => (offsetX: 0, offsetY: -.6666666667, scaleX: 1, scaleY: 1, weight: 400),
   };
 
   static const historyHeaderExtent = 80.0;
@@ -147,8 +153,12 @@ abstract final class TabReferenceMetrics {
   static const historyRowHeight = 52.0;
   static const historySummaryRowHeight = 21.3333333333;
   static const historyPrimaryTop = 4.0;
+  static const historyPrimaryScaleY = 1.03;
+  static const historyPrimaryOffsetY = -.6666666667;
   static const historySecondaryTop = 26.0;
   static const historyPriceRangeTop = 26.6666666667;
+  static const historyPositionSecondaryScaleY = .88;
+  static const historyPositionSecondaryOffsetY = .6666666667;
   static const historyDealSecondaryTop = 27.3333333333;
   static const historyDealSecondaryScaleY = .99;
   static const historyDealSecondaryOffsetY = -.6666666667;

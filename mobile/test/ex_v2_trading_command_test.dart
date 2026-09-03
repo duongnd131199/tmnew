@@ -244,25 +244,47 @@ void main() {
     },
   );
 
-  test('close position waits for server and refreshes it away', () async {
-    final adapter = _TradingAdapter()..created = true;
-    final container = _container(adapter);
-    addTearDown(container.dispose);
-    final before = await container.read(exV2AccountProvider.future);
-    expect(before?.positions.single.id, 'server-position-1');
-    adapter.onClosedHistoryRead = () {
-      unawaited(container.read(exV2AccountProvider.notifier).refresh());
-    };
+  test(
+    'full close sends exact remaining volume and refreshes it away',
+    () async {
+      final adapter = _TradingAdapter()..created = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      final before = await container.read(exV2AccountProvider.future);
+      expect(before?.positions.single.id, 'server-position-1');
+      adapter.onClosedHistoryRead = () {
+        unawaited(container.read(exV2AccountProvider.notifier).refresh());
+      };
 
-    final closeDeal = await container
-        .read(exV2AccountProvider.notifier)
-        .closePosition('server-position-1');
+      final closeDeal = await container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1');
 
-    expect(adapter.closePosts, 1);
-    expect(closeDeal?.positionId, 'server-position-1');
-    expect(closeDeal?.price, 4365.28);
-    expect(container.read(exV2AccountProvider).value?.positions, isEmpty);
-  });
+      expect(adapter.closePosts, 1);
+      expect(adapter.lastCloseData?['volume'], 0.01);
+      expect(closeDeal?.positionId, 'server-position-1');
+      expect(closeDeal?.price, 4365.28);
+      expect(container.read(exV2AccountProvider).value?.positions, isEmpty);
+    },
+  );
+
+  test(
+    'full close caps requested volume at the remaining position volume',
+    () async {
+      final adapter = _TradingAdapter()..created = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+
+      await container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1', volume: 1);
+
+      expect(adapter.closePosts, 1);
+      expect(adapter.lastCloseData?['volume'], 0.01);
+      expect(container.read(exV2AccountProvider).value?.positions, isEmpty);
+    },
+  );
 
   test(
     'close publishes authoritative balance before delayed history completes',
@@ -307,6 +329,85 @@ void main() {
   );
 
   test(
+    'valid full close sync updates canonical history without polling',
+    () async {
+      final adapter = _TradingAdapter(returnCloseSync: true)..created = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+
+      await container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final accountState = container.read(exV2AccountProvider).value!;
+      expect(adapter.closePosts, 1);
+      expect(adapter.postCloseBootstrapReads, 0);
+      expect(adapter.closedHistoryDealReads, 0);
+      expect(adapter.closedHistoryPositionReads, 0);
+      expect(adapter.postCloseHistorySummaryReads, 0);
+      expect(accountState.positions, isEmpty);
+      expect(accountState.balance, closeTo(5306.525, 0.000001));
+      expect(accountState.historySummary.realizedProfit, 306.525);
+      expect(
+        accountState.historyPositions.where(
+          (position) => position.id == 'server-position-1',
+        ),
+        hasLength(1),
+      );
+      expect(
+        accountState.historyPositions.single.closePrice,
+        closeTo(4365.58, 0.000001),
+      );
+      expect(accountState.deals.map((deal) => deal.id), [
+        'close-deal-1',
+        'close-deal-2',
+      ]);
+      expect(
+        accountState.pendingOperationIds,
+        isNot(contains('position:server-position-1')),
+      );
+    },
+  );
+
+  test(
+    'valid close sync appends the newest closed position at the bottom',
+    () async {
+      final adapter = _TradingAdapter(
+        returnCloseSync: true,
+        initialClosedHistory: true,
+      )..created = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(
+        container
+            .read(exV2AccountProvider)
+            .value!
+            .historyPositions
+            .map((position) => position.id),
+        ['older-position'],
+      );
+
+      await container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1');
+
+      expect(
+        container
+            .read(exV2AccountProvider)
+            .value!
+            .historyPositions
+            .map((position) => position.id),
+        ['older-position', 'server-position-1'],
+      );
+    },
+  );
+
+  test(
     'partial close publishes server balance before delayed history completes',
     () async {
       final historyGate = Completer<void>();
@@ -338,6 +439,172 @@ void main() {
 
       historyGate.complete();
       await closing;
+    },
+  );
+
+  test(
+    'valid partial close sync updates its exit deal without polling',
+    () async {
+      final adapter = _TradingAdapter(returnCloseSync: true)..created = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+
+      await container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1', volume: 0.004);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final accountState = container.read(exV2AccountProvider).value!;
+      expect(adapter.postCloseBootstrapReads, 0);
+      expect(adapter.closedHistoryDealReads, 0);
+      expect(adapter.closedHistoryPositionReads, 0);
+      expect(adapter.postCloseHistorySummaryReads, 0);
+      expect(accountState.positions.single.id, 'server-position-1');
+      expect(accountState.positions.single.volume, closeTo(0.006, 0.000001));
+      expect(accountState.balance, 5120);
+      expect(accountState.historySummary.realizedProfit, 120);
+      expect(
+        accountState.historyPositions.where(
+          (position) => position.id == 'server-position-1',
+        ),
+        isEmpty,
+      );
+      expect(accountState.deals, hasLength(1));
+      expect(accountState.deals.single.id, 'partial-close-deal-1');
+      expect(accountState.deals.single.entry, 'out');
+      expect(accountState.deals.single.volume, 0.004);
+      expect(accountState.deals.single.profit, 120);
+      expect(
+        accountState.pendingOperationIds,
+        isNot(contains('position:server-position-1')),
+      );
+    },
+  );
+
+  test('all-valid bulk close syncs finish without final polling', () async {
+    final adapter = _TradingAdapter(
+      contextualBulkFixture: true,
+      returnCloseSync: true,
+    );
+    final container = _container(adapter);
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+    final initialBootstrapReads = adapter.bootstrapReads;
+
+    await container
+        .read(exV2AccountProvider.notifier)
+        .closePositions(
+          _contextualBulkPositions.map((position) => position['id']! as String),
+        );
+
+    final accountState = container.read(exV2AccountProvider).value!;
+    expect(adapter.closePosts, _contextualBulkPositions.length);
+    expect(adapter.bootstrapReads, initialBootstrapReads);
+    expect(accountState.positions, isEmpty);
+    expect(accountState.historyPositions, hasLength(4));
+    expect(accountState.pendingOperationIds, isEmpty);
+  });
+
+  test(
+    'close ignores a sync for another operation and reconciles through GET',
+    () async {
+      final historyGate = Completer<void>();
+      final historyStarted = Completer<void>();
+      final adapter =
+          _TradingAdapter(
+              returnCloseSync: true,
+              mismatchedCloseSyncOperation: true,
+            )
+            ..created = true
+            ..postCloseHistoryGate = historyGate
+            ..postCloseHistoryStarted = historyStarted;
+      final container = _container(adapter);
+      addTearDown(() {
+        if (!historyGate.isCompleted) historyGate.complete();
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+
+      var closeCompleted = false;
+      final closing = container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1')
+          .whenComplete(() => closeCompleted = true);
+      await historyStarted.future;
+
+      final waiting = container.read(exV2AccountProvider).value!;
+      expect(closeCompleted, isFalse);
+      expect(waiting.historyPositions, isEmpty);
+      expect(
+        waiting.pendingOperationIds,
+        contains('position:server-position-1'),
+      );
+
+      historyGate.complete();
+      await closing;
+      final settled = container.read(exV2AccountProvider).value!;
+      expect(
+        settled.historyPositions.single.id.toLowerCase(),
+        'server-position-1',
+      );
+      expect(settled.deals, hasLength(2));
+      expect(settled.pendingOperationIds, isEmpty);
+      expect(adapter.closePosts, 1);
+    },
+  );
+
+  test(
+    'newer same-position close remains pending after an immediate sync',
+    () async {
+      final adapter = _TradingAdapter(returnCloseSync: true)..created = true;
+      final container = _container(adapter);
+      addTearDown(() {
+        final gate = adapter.closeGate;
+        if (gate != null && !gate.isCompleted) gate.complete();
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+      final notifier = container.read(exV2AccountProvider.notifier);
+
+      await notifier.closePosition('server-position-1', volume: 0.004);
+      adapter.closeGate = Completer<void>();
+      final newerClose = notifier.closePosition(
+        'server-position-1',
+        volume: 0.002,
+      );
+      for (
+        var attempt = 0;
+        attempt < 100 && adapter.closePosts < 2;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      expect(
+        container.read(exV2AccountProvider).value!.pendingOperationIds,
+        contains('position:server-position-1'),
+      );
+      expect(
+        container.read(exV2AccountProvider).value!.positions.single.volume,
+        closeTo(0.004, 0.000001),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      final whileNewerCommandIsPending = container
+          .read(exV2AccountProvider)
+          .value!;
+      expect(
+        whileNewerCommandIsPending.pendingOperationIds,
+        contains('position:server-position-1'),
+      );
+      expect(
+        whileNewerCommandIsPending.positions.single.volume,
+        closeTo(0.004, 0.000001),
+      );
+
+      adapter.closeGate!.complete();
+      await newerClose;
     },
   );
 
@@ -580,6 +847,33 @@ void main() {
   });
 
   test(
+    'close fallback waits for History snapshotVersion to catch up',
+    () async {
+      final adapter = _TradingAdapter(staleVersionedHistoryOnce: true)
+        ..created = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+
+      await container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1');
+
+      final state = container.read(exV2AccountProvider).value!;
+      expect(adapter.closePosts, 1);
+      expect(adapter.closedHistoryDealReads, greaterThanOrEqualTo(2));
+      expect(adapter.closedHistoryPositionReads, greaterThanOrEqualTo(2));
+      expect(adapter.postCloseHistorySummaryReads, greaterThanOrEqualTo(2));
+      expect(state.positions, isEmpty);
+      expect(state.deals.map((deal) => deal.id), [
+        'close-deal-1',
+        'close-deal-2',
+      ]);
+      expect(state.historySummary.realizedProfit, closeTo(306.525, 0.000001));
+    },
+  );
+
+  test(
     'close retries reads after the first post-close bootstrap fails',
     () async {
       final adapter = _TradingAdapter(failFirstPostCloseBootstrap: true)
@@ -665,6 +959,163 @@ void main() {
   });
 
   test(
+    'close immediately estimates trade totals before canonical sync arrives',
+    () async {
+      final adapter = _TradingAdapter(returnCloseSync: true, initialMargin: 100)
+        ..created = true
+        ..closeGate = Completer<void>();
+      final container = _container(adapter);
+      addTearDown(() {
+        if (!adapter.closeGate!.isCompleted) adapter.closeGate!.complete();
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+      container
+          .read(exV2AccountProvider.notifier)
+          .updateMarketPrice(symbol: 'XAUUSD+', bid: 4380, ask: 4381);
+
+      final closing = container
+          .read(exV2AccountProvider.notifier)
+          .closePosition('server-position-1');
+      await Future<void>.delayed(Duration.zero);
+
+      final pending = container.read(demoAccountProvider);
+      expect(pending.balance, closeTo(5006.28, 0.000001));
+      expect(pending.equity, closeTo(5006.28, 0.000001));
+      expect(pending.margin, 0);
+      expect(pending.freeMargin, closeTo(5006.28, 0.000001));
+      expect(pending.marginLevel, 0);
+      expect(pending.profit, 0);
+
+      adapter.closeGate!.complete();
+      await closing;
+
+      final committed = container.read(demoAccountProvider);
+      expect(committed.balance, closeTo(5306.525, 0.000001));
+      expect(committed.equity, closeTo(5306.525, 0.000001));
+      expect(committed.freeMargin, closeTo(5306.525, 0.000001));
+      expect(committed.profit, 0);
+    },
+  );
+
+  test(
+    'equity exactly zero triggers automatic close and displays zero',
+    () async {
+      final adapter = _TradingAdapter()..created = true;
+      adapter.closeGate = Completer<void>();
+      final container = _container(adapter);
+      addTearDown(() {
+        if (!adapter.closeGate!.isCompleted) adapter.closeGate!.complete();
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+
+      container
+          .read(exV2AccountProvider.notifier)
+          .updateMarketPrice(symbol: 'XAUUSD+', bid: -626.28, ask: -626);
+
+      for (
+        var attempt = 0;
+        attempt < 100 && adapter.closePosts == 0;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+
+      final triggered = container.read(exV2AccountProvider).value!;
+      expect(adapter.closePosts, 1);
+      expect(adapter.lastCloseData?['volume'], closeTo(0.01, 0.000001));
+      expect(triggered.positions, isEmpty);
+      expect(triggered.balance, 0);
+      expect(triggered.equity, 0);
+
+      adapter.closeGate!.complete();
+    },
+  );
+
+  test(
+    'automatic stop out closes every open position once and displays zero',
+    () async {
+      final adapter = _TradingAdapter(contextualBulkFixture: true);
+      adapter.bulkCloseGates.addAll(
+        List<Completer<void>>.generate(4, (_) => Completer<void>()),
+      );
+      final container = _container(adapter);
+      addTearDown(() {
+        for (final gate in adapter.bulkCloseGates) {
+          if (!gate.isCompleted) gate.complete();
+        }
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+
+      final controller = container.read(exV2AccountProvider.notifier);
+      controller.updateMarketPrice(symbol: 'XAUUSD+', bid: 0, ask: 0);
+      expect(adapter.closePosts, 0);
+      controller.updateMarketPrice(symbol: 'EURUSD', bid: 0, ask: 0);
+
+      for (
+        var attempt = 0;
+        attempt < 100 && adapter.closePosts == 0;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+
+      final triggered = container.read(exV2AccountProvider).value!;
+      expect(adapter.closePosts, 1);
+      expect(triggered.positions, isEmpty);
+      expect(triggered.balance, 0);
+      expect(triggered.equity, 0);
+
+      controller.updateMarketPrice(symbol: 'XAUUSD+', bid: -1, ask: -1);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(adapter.closePosts, 1);
+
+      for (var index = 0; index < adapter.bulkCloseGates.length; index++) {
+        adapter.bulkCloseGates[index].complete();
+        for (
+          var attempt = 0;
+          attempt < 100 && index < 3 && adapter.closePosts < index + 2;
+          attempt++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+      }
+      for (
+        var attempt = 0;
+        attempt < 200 &&
+            container
+                .read(exV2AccountProvider)
+                .value!
+                .pendingOperationIds
+                .isNotEmpty;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+
+      final settled = container.read(exV2AccountProvider).value!;
+      expect(settled.positions, isEmpty);
+      expect(settled.balance, 0);
+      expect(settled.equity, 0);
+      expect(adapter.closePosts, 4);
+      expect(adapter.closePositionIds.toSet(), {
+        'x-buy-win',
+        'x-buy-loss',
+        'x-sell-win',
+        'e-buy-win',
+      });
+      expect(adapter.closePositionVolumes, {
+        'x-buy-win': 1.0,
+        'x-buy-loss': 2.0,
+        'x-sell-win': 0.5,
+        'e-buy-win': 0.1,
+      });
+    },
+  );
+
+  test(
     'contextual bulk closes sequentially and publishes history as one group',
     () async {
       final adapter = _TradingAdapter(contextualBulkFixture: true);
@@ -747,6 +1198,11 @@ void main() {
       );
       expect(adapter.closePositionIds.toSet(), hasLength(3));
       expect(adapter.closePositionIds, isNot(contains('e-buy-win')));
+      expect(adapter.closePositionVolumes, {
+        'x-buy-win': 1.0,
+        'x-buy-loss': 2.0,
+        'x-sell-win': 0.5,
+      });
       expect(adapter.closePosts, 3);
       expect(adapter.maxConcurrentBulkClosePosts, 1);
       expect(adapter.closeByPosts, 0);
@@ -764,6 +1220,216 @@ void main() {
       expect(publishedHistorySizes.where((size) => size > 0), everyElement(3));
     },
   );
+
+  test(
+    'bulk close publishes each committed sync before the group settles',
+    () async {
+      final adapter = _TradingAdapter(
+        contextualBulkFixture: true,
+        returnCloseSync: true,
+      );
+      adapter.bulkCloseGates.addAll(
+        List<Completer<void>>.generate(3, (_) => Completer<void>()),
+      );
+      final container = _container(adapter);
+      addTearDown(() {
+        for (final gate in adapter.bulkCloseGates) {
+          if (!gate.isCompleted) gate.complete();
+        }
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+
+      var closeCompleted = false;
+      final closing = container
+          .read(exV2AccountProvider.notifier)
+          .closePositions(['x-buy-win', 'x-buy-loss', 'x-sell-win'])
+          .whenComplete(() => closeCompleted = true);
+      for (
+        var attempt = 0;
+        attempt < 100 && adapter.closePosts < 1;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      adapter.bulkCloseGates[0].complete();
+      for (
+        var attempt = 0;
+        attempt < 100 && adapter.closePosts < 2;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+
+      final firstCommit = container.read(exV2AccountProvider).value!;
+      expect(closeCompleted, isFalse);
+      expect(firstCommit.historyPositions.map((position) => position.id), [
+        'x-buy-win',
+      ]);
+      expect(firstCommit.deals.map((deal) => deal.id), ['close-x-buy-win']);
+      expect(
+        firstCommit.pendingOperationIds,
+        isNot(contains('position:x-buy-win')),
+      );
+      expect(
+        firstCommit.pendingOperationIds,
+        containsAll(['position:x-buy-loss', 'position:x-sell-win']),
+      );
+
+      adapter.bulkCloseGates[1].complete();
+      adapter.bulkCloseGates[2].complete();
+      await closing;
+      final settled = container.read(exV2AccountProvider).value!;
+      expect(settled.historyPositions.map((position) => position.id).toSet(), {
+        'x-buy-win',
+        'x-buy-loss',
+        'x-sell-win',
+      });
+      expect(settled.deals.map((deal) => deal.id).toSet(), {
+        'close-x-buy-win',
+        'close-x-buy-loss',
+        'close-x-sell-win',
+      });
+    },
+  );
+
+  test(
+    'bulk close keeps one optimistic account snapshot until the group settles',
+    () async {
+      final adapter = _TradingAdapter(
+        contextualBulkFixture: true,
+        returnCloseSync: true,
+        initialMargin: 360,
+        incrementalBulkHistorySummary: true,
+      );
+      adapter.bulkCloseGates.addAll(
+        List<Completer<void>>.generate(3, (_) => Completer<void>()),
+      );
+      final container = _container(adapter);
+      addTearDown(() {
+        for (final gate in adapter.bulkCloseGates) {
+          if (!gate.isCompleted) gate.complete();
+        }
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+      final controller = container.read(exV2AccountProvider.notifier);
+      controller.updateMarketPrice(symbol: 'XAUUSD+', bid: 4625, ask: 4625.2);
+      controller.updateMarketPrice(symbol: 'EURUSD', bid: 1.2, ask: 1.21);
+
+      final closing = controller.closePositions([
+        'x-buy-win',
+        'x-buy-loss',
+        'x-sell-win',
+      ]);
+      for (
+        var attempt = 0;
+        attempt < 100 && adapter.closePosts < 1;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      final optimistic = container.read(demoAccountProvider);
+      final optimisticHistory = container.read(activeDemoAccountProvider);
+      expect(optimistic.balance, closeTo(5668.525, 0.000001));
+      expect(optimistic.profit, closeTo(1, 0.000001));
+      expect(optimistic.equity, closeTo(5669.525, 0.000001));
+      expect(optimistic.margin, closeTo(10, 0.000001));
+      expect(optimistic.freeMargin, closeTo(5659.525, 0.000001));
+      expect(optimistic.marginLevel, closeTo(56695.25, 0.000001));
+      expect(optimisticHistory.historyProfit, closeTo(362, 0.000001));
+      expect(optimisticHistory.historyBalance, closeTo(5668.525, 0.000001));
+
+      adapter.bulkCloseGates[0].complete();
+      for (
+        var attempt = 0;
+        attempt < 100 && adapter.closePosts < 2;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      final afterFirstCommit = container.read(demoAccountProvider);
+      expect(afterFirstCommit.balance, optimistic.balance);
+      expect(afterFirstCommit.profit, optimistic.profit);
+      expect(afterFirstCommit.equity, optimistic.equity);
+      expect(afterFirstCommit.margin, optimistic.margin);
+      expect(afterFirstCommit.freeMargin, optimistic.freeMargin);
+      expect(afterFirstCommit.marginLevel, optimistic.marginLevel);
+      final historyAfterFirstCommit = container.read(activeDemoAccountProvider);
+      expect(
+        historyAfterFirstCommit.historyProfit,
+        optimisticHistory.historyProfit,
+      );
+      expect(
+        historyAfterFirstCommit.historyBalance,
+        optimisticHistory.historyBalance,
+      );
+
+      adapter.bulkCloseGates[1].complete();
+      for (
+        var attempt = 0;
+        attempt < 100 && adapter.closePosts < 3;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      final afterSecondCommit = container.read(demoAccountProvider);
+      expect(afterSecondCommit.balance, optimistic.balance);
+      expect(afterSecondCommit.profit, optimistic.profit);
+      expect(afterSecondCommit.equity, optimistic.equity);
+      expect(afterSecondCommit.margin, optimistic.margin);
+      expect(afterSecondCommit.freeMargin, optimistic.freeMargin);
+      expect(afterSecondCommit.marginLevel, optimistic.marginLevel);
+      final historyAfterSecondCommit = container.read(
+        activeDemoAccountProvider,
+      );
+      expect(
+        historyAfterSecondCommit.historyProfit,
+        optimisticHistory.historyProfit,
+      );
+      expect(
+        historyAfterSecondCommit.historyBalance,
+        optimisticHistory.historyBalance,
+      );
+
+      adapter.bulkCloseGates[2].complete();
+      await closing;
+      final committed = container.read(demoAccountProvider);
+      expect(committed.balance, 5000);
+      expect(committed.profit, closeTo(1, 0.000001));
+      expect(committed.equity, closeTo(5001, 0.000001));
+      final committedHistory = container.read(activeDemoAccountProvider);
+      expect(committedHistory.historyProfit, 300);
+      expect(committedHistory.historyBalance, 5000);
+    },
+  );
+
+  test('close sync cannot erase the hydrated deposit total', () async {
+    final adapter = _TradingAdapter(
+      contextualBulkFixture: true,
+      returnCloseSync: true,
+      contextualHistoryDeposit: 518.54,
+    );
+    final container = _container(adapter);
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+    for (
+      var attempt = 0;
+      attempt < 100 &&
+          container.read(exV2AccountProvider).value!.historySummary.deposit !=
+              518.54;
+      attempt++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    expect(container.read(activeDemoAccountProvider).historyDeposit, 518.54);
+
+    await container.read(exV2AccountProvider.notifier).closePositions([
+      'x-buy-win',
+    ]);
+
+    expect(container.read(activeDemoAccountProvider).historyDeposit, 518.54);
+  });
 
   test(
     'bulk close defers refresh work until the command group settles',
@@ -866,56 +1532,59 @@ void main() {
     expect(adapter.maxConcurrentBootstrapReads, 1);
   });
 
-  test('bulk reconciliation loads core and history in parallel', () async {
-    final adapter = _TradingAdapter(contextualBulkFixture: true)
-      ..contextualBulkFinalBootstrapGate = Completer<void>()
-      ..contextualBulkFinalHistoryStarted = Completer<void>();
-    final container = _container(adapter);
-    addTearDown(() {
-      final gate = adapter.contextualBulkFinalBootstrapGate;
-      if (gate != null && !gate.isCompleted) gate.complete();
-      container.dispose();
-    });
-    await container.read(exV2AccountProvider.future);
+  test(
+    'bulk reconciliation reads core before its matching history snapshot',
+    () async {
+      final adapter = _TradingAdapter(contextualBulkFixture: true)
+        ..contextualBulkFinalBootstrapGate = Completer<void>()
+        ..contextualBulkFinalHistoryStarted = Completer<void>();
+      final container = _container(adapter);
+      addTearDown(() {
+        final gate = adapter.contextualBulkFinalBootstrapGate;
+        if (gate != null && !gate.isCompleted) gate.complete();
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
 
-    expect(
-      container
-          .read(demoTradingProvider.notifier)
-          .closeMatchingPositions(symbol: 'XAUUSD+'),
-      3,
-    );
-    for (
-      var attempt = 0;
-      attempt < 200 && adapter.bootstrapReads < 2;
-      attempt++
-    ) {
-      await Future<void>.delayed(const Duration(milliseconds: 1));
-    }
-    for (
-      var attempt = 0;
-      attempt < 50 && !adapter.contextualBulkFinalHistoryStarted!.isCompleted;
-      attempt++
-    ) {
-      await Future<void>.delayed(const Duration(milliseconds: 1));
-    }
-    final historyStartedWhileBootstrapBlocked =
-        adapter.contextualBulkFinalHistoryStarted!.isCompleted;
-    adapter.contextualBulkFinalBootstrapGate!.complete();
-    for (
-      var attempt = 0;
-      attempt < 200 &&
-          container
-              .read(exV2AccountProvider)
-              .value!
-              .pendingOperationIds
-              .isNotEmpty;
-      attempt++
-    ) {
-      await Future<void>.delayed(const Duration(milliseconds: 1));
-    }
+      expect(
+        container
+            .read(demoTradingProvider.notifier)
+            .closeMatchingPositions(symbol: 'XAUUSD+'),
+        3,
+      );
+      for (
+        var attempt = 0;
+        attempt < 200 && adapter.bootstrapReads < 2;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      for (
+        var attempt = 0;
+        attempt < 50 && !adapter.contextualBulkFinalHistoryStarted!.isCompleted;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      final historyStartedWhileBootstrapBlocked =
+          adapter.contextualBulkFinalHistoryStarted!.isCompleted;
+      adapter.contextualBulkFinalBootstrapGate!.complete();
+      for (
+        var attempt = 0;
+        attempt < 200 &&
+            container
+                .read(exV2AccountProvider)
+                .value!
+                .pendingOperationIds
+                .isNotEmpty;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
 
-    expect(historyStartedWhileBootstrapBlocked, isTrue);
-  });
+      expect(historyStartedWhileBootstrapBlocked, isFalse);
+    },
+  );
 
   test('30-position bulk close performs one final reconciliation', () async {
     final bulkPositions = List<Map<String, Object?>>.generate(
@@ -1181,6 +1850,117 @@ void main() {
     },
   );
 
+  test('valid close-by sync publishes history without polling', () async {
+    final adapter = _TradingAdapter(returnCloseSync: true)
+      ..created = true
+      ..oppositeCreated = true;
+    final container = _container(adapter);
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+
+    await container
+        .read(exV2AccountProvider.notifier)
+        .closeBy('server-position-1', 'server-position-2');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    final accountState = container.read(exV2AccountProvider).value!;
+    expect(adapter.postCloseBootstrapReads, 0);
+    expect(adapter.closedHistoryDealReads, 0);
+    expect(adapter.closedHistoryPositionReads, 0);
+    expect(adapter.postCloseHistorySummaryReads, 0);
+    expect(accountState.positions, hasLength(1));
+    expect(accountState.positions.single.id, 'server-position-1');
+    expect(accountState.positions.single.volume, 0.006);
+    expect(accountState.historyPositions.map((position) => position.id), [
+      'server-position-2',
+    ]);
+    expect(accountState.historyPositions.single.closePrice, 4373.9);
+    expect(accountState.deals.map((deal) => deal.id), [
+      'close-by-deal-1',
+      'close-by-deal-2',
+    ]);
+    expect(accountState.deals.every((deal) => deal.entry == 'out'), isTrue);
+    expect(
+      accountState.pendingOperationIds,
+      isNot(contains('close-by:server-position-1:server-position-2')),
+    );
+  });
+
+  test(
+    'close-by immediately estimates trade totals before canonical sync arrives',
+    () async {
+      final adapter = _TradingAdapter(returnCloseSync: true, initialMargin: 100)
+        ..created = true
+        ..oppositeCreated = true
+        ..closeByGate = Completer<void>();
+      final container = _container(adapter);
+      addTearDown(() {
+        if (!adapter.closeByGate!.isCompleted) {
+          adapter.closeByGate!.complete();
+        }
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+      container
+          .read(exV2AccountProvider.notifier)
+          .updateMarketPrice(symbol: 'XAUUSD+', bid: 4380, ask: 4381);
+
+      final closing = container
+          .read(exV2AccountProvider.notifier)
+          .closeBy('server-position-1', 'server-position-2');
+      await Future<void>.delayed(Duration.zero);
+
+      final pending = container.read(demoAccountProvider);
+      expect(pending.balance, closeTo(4999.752, 0.000001));
+      expect(pending.equity, closeTo(5003.52, 0.000001));
+      expect(pending.margin, closeTo(42.857142857, 0.000001));
+      expect(pending.freeMargin, closeTo(4960.662857143, 0.000001));
+      expect(pending.marginLevel, closeTo(11674.88, 0.000001));
+      expect(pending.profit, closeTo(3.768, 0.000001));
+
+      adapter.closeByGate!.complete();
+      await closing;
+
+      final committed = container.read(demoAccountProvider);
+      expect(committed.balance, 5000);
+      expect(committed.equity, closeTo(5003.768, 0.000001));
+      expect(committed.profit, closeTo(3.768, 0.000001));
+    },
+  );
+
+  test(
+    'legacy close by retries delayed canonical history without reposting',
+    () async {
+      final adapter = _TradingAdapter(delayedCloseByHistory: true)
+        ..created = true
+        ..oppositeCreated = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+
+      await container
+          .read(exV2AccountProvider.notifier)
+          .closeBy('server-position-1', 'server-position-2');
+
+      final settled = container.read(exV2AccountProvider).value!;
+      expect(adapter.closeByPosts, 1);
+      expect(adapter.closedHistoryDealReads, greaterThanOrEqualTo(2));
+      expect(adapter.closedHistoryPositionReads, greaterThanOrEqualTo(2));
+      expect(settled.positions.single.id, 'server-position-1');
+      expect(settled.positions.single.volume, closeTo(0.006, 0.000001));
+      expect(settled.deals.map((deal) => deal.id).toSet(), {
+        'close-by-deal-1',
+        'close-by-deal-2',
+      });
+      expect(
+        settled.historyPositions.single.id.toLowerCase(),
+        'server-position-2',
+      );
+      expect(settled.historySummary.realizedProfit, 7.5);
+      expect(settled.pendingOperationIds, isEmpty);
+    },
+  );
+
   test('failed optimistic close restores the position', () async {
     final adapter = _TradingAdapter(rejectClose: true)..created = true;
     final container = _container(adapter);
@@ -1375,9 +2155,17 @@ final class _TradingAdapter implements HttpClientAdapter {
     this.staleBootstrapReadsAfterClose = 0,
     this.failFirstPostCloseBootstrap = false,
     this.delayedHistorySummary = false,
+    this.staleVersionedHistoryOnce = false,
     this.failPostCloseHistoryDeals = false,
     this.switchAccountAfterRejectedClose = false,
     this.contextualBulkFixture = false,
+    this.returnCloseSync = false,
+    this.initialClosedHistory = false,
+    this.initialMargin = 0,
+    this.incrementalBulkHistorySummary = false,
+    this.contextualHistoryDeposit = 0,
+    this.mismatchedCloseSyncOperation = false,
+    this.delayedCloseByHistory = false,
     List<Map<String, Object?>>? contextualBulkPositions,
   }) : _bulkFixturePositions =
            contextualBulkPositions ?? _contextualBulkPositions {
@@ -1396,9 +2184,17 @@ final class _TradingAdapter implements HttpClientAdapter {
   final int staleBootstrapReadsAfterClose;
   final bool failFirstPostCloseBootstrap;
   final bool delayedHistorySummary;
+  final bool staleVersionedHistoryOnce;
   final bool failPostCloseHistoryDeals;
   final bool switchAccountAfterRejectedClose;
   final bool contextualBulkFixture;
+  final bool returnCloseSync;
+  final bool initialClosedHistory;
+  final double initialMargin;
+  final bool incrementalBulkHistorySummary;
+  final double contextualHistoryDeposit;
+  final bool mismatchedCloseSyncOperation;
+  final bool delayedCloseByHistory;
   final List<Map<String, Object?>> _bulkFixturePositions;
   int orderPosts = 0;
   int closePosts = 0;
@@ -1411,6 +2207,7 @@ final class _TradingAdapter implements HttpClientAdapter {
   bool oppositeCreated = false;
   bool pending = false;
   bool closeCommitted = false;
+  bool closeByCommitted = false;
   bool rejectedCloseOccurred = false;
   int closedHistoryDealReads = 0;
   int closedHistoryPositionReads = 0;
@@ -1421,6 +2218,7 @@ final class _TradingAdapter implements HttpClientAdapter {
   final List<String> clientOrderIds = <String>[];
   Map<String, dynamic>? lastCloseData;
   final List<String> closePositionIds = <String>[];
+  final Map<String, double?> closePositionVolumes = <String, double?>{};
   final List<String> bulkCommittedPositionIds = <String>[];
   final List<Completer<void>> bulkCloseGates = <Completer<void>>[];
   int activeBulkClosePosts = 0;
@@ -1476,6 +2274,9 @@ final class _TradingAdapter implements HttpClientAdapter {
       final gateIndex = closePosts;
       closePosts++;
       closePositionIds.add(positionId);
+      final closeData = (options.data as Map).cast<String, dynamic>();
+      closePositionVolumes[positionId] = (closeData['volume'] as num?)
+          ?.toDouble();
       activeBulkClosePosts++;
       if (activeBulkClosePosts > maxConcurrentBulkClosePosts) {
         maxConcurrentBulkClosePosts = activeBulkClosePosts;
@@ -1486,7 +2287,7 @@ final class _TradingAdapter implements HttpClientAdapter {
         }
         bulkOpenPositionIds.remove(positionId);
         bulkCommittedPositionIds.add(positionId);
-        return _json({
+        final closedPosition = {
           ..._bulkFixturePositions.singleWhere(
             (position) => position['id'] == positionId,
           ),
@@ -1494,12 +2295,27 @@ final class _TradingAdapter implements HttpClientAdapter {
           'realizedProfit': 0,
           'status': 'closed',
           'closedAt': '2026-08-24T02:00:00Z',
+        };
+        return _json({
+          ...closedPosition,
+          if (returnCloseSync)
+            'sync': _bulkCloseSync(
+              position: closedPosition,
+              accountId: contextualAccountId,
+              version: ++bootstrapVersion,
+              idempotencyKey: _commandHeader(options, 'Idempotency-Key'),
+              correlationId: _commandHeader(options, 'X-Correlation-Id'),
+              historyRealizedProfit: incrementalBulkHistorySummary
+                  ? bulkCommittedPositionIds.length * 100
+                  : 0,
+            ),
         });
       } finally {
         activeBulkClosePosts--;
       }
     }
-    if (path.endsWith('/positions/server-position-1/close') &&
+    if ((path.endsWith('/positions/server-position-1/close') ||
+            path.endsWith('/positions/server-position-1/partial-close')) &&
         options.method == 'POST') {
       closePosts++;
       lastCloseData = (options.data as Map).cast<String, dynamic>();
@@ -1539,6 +2355,22 @@ final class _TradingAdapter implements HttpClientAdapter {
         'closedAt': partialExecution
             ? '2026-08-13T16:30:10Z'
             : '2026-08-13T16:31:10Z',
+        if (returnCloseSync)
+          'sync': partialExecution
+              ? _partialCloseSync(
+                  version: bootstrapVersion + 1,
+                  idempotencyKey: mismatchedCloseSyncOperation
+                      ? 'different-idempotency-key'
+                      : _commandHeader(options, 'Idempotency-Key'),
+                  correlationId: _commandHeader(options, 'X-Correlation-Id'),
+                )
+              : _fullCloseSync(
+                  version: bootstrapVersion + 1,
+                  idempotencyKey: mismatchedCloseSyncOperation
+                      ? 'different-idempotency-key'
+                      : _commandHeader(options, 'Idempotency-Key'),
+                  correlationId: _commandHeader(options, 'X-Correlation-Id'),
+                ),
       });
     }
     if (path.endsWith('/positions/server-position-1/close-by') &&
@@ -1547,7 +2379,38 @@ final class _TradingAdapter implements HttpClientAdapter {
       await closeByGate?.future;
       remainingVolume -= 0.004;
       oppositeCreated = false;
-      return _json(<String, Object?>{});
+      closeByCommitted = true;
+      closedHistoryDealReads = 0;
+      closedHistoryPositionReads = 0;
+      final position = {
+        ..._bootstrapPosition,
+        'remainingVolume': remainingVolume,
+        'status': 'open',
+        'closedAt': null,
+        'rowVersion': 'close-by-remainder-rv',
+      };
+      final oppositePosition = {
+        ..._oppositeBootstrapPosition,
+        'remainingVolume': 0,
+        'status': 'closed',
+        'closedAt': '2026-08-13T16:32:10Z',
+        'rowVersion': 'close-by-closed-rv',
+      };
+      final version = returnCloseSync ? ++bootstrapVersion : bootstrapVersion;
+      return _json({
+        'position': position,
+        'oppositePosition': oppositePosition,
+        'closedVolume': 0.004,
+        'version': version,
+        if (returnCloseSync)
+          'sync': _closeBySync(
+            position: position,
+            oppositePosition: oppositePosition,
+            version: version,
+            idempotencyKey: _commandHeader(options, 'Idempotency-Key'),
+            correlationId: _commandHeader(options, 'X-Correlation-Id'),
+          ),
+      });
     }
     if (path.endsWith('/positions/server-position-2/protection') &&
         options.method == 'PUT') {
@@ -1583,6 +2446,7 @@ final class _TradingAdapter implements HttpClientAdapter {
             version: contextualBootstrapVersionOverride ?? ++bootstrapVersion,
             withPosition: false,
             accountId: contextualAccountId,
+            marginOverride: initialMargin,
           ),
           'positions': [
             for (final position in _bulkFixturePositions)
@@ -1626,6 +2490,7 @@ final class _TradingAdapter implements HttpClientAdapter {
           balanceOverride: remainingVolume > 0 && remainingVolume < 0.01
               ? 5120.0
               : null,
+          marginOverride: initialMargin,
         ),
       );
     }
@@ -1635,7 +2500,7 @@ final class _TradingAdapter implements HttpClientAdapter {
         contextualBulkFinalHistoryStarted!.complete();
       }
       return _json({
-        'deposit': 0,
+        'deposit': contextualHistoryDeposit,
         'withdrawal': 0,
         'realizedProfit': 0,
         'swap': 0,
@@ -1645,7 +2510,9 @@ final class _TradingAdapter implements HttpClientAdapter {
     }
     if (path.endsWith('/history/summary')) {
       if (remainingVolume < 0.01) postCloseHistorySummaryReads++;
-      final realizedProfit = closeCommitted
+      final realizedProfit = closeByCommitted
+          ? 7.5
+          : closeCommitted
           ? 306.525
           : remainingVolume < 0.01
           ? 120.0
@@ -1661,6 +2528,10 @@ final class _TradingAdapter implements HttpClientAdapter {
         'swap': 0,
         'commission': 0,
         'netChange': visibleRealizedProfit,
+        if (staleVersionedHistoryOnce)
+          'snapshotVersion': postCloseHistorySummaryReads == 1
+              ? bootstrapVersion - 1
+              : bootstrapVersion,
       });
     }
     if (path.endsWith('/settings')) return _json(<String, Object?>{});
@@ -1714,6 +2585,47 @@ final class _TradingAdapter implements HttpClientAdapter {
           'code': 'HISTORY_UNAVAILABLE',
           'message': 'History unavailable',
         }, statusCode: 503);
+      }
+      if (closeByCommitted) {
+        if (delayedCloseByHistory && closedHistoryDealReads == 1) {
+          return _json({
+            'page': 1,
+            'pageSize': 50,
+            'total': 0,
+            'items': <Object?>[],
+          });
+        }
+        return _json({
+          'page': 1,
+          'pageSize': 50,
+          'total': 2,
+          'items': [
+            {
+              'id': 'close-by-deal-1',
+              'positionId': 'server-position-1',
+              'orderId': 'server-order-1',
+              'dealType': 'out_by',
+              'symbol': 'XAUUSD+',
+              'side': 'sell',
+              'volume': 0.004,
+              'price': 4373.9,
+              'profit': 5,
+              'createdAtUtc': '2026-08-13T16:32:10Z',
+            },
+            {
+              'id': 'close-by-deal-2',
+              'positionId': 'server-position-2',
+              'orderId': 'server-order-2',
+              'dealType': 'out_by',
+              'symbol': 'XAUUSD+',
+              'side': 'buy',
+              'volume': 0.004,
+              'price': 4373.9,
+              'profit': 2.5,
+              'createdAtUtc': '2026-08-13T16:32:10Z',
+            },
+          ],
+        });
       }
       if (closeCommitted && !_concurrentRefreshTriggered) {
         _concurrentRefreshTriggered = true;
@@ -1780,6 +2692,10 @@ final class _TradingAdapter implements HttpClientAdapter {
                   'createdAtUtc': '2026-08-13T16:30:10Z',
                 },
               ],
+        if (staleVersionedHistoryOnce)
+          'snapshotVersion': closedHistoryDealReads == 1
+              ? bootstrapVersion - 1
+              : bootstrapVersion,
       });
     }
     if (contextualBulkFixture && path.endsWith('/history/positions')) {
@@ -1804,6 +2720,54 @@ final class _TradingAdapter implements HttpClientAdapter {
       });
     }
     if (path.endsWith('/history/positions')) {
+      if (initialClosedHistory && !closeCommitted && !closeByCommitted) {
+        return _json({
+          'page': 1,
+          'pageSize': 50,
+          'total': 1,
+          'items': [
+            {
+              'positionId': 'older-position',
+              'symbol': 'XAUUSD+',
+              'side': 'buy',
+              'initialVolume': 0.01,
+              'remainingVolume': 0,
+              'entryPrice': 4300.0,
+              'closePrice': 4310.0,
+              'realizedProfit': 10.0,
+              'status': 'closed',
+              'createdAtUtc': '2026-08-12T14:00:00Z',
+              'closedAtUtc': '2026-08-12T16:00:00Z',
+            },
+          ],
+        });
+      }
+      if (closeByCommitted) {
+        closedHistoryPositionReads++;
+        final delayed =
+            delayedCloseByHistory && closedHistoryPositionReads == 1;
+        return _json({
+          'page': 1,
+          'pageSize': 50,
+          'total': delayed ? 0 : 1,
+          'items': delayed
+              ? <Object?>[]
+              : [
+                  {
+                    'positionId': 'SERVER-POSITION-2',
+                    'symbol': 'XAUUSD+',
+                    'side': 'sell',
+                    'initialVolume': 0.004,
+                    'remainingVolume': 0,
+                    'entryPrice': 4374.1,
+                    'realizedProfit': 2.5,
+                    'status': 'closed',
+                    'createdAtUtc': '2026-08-13T14:00:10Z',
+                    'closedAtUtc': '2026-08-13T16:32:10Z',
+                  },
+                ],
+        });
+      }
       if (closeCommitted) closedHistoryPositionReads++;
       final delayed =
           closeCommitted &&
@@ -1829,6 +2793,10 @@ final class _TradingAdapter implements HttpClientAdapter {
                 },
               ]
             : <Object?>[],
+        if (staleVersionedHistoryOnce)
+          'snapshotVersion': closedHistoryPositionReads == 1
+              ? bootstrapVersion - 1
+              : bootstrapVersion,
       });
     }
     return _json(<Object?>[]);
@@ -1842,6 +2810,9 @@ final class _TradingAdapter implements HttpClientAdapter {
           Headers.contentTypeHeader: [Headers.jsonContentType],
         },
       );
+
+  String _commandHeader(RequestOptions options, String name) =>
+      options.headers[name]!.toString();
 
   @override
   void close({bool force = false}) {}
@@ -1864,6 +2835,376 @@ final _order = <String, Object?>{
   'rowVersion': 'order-rv',
 };
 
+Map<String, Object?> _fullCloseSync({
+  required int version,
+  required String idempotencyKey,
+  required String correlationId,
+}) => {
+  'accountId': 'account-1',
+  'version': version,
+  'committedAtUtc': '2026-08-13T16:31:10Z',
+  'operation': {
+    'mode': 'full',
+    'idempotencyKey': idempotencyKey,
+    'correlationId': correlationId,
+  },
+  'affectedPositions': [
+    {
+      ..._bootstrapPosition,
+      'remainingVolume': 0,
+      'realizedProfit': 306.525,
+      'status': 'closed',
+      'closedAt': '2026-08-13T16:31:10Z',
+      'rowVersion': 'closed-position-rv',
+    },
+  ],
+  'closedPositions': [
+    {
+      'id': 'server-position-1',
+      'positionId': 'server-position-1',
+      'symbol': 'XAUUSD+',
+      'side': 'buy',
+      'volume': 0.01,
+      'openPrice': 4373.72,
+      'closePrice': 4365.58,
+      'realizedProfit': 306.525,
+      'openedAtUtc': '2026-08-13T14:00:00Z',
+      'closedAtUtc': '2026-08-13T16:31:10Z',
+      'status': 'closed',
+    },
+  ],
+  'orders': [
+    {
+      'id': 'legacy-order-1',
+      'accountCode': 'TEST-100',
+      'symbol': 'XAUUSD+',
+      'side': 'buy',
+      'volume': 0.01,
+      'openPrice': 4373.72,
+      'closePrice': 4365.58,
+      'profit': 306.525,
+      'openedAt': '2026-08-13T14:00:00Z',
+      'closedAt': '2026-08-13T16:31:10Z',
+      'status': 'closed',
+    },
+  ],
+  'deals': [
+    {
+      'id': 'close-deal-1',
+      'positionId': 'server-position-1',
+      'orderId': 'server-order-1',
+      'type': 'out',
+      'symbol': 'XAUUSD+',
+      'side': 'sell',
+      'volume': 0.004,
+      'price': 4365.28,
+      'profit': 120,
+      'createdAtUtc': '2026-08-13T16:30:10Z',
+    },
+    {
+      'id': 'close-deal-2',
+      'positionId': 'server-position-1',
+      'orderId': 'server-order-1',
+      'type': 'out_by',
+      'symbol': 'XAUUSD+',
+      'side': 'sell',
+      'volume': 0.006,
+      'price': 4365.78,
+      'profit': 186.525,
+      'createdAtUtc': '2026-08-13T16:31:10Z',
+    },
+  ],
+  'accountSummary': {
+    'accountId': 'account-1',
+    'currency': 'USD',
+    'balance': 5306.525,
+    'equity': 5306.525,
+    'profit': 0,
+    'margin': 0,
+    'freeMargin': 5306.525,
+    'marginLevel': 0,
+    'updatedAt': '2026-08-13T16:31:10Z',
+  },
+  'historySummary': {
+    'deposit': 0,
+    'withdrawal': 0,
+    'realizedProfit': 306.525,
+    'swap': 0,
+    'commission': 0,
+    'netChange': 306.525,
+  },
+};
+
+Map<String, Object?> _partialCloseSync({
+  required int version,
+  required String idempotencyKey,
+  required String correlationId,
+}) => {
+  'accountId': 'account-1',
+  'version': version,
+  'committedAtUtc': '2026-08-13T16:30:10Z',
+  'operation': {
+    'mode': 'partial',
+    'idempotencyKey': idempotencyKey,
+    'correlationId': correlationId,
+  },
+  'affectedPositions': [
+    {
+      ..._bootstrapPosition,
+      'remainingVolume': 0.006,
+      'realizedProfit': 120,
+      'status': 'open',
+      'closedAt': null,
+      'rowVersion': 'partial-position-rv',
+    },
+  ],
+  'closedPositions': <Object?>[],
+  'orders': [
+    {
+      'id': 'legacy-order-1',
+      'accountCode': 'TEST-100',
+      'symbol': 'XAUUSD+',
+      'side': 'buy',
+      'volume': 0.01,
+      'openPrice': 4373.72,
+      'closePrice': 4365.28,
+      'profit': 120,
+      'openedAt': '2026-08-13T14:00:00Z',
+      'closedAt': null,
+      'status': 'open',
+    },
+  ],
+  'deals': [
+    {
+      'id': 'partial-close-deal-1',
+      'positionId': 'server-position-1',
+      'orderId': 'server-order-1',
+      'type': 'out',
+      'symbol': 'XAUUSD+',
+      'side': 'sell',
+      'volume': 0.004,
+      'price': 4365.28,
+      'profit': 120,
+      'createdAtUtc': '2026-08-13T16:30:10Z',
+    },
+  ],
+  'accountSummary': {
+    'accountId': 'account-1',
+    'currency': 'USD',
+    'balance': 5120,
+    'equity': 5120,
+    'profit': 0,
+    'margin': 0,
+    'freeMargin': 5120,
+    'marginLevel': 0,
+    'updatedAt': '2026-08-13T16:30:10Z',
+  },
+  'historySummary': {
+    'deposit': 0,
+    'withdrawal': 0,
+    'realizedProfit': 120,
+    'swap': 0,
+    'commission': 0,
+    'netChange': 120,
+  },
+};
+
+Map<String, Object?> _bulkCloseSync({
+  required Map<String, Object?> position,
+  required String accountId,
+  required int version,
+  required String idempotencyKey,
+  required String correlationId,
+  double historyRealizedProfit = 0,
+}) {
+  final positionId = position['id']! as String;
+  final symbol = position['symbol']! as String;
+  final side = position['side']! as String;
+  final volume = (position['initialVolume']! as num).toDouble();
+  final openPrice = (position['entryPrice']! as num).toDouble();
+  final closingSide = side.toUpperCase() == 'BUY' ? 'sell' : 'buy';
+  return {
+    'accountId': accountId,
+    'version': version,
+    'committedAtUtc': '2026-08-24T02:00:00Z',
+    'operation': {
+      'mode': 'full',
+      'idempotencyKey': idempotencyKey,
+      'correlationId': correlationId,
+    },
+    'affectedPositions': [position],
+    'closedPositions': [
+      {
+        'id': positionId,
+        'positionId': positionId,
+        'symbol': symbol,
+        'side': side,
+        'volume': volume,
+        'openPrice': openPrice,
+        'closePrice': openPrice,
+        'realizedProfit': 0,
+        'openedAtUtc': position['createdAt'],
+        'closedAtUtc': '2026-08-24T02:00:00Z',
+        'status': 'closed',
+      },
+    ],
+    'orders': [
+      {
+        'id': 'order-$positionId',
+        'accountCode': 'TEST-100',
+        'symbol': symbol,
+        'side': side,
+        'volume': volume,
+        'openPrice': openPrice,
+        'closePrice': openPrice,
+        'profit': 0,
+        'openedAt': position['createdAt'],
+        'closedAt': '2026-08-24T02:00:00Z',
+        'status': 'closed',
+      },
+    ],
+    'deals': [
+      {
+        'id': 'close-$positionId',
+        'positionId': positionId,
+        'orderId': 'order-$positionId',
+        'type': 'out',
+        'symbol': symbol,
+        'side': closingSide,
+        'volume': volume,
+        'price': openPrice,
+        'profit': 0,
+        'createdAtUtc': '2026-08-24T02:00:00Z',
+      },
+    ],
+    'accountSummary': {
+      'accountId': accountId,
+      'currency': 'USD',
+      'balance': 5000,
+      'equity': 5000,
+      'profit': 0,
+      'margin': 0,
+      'freeMargin': 5000,
+      'marginLevel': 0,
+      'updatedAt': '2026-08-24T02:00:00Z',
+    },
+    'historySummary': {
+      'deposit': 0,
+      'withdrawal': 0,
+      'realizedProfit': historyRealizedProfit,
+      'swap': 0,
+      'commission': 0,
+      'netChange': historyRealizedProfit,
+    },
+  };
+}
+
+Map<String, Object?> _closeBySync({
+  required Map<String, Object?> position,
+  required Map<String, Object?> oppositePosition,
+  required int version,
+  required String idempotencyKey,
+  required String correlationId,
+}) => {
+  'accountId': 'account-1',
+  'version': version,
+  'committedAtUtc': '2026-08-13T16:32:10Z',
+  'operation': {
+    'mode': 'close_by',
+    'idempotencyKey': idempotencyKey,
+    'correlationId': correlationId,
+  },
+  'affectedPositions': [position, oppositePosition],
+  'closedPositions': [
+    {
+      'id': 'server-position-2',
+      'positionId': 'server-position-2',
+      'symbol': 'XAUUSD+',
+      'side': 'sell',
+      'volume': 0.004,
+      'openPrice': 4374.1,
+      'closePrice': 4373.9,
+      'realizedProfit': 0,
+      'openedAtUtc': '2026-08-13T14:00:10Z',
+      'closedAtUtc': '2026-08-13T16:32:10Z',
+      'status': 'closed',
+    },
+  ],
+  'orders': [
+    {
+      'id': 'legacy-order-1',
+      'accountCode': 'TEST-100',
+      'symbol': 'XAUUSD+',
+      'side': 'buy',
+      'volume': 0.01,
+      'openPrice': 4373.72,
+      'closePrice': 4373.9,
+      'profit': 0,
+      'openedAt': '2026-08-13T14:00:00Z',
+      'closedAt': null,
+      'status': 'open',
+    },
+    {
+      'id': 'legacy-order-2',
+      'accountCode': 'TEST-100',
+      'symbol': 'XAUUSD+',
+      'side': 'sell',
+      'volume': 0.004,
+      'openPrice': 4374.1,
+      'closePrice': 4373.9,
+      'profit': 0,
+      'openedAt': '2026-08-13T14:00:10Z',
+      'closedAt': '2026-08-13T16:32:10Z',
+      'status': 'closed',
+    },
+  ],
+  'deals': [
+    {
+      'id': 'close-by-deal-1',
+      'positionId': 'server-position-1',
+      'orderId': 'server-order-1',
+      'type': 'out_by',
+      'symbol': 'XAUUSD+',
+      'side': 'sell',
+      'volume': 0.004,
+      'price': 4373.9,
+      'profit': 0,
+      'createdAtUtc': '2026-08-13T16:32:10Z',
+    },
+    {
+      'id': 'close-by-deal-2',
+      'positionId': 'server-position-2',
+      'orderId': 'server-order-2',
+      'type': 'out_by',
+      'symbol': 'XAUUSD+',
+      'side': 'buy',
+      'volume': 0.004,
+      'price': 4373.9,
+      'profit': 0,
+      'createdAtUtc': '2026-08-13T16:32:10Z',
+    },
+  ],
+  'accountSummary': {
+    'accountId': 'account-1',
+    'currency': 'USD',
+    'balance': 5000,
+    'equity': 5000,
+    'profit': 0,
+    'margin': 0,
+    'freeMargin': 5000,
+    'marginLevel': 0,
+    'updatedAt': '2026-08-13T16:32:10Z',
+  },
+  'historySummary': {
+    'deposit': 0,
+    'withdrawal': 0,
+    'realizedProfit': 0,
+    'swap': 0,
+    'commission': 0,
+    'netChange': 0,
+  },
+};
+
 Map<String, Object?> _bootstrap({
   required int version,
   required bool withPosition,
@@ -1872,56 +3213,60 @@ Map<String, Object?> _bootstrap({
   bool withOppositePosition = false,
   String accountId = 'account-1',
   double? balanceOverride,
-}) => {
-  'serverTime': '2026-08-13T14:00:00Z',
-  'version': version,
-  'device': {'id': 'device-1', 'name': 'Phone'},
-  'activeAccount': {
-    'id': accountId,
-    'accountCode': 'TEST-100',
-    'name': 'Demo account',
-    'currency': 'USD',
-    'status': 'active',
-  },
-  'summary': {
-    'accountId': accountId,
-    'currency': 'USD',
-    'balance': balanceOverride ?? (withPosition ? 5000 : 5306.525),
-    'equity': balanceOverride ?? (withPosition ? 5000 : 5306.525),
-    'profit': 0,
-    'margin': 0,
-    'freeMargin': balanceOverride ?? (withPosition ? 5000 : 5306.525),
-    'marginLevel': 0,
-    'updatedAt': '2026-08-13T14:00:00Z',
-  },
-  'positions': <Object?>[
-    if (withPosition)
-      <String, Object?>{
-        ..._bootstrapPosition,
-        'remainingVolume': remainingVolume,
-      },
-    if (withOppositePosition) _oppositeBootstrapPosition,
-  ],
-  'pendingOrders': withPending ? [_pendingOrder] : <Object?>[],
-  'recentDeals': <Object?>[],
-  'wallet': {
-    'currency': 'USD',
-    'availableBalance': 1000,
-    'lockedBalance': 0,
-    'totalBalance': 1000,
-  },
-  'performance': {
-    'netProfit': 0,
-    'grossProfit': 0,
-    'grossLoss': 0,
-    'floatingProfit': 0,
-    'tradingVolume': 0,
-    'updatedAt': null,
+  double marginOverride = 0,
+}) {
+  final balance = balanceOverride ?? (withPosition ? 5000.0 : 5306.525);
+  return {
+    'serverTime': '2026-08-13T14:00:00Z',
+    'version': version,
+    'device': {'id': 'device-1', 'name': 'Phone'},
+    'activeAccount': {
+      'id': accountId,
+      'accountCode': 'TEST-100',
+      'name': 'Demo account',
+      'currency': 'USD',
+      'status': 'active',
+    },
+    'summary': {
+      'accountId': accountId,
+      'currency': 'USD',
+      'balance': balance,
+      'equity': balance,
+      'profit': 0,
+      'margin': marginOverride,
+      'freeMargin': balance - marginOverride,
+      'marginLevel': marginOverride == 0 ? 0 : balance / marginOverride * 100,
+      'updatedAt': '2026-08-13T14:00:00Z',
+    },
+    'positions': <Object?>[
+      if (withPosition)
+        <String, Object?>{
+          ..._bootstrapPosition,
+          'remainingVolume': remainingVolume,
+        },
+      if (withOppositePosition) _oppositeBootstrapPosition,
+    ],
+    'pendingOrders': withPending ? [_pendingOrder] : <Object?>[],
+    'recentDeals': <Object?>[],
+    'wallet': {
+      'currency': 'USD',
+      'availableBalance': 1000,
+      'lockedBalance': 0,
+      'totalBalance': 1000,
+    },
+    'performance': {
+      'netProfit': 0,
+      'grossProfit': 0,
+      'grossLoss': 0,
+      'floatingProfit': 0,
+      'tradingVolume': 0,
+      'updatedAt': null,
+      'integrityWarnings': 0,
+    },
+    'connection': {'marketFeedStatus': 'connected', 'lastMarketTickAt': null},
     'integrityWarnings': 0,
-  },
-  'connection': {'marketFeedStatus': 'connected', 'lastMarketTickAt': null},
-  'integrityWarnings': 0,
-};
+  };
+}
 
 final _bootstrapPosition = <String, Object?>{
   'id': 'server-position-1',

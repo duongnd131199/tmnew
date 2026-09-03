@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -50,6 +52,177 @@ void main() {
       },
     );
   }
+
+  testWidgets('Prices text reaches the measured reference ink density', (
+    tester,
+  ) async {
+    await _configureReferenceView(tester);
+    await pumpTabReference(tester, TabReferenceState.prices);
+
+    final image = await _captureReferenceImage(tester);
+    addTearDown(image.dispose);
+    final bytes = await tester.runAsync(
+      () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+    );
+    expect(bytes, isNotNull);
+
+    final metadataBounds = _inkBoundsIn(
+      image,
+      bytes!,
+      const Rect.fromLTRB(0, 220, 175, 253),
+    );
+    expect(metadataBounds.left, inInclusiveRange(11, 12));
+    expect(metadataBounds.top, 227);
+    expect(metadataBounds.right, 133);
+    expect(
+      metadataBounds.height,
+      inInclusiveRange(13, 14),
+      reason: 'One physical pixel accounts for the JPEG fringe in the sample',
+    );
+    final xauChangeBounds = _inkBoundsIn(
+      image,
+      bytes,
+      const Rect.fromLTRB(8, 165, 135, 190),
+    );
+    expect(xauChangeBounds.left, inInclusiveRange(11, 12));
+    expect(xauChangeBounds.top, inInclusiveRange(167, 168));
+    expect(xauChangeBounds.right, inInclusiveRange(124, 125));
+    expect(xauChangeBounds.height, inInclusiveRange(13, 14));
+    expect(
+      _inkPixelsIn(image, bytes, const Rect.fromLTRB(8, 165, 135, 190)),
+      inInclusiveRange(520, 560),
+      reason: 'XAUUSD daily-change raster from the supplied reference',
+    );
+    final xauBidBounds = _inkBoundsIn(
+      image,
+      bytes,
+      const Rect.fromLTRB(350, 168, 470, 220),
+    );
+    expect(xauBidBounds.left, 362);
+    expect(xauBidBounds.top, 182);
+    expect(xauBidBounds.right, 454);
+    expect(xauBidBounds.height, inInclusiveRange(30, 31));
+    expect(
+      _inkPixelsIn(image, bytes, const Rect.fromLTRB(350, 168, 470, 220)),
+      inInclusiveRange(990, 1090),
+      reason: 'XAUUSD bid weight from the supplied Prices reference',
+    );
+    expect(
+      _inkPixelsIn(image, bytes, const Rect.fromLTRB(0, 255, 165, 295)),
+      inInclusiveRange(420, 500),
+      reason: 'BTC daily-change weight from the supplied Prices reference',
+    );
+    expect(
+      _inkPixelsIn(image, bytes, const Rect.fromLTRB(360, 220, 478, 255)),
+      inInclusiveRange(460, 500),
+      reason: 'XAUUSD low-range weight from the supplied Prices reference',
+    );
+    expect(
+      _inkBoundsIn(image, bytes, const Rect.fromLTRB(360, 220, 478, 255)),
+      const Rect.fromLTRB(371, 230, 459, 243),
+      reason: 'XAUUSD low-range placement from the supplied reference',
+    );
+    expect(
+      _inkPixelsIn(image, bytes, const Rect.fromLTRB(370, 270, 470, 320)),
+      inInclusiveRange(880, 970),
+      reason: 'BTC bid weight from the supplied Prices reference',
+    );
+    final sellMedian = _accentMedianIn(
+      image,
+      bytes,
+      const Rect.fromLTRB(370, 270, 590, 320),
+      red: true,
+    );
+    expect(sellMedian.red, inInclusiveRange(216, 224));
+    expect(sellMedian.green, inInclusiveRange(62, 72));
+    expect(
+      sellMedian.blue,
+      inInclusiveRange(52, 66),
+      reason: 'Prices sell ink from the supplied reference',
+    );
+  });
+
+  testWidgets('History text reaches the measured reference ink density', (
+    tester,
+  ) async {
+    await _configureReferenceView(tester);
+    await pumpTabReference(tester, TabReferenceState.historyPositions);
+
+    final image = await _captureReferenceImage(tester);
+    addTearDown(image.dispose);
+    final bytes = await tester.runAsync(
+      () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+    );
+    expect(bytes, isNotNull);
+
+    final segmentBounds = _inkBoundsIn(
+      image,
+      bytes!,
+      const Rect.fromLTRB(100, 80, 490, 150),
+    );
+    final primaryBounds = _inkBoundsIn(
+      image,
+      bytes,
+      const Rect.fromLTRB(0, 235, 590, 280),
+    );
+    final secondaryBounds = _inkBoundsIn(
+      image,
+      bytes,
+      const Rect.fromLTRB(0, 275, 590, 315),
+    );
+    final segmentPixels = _inkPixelsIn(
+      image,
+      bytes,
+      const Rect.fromLTRB(100, 80, 490, 150),
+    );
+    final primaryPixels = _inkPixelsIn(
+      image,
+      bytes,
+      const Rect.fromLTRB(0, 235, 590, 280),
+    );
+    final secondaryPixels = _inkPixelsIn(
+      image,
+      bytes,
+      const Rect.fromLTRB(0, 275, 590, 315),
+    );
+    final summaryPixels = _inkPixelsIn(
+      image,
+      bytes,
+      const Rect.fromLTRB(0, 555, 590, 715),
+    );
+    expect(segmentBounds.left, 115);
+    expect(segmentBounds.top, 104);
+    expect(segmentBounds.right, 477);
+    expect(segmentBounds.height, inInclusiveRange(20, 21));
+    expect(primaryBounds.top, 247);
+    expect(primaryBounds.right, 581);
+    expect(primaryBounds.height, inInclusiveRange(23, 24));
+    expect(
+      secondaryBounds,
+      const Rect.fromLTWH(10, 282, 568, 19),
+      reason: 'History secondary baseline and height',
+    );
+    expect(
+      segmentPixels,
+      inInclusiveRange(1650, 1800),
+      reason: 'History segmented-control labels',
+    );
+    expect(
+      primaryPixels,
+      inInclusiveRange(1780, 1850),
+      reason: 'History position primary row',
+    );
+    expect(
+      secondaryPixels,
+      inInclusiveRange(2440, 2520),
+      reason: 'History position secondary row',
+    );
+    expect(
+      summaryPixels,
+      inInclusiveRange(6200, 6350),
+      reason: 'History summary rows',
+    );
+  });
 
   testWidgets('Trade add control renders the measured diffuse halo', (
     tester,
@@ -145,10 +318,10 @@ void main() {
                 .painter!
             as Mt5CandlePainter;
     expect(painter.hitTargets.timeAxisLabels, const [
-      '25 Aug 17:28',
-      '25 Aug 17:44',
-      '25 Aug 18:00',
-      '25 Aug 18:16',
+      '25 Aug 17:27',
+      '25 Aug 17:43',
+      '25 Aug 17:59',
+      '25 Aug 18:15',
     ]);
   });
 
@@ -179,6 +352,90 @@ Future<ui.Image> _captureReferenceImage(WidgetTester tester) {
     find.byKey(const Key('tab-reference-root')),
   );
   return boundary.toImage(pixelRatio: tabReferenceDevicePixelRatio);
+}
+
+int _inkPixelsIn(ui.Image image, ByteData bytes, Rect bounds) {
+  var pixels = 0;
+  for (var y = bounds.top.floor(); y < bounds.bottom.ceil(); y++) {
+    for (var x = bounds.left.floor(); x < bounds.right.ceil(); x++) {
+      final offset = (y * image.width + x) * 4;
+      final red = bytes.getUint8(offset);
+      final green = bytes.getUint8(offset + 1);
+      final blue = bytes.getUint8(offset + 2);
+      if (math.min(red, math.min(green, blue)) < 205 &&
+          red + green + blue < 690) {
+        pixels++;
+      }
+    }
+  }
+  return pixels;
+}
+
+Rect _inkBoundsIn(ui.Image image, ByteData bytes, Rect bounds) {
+  var minX = image.width;
+  var minY = image.height;
+  var maxX = -1;
+  var maxY = -1;
+  for (var y = bounds.top.floor(); y < bounds.bottom.ceil(); y++) {
+    for (var x = bounds.left.floor(); x < bounds.right.ceil(); x++) {
+      final offset = (y * image.width + x) * 4;
+      final red = bytes.getUint8(offset);
+      final green = bytes.getUint8(offset + 1);
+      final blue = bytes.getUint8(offset + 2);
+      if (math.min(red, math.min(green, blue)) >= 205 ||
+          red + green + blue >= 690) {
+        continue;
+      }
+      minX = math.min(minX, x);
+      minY = math.min(minY, y);
+      maxX = math.max(maxX, x);
+      maxY = math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    throw StateError('No ink pixels in $bounds');
+  }
+  return Rect.fromLTRB(
+    minX.toDouble(),
+    minY.toDouble(),
+    (maxX + 1).toDouble(),
+    (maxY + 1).toDouble(),
+  );
+}
+
+({int red, int green, int blue}) _accentMedianIn(
+  ui.Image image,
+  ByteData bytes,
+  Rect bounds, {
+  required bool red,
+}) {
+  final redValues = <int>[];
+  final greenValues = <int>[];
+  final blueValues = <int>[];
+  for (var y = bounds.top.floor(); y < bounds.bottom.ceil(); y++) {
+    for (var x = bounds.left.floor(); x < bounds.right.ceil(); x++) {
+      final offset = (y * image.width + x) * 4;
+      final pixelRed = bytes.getUint8(offset);
+      final pixelGreen = bytes.getUint8(offset + 1);
+      final pixelBlue = bytes.getUint8(offset + 2);
+      final accent = red
+          ? pixelRed > pixelGreen + 45 && pixelRed > pixelBlue + 45
+          : pixelBlue > pixelRed + 45 && pixelBlue > pixelGreen + 25;
+      if (!accent) continue;
+      redValues.add(pixelRed);
+      greenValues.add(pixelGreen);
+      blueValues.add(pixelBlue);
+    }
+  }
+  if (redValues.isEmpty) throw StateError('No accent pixels in $bounds');
+  redValues.sort();
+  greenValues.sort();
+  blueValues.sort();
+  return (
+    red: redValues[redValues.length ~/ 2],
+    green: greenValues[greenValues.length ~/ 2],
+    blue: blueValues[blueValues.length ~/ 2],
+  );
 }
 
 Future<Rect?> _historyScrollbarBounds(ui.Image image) async {
@@ -318,7 +575,7 @@ Future<void> pumpTabReference(
             key: const Key('tab-reference-root'),
             child: Scaffold(
               extendBody: true,
-              body: _screenFor(state),
+              body: MtTabTextScope(child: _screenFor(state)),
               bottomNavigationBar: MtBottomNavigationBar(
                 selectedIndex: _navigationIndexFor(state),
                 onTap: (_) {},

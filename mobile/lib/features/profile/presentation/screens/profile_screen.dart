@@ -5,6 +5,7 @@ import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
+import 'package:trading_mobile/features/profile/presentation/theme/account_list_reference_theme.dart';
 import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
@@ -54,12 +55,7 @@ class ProfileScreen extends ConsumerWidget {
                       child: Text(
                         'Tài khoản',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 18.5,
-                          height: 1,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: AccountListReferenceTypography.toolbarTitle,
                       ),
                     ),
                   ),
@@ -178,30 +174,32 @@ class _AccountRow extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    account.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: active ? AppColors.primary : AppColors.textPrimary,
-                      fontFamily: 'sans-serif',
-                      fontSize: 19.5,
-                      height: 1,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _AccountNameText(
+                          value: account.name,
+                          style: active
+                              ? AccountListReferenceTypography.activeName
+                              : AccountListReferenceTypography.inactiveName,
+                        ),
+                      ),
+                      if (!account.isMaster) ...[
+                        const SizedBox(
+                          width: AccountListReferenceMetrics.readOnlyGap,
+                        ),
+                        _AccountReadOnlyBadge(accountId: account.id),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '${account.id} - ${account.server}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: active
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
-                      fontFamily: 'sans-serif',
-                      fontSize: 16.5,
-                      height: 1,
-                    ),
+                    style: active
+                        ? AccountListReferenceTypography.activeMetadata
+                        : AccountListReferenceTypography.inactiveMetadata,
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -210,14 +208,10 @@ class _AccountRow extends StatelessWidget {
                         : '${_formatAccountBalance(displayBalance!)} '
                               '${account.currency}, ${account.mode}',
                     maxLines: 1,
-                    style: TextStyle(
-                      color: active
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
-                      fontFamily: 'sans-serif',
-                      fontSize: 16.5,
-                      height: 1,
-                    ),
+                    overflow: TextOverflow.ellipsis,
+                    style: active
+                        ? AccountListReferenceTypography.activeMetadata
+                        : AccountListReferenceTypography.inactiveMetadata,
                   ),
                 ],
               ),
@@ -235,6 +229,97 @@ class _AccountRow extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+class _AccountReadOnlyBadge extends StatelessWidget {
+  const _AccountReadOnlyBadge({required this.accountId});
+
+  final String accountId;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    key: ValueKey('account-read-only-$accountId'),
+    decoration: BoxDecoration(
+      color: AccountListReferenceColors.readOnlySurface,
+      border: Border.all(color: AccountListReferenceColors.readOnlyBorder),
+      borderRadius: BorderRadius.circular(
+        AccountListReferenceMetrics.readOnlyRadius,
+      ),
+    ),
+    child: SizedBox(
+      width: AccountListReferenceMetrics.readOnlySize.width,
+      height: AccountListReferenceMetrics.readOnlySize.height,
+      child: const Center(
+        child: Text(
+          'Read Only',
+          maxLines: 1,
+          style: AccountListReferenceTypography.readOnly,
+        ),
+      ),
+    ),
+  );
+}
+
+class _AccountNameText extends StatelessWidget {
+  const _AccountNameText({required this.value, required this.style});
+
+  final String value;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final trailingEmoji = _splitTrailingEmoji(value);
+    if (trailingEmoji == null) {
+      return Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
+    }
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: trailingEmoji.prefix),
+          if (trailingEmoji.separator.isNotEmpty)
+            TextSpan(
+              text: trailingEmoji.separator,
+              style: AccountListReferenceTypography.trailingEmojiGap,
+            ),
+          TextSpan(
+            text: trailingEmoji.emoji,
+            style: AccountListReferenceTypography.trailingEmoji,
+          ),
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+  }
+}
+
+({String prefix, String separator, String emoji})? _splitTrailingEmoji(
+  String value,
+) {
+  final graphemes = value.characters.toList(growable: false);
+  if (graphemes.isEmpty) return null;
+
+  final emoji = graphemes.last;
+  final isEmoji = emoji.runes.any(
+    (codePoint) =>
+        (codePoint >= 0x1F000 && codePoint <= 0x1FAFF) ||
+        (codePoint >= 0x2600 && codePoint <= 0x27BF),
+  );
+  if (!isEmoji) return null;
+
+  final rawPrefix = graphemes.take(graphemes.length - 1).join();
+  final prefix = rawPrefix.trimRight();
+  return (
+    prefix: prefix,
+    separator: rawPrefix.substring(prefix.length),
+    emoji: emoji,
   );
 }
 

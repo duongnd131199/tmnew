@@ -35,6 +35,97 @@ class MtToolbarIcon extends StatelessWidget {
   );
 }
 
+class MtHistoryClockIcon extends StatelessWidget {
+  const MtHistoryClockIcon({
+    required this.color,
+    this.size = 24,
+    this.selected = false,
+    super.key,
+  });
+
+  final Color color;
+  final double size;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    size: Size.square(size),
+    painter: MtHistoryClockIconPainter(color: color, selected: selected),
+  );
+}
+
+class MtHistoryClockIconPainter extends CustomPainter {
+  const MtHistoryClockIconPainter({
+    required this.color,
+    required this.selected,
+  });
+
+  final Color color;
+  final bool selected;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    void paintLayer(double strokeWidth, Color layerColor) {
+      final stroke = Paint()
+        ..color = layerColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      final fill = Paint()
+        ..color = layerColor
+        ..style = PaintingStyle.fill;
+      paintMtHistoryClockLayer(
+        canvas,
+        stroke: stroke,
+        fill: fill,
+        selected: selected,
+      );
+    }
+
+    canvas.save();
+    canvas.scale(size.width / 27, size.height / 27);
+    paintLayer(2.78, color.withValues(alpha: .565));
+    paintLayer(1.15, color);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant MtHistoryClockIconPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.selected != selected;
+}
+
+void paintMtHistoryClockLayer(
+  Canvas canvas, {
+  required Paint stroke,
+  required Paint fill,
+  required bool selected,
+}) {
+  canvas.drawArc(
+    Rect.fromCircle(center: const Offset(13.75, 13.25), radius: 9.75),
+    math.pi * .9777777778,
+    math.pi * 1.7611111111,
+    false,
+    stroke,
+  );
+  final arrow = Path()
+    ..moveTo(2.25, 13.3)
+    ..lineTo(5, 11.05)
+    ..lineTo(selected ? 4 : 4.75, selected ? 14.5 : 15.05)
+    ..close();
+  canvas.drawPath(arrow, fill);
+  canvas.drawLine(
+    const Offset(13.85, 14.25),
+    const Offset(13.85, 9.55),
+    stroke,
+  );
+  canvas.drawLine(
+    const Offset(13.85, 14.25),
+    const Offset(17.25, 17.95),
+    stroke,
+  );
+}
+
 class _MtToolbarIconPainter extends CustomPainter {
   const _MtToolbarIconPainter(this.kind, this.color);
 

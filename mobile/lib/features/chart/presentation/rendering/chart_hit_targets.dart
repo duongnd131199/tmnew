@@ -11,6 +11,7 @@ class ChartHitTargets {
   double? pendingOrderY;
   List<({String label, double y})> positionOverlays = const [];
   List<Rect> positionLabelRects = const [];
+  List<({Rect frame, Offset textOrigin})> positionPriceTagLayouts = const [];
   List<({String label, double y})> pendingOrderOverlays = const [];
   Rect chartFrameRect = Rect.zero;
   Rect priceGridRect = Rect.zero;

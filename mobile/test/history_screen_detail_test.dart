@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/reference_typography_profile.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_wallet_history_mapper.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
+import 'package:trading_mobile/features/history/presentation/screens/history_detail_screen.dart';
 import 'package:trading_mobile/features/history/presentation/screens/history_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
@@ -17,6 +19,19 @@ import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
 
 import 'test_support/load_test_fonts.dart';
 import 'test_support/video_reference_fixtures.dart';
+
+TextStyle _resolvedHistoryRole(
+  WidgetTester tester,
+  Finder finder, {
+  required ReferenceTextRole role,
+  required ReferenceTextColorRole colorRole,
+  required TypographyVariantId variant,
+}) => AppTypography.forRole(
+  tester.element(finder),
+  role,
+  colorRole: colorRole,
+  variant: variant,
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -41,8 +56,366 @@ void main() {
     }
   }
 
+  testWidgets('history deal and linked order hide server GUIDs', (
+    tester,
+  ) async {
+    const deal = DemoDeal(
+      id: '894faaa5-5d41-49bd-8a52-5daf0281d948',
+      orderId: '5ff94719-e61a-4c05-bbab-bb6f81c15369',
+      symbol: 'XAUUSD',
+      side: 'BUY',
+      volume: .25,
+      profit: 6.78,
+      time: '2026.09.01 10:00:00',
+      price: 4102.125,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...videoReferenceOverrides,
+          demoDealsProvider.overrideWithValue(const [deal]),
+        ],
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('history-tab-2')));
+    await tester.pump();
+    await tester.tap(find.byKey(ValueKey('history-deal-${deal.id}')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('#11615687251'), findsOneWidget);
+    expect(find.text('71383708458'), findsOneWidget);
+    expect(find.textContaining(deal.id), findsNothing);
+    expect(find.textContaining(deal.orderId), findsNothing);
+  });
+
+  testWidgets('history order and position hide server GUIDs', (tester) async {
+    const order = DemoOrder(
+      id: '5ff94719-e61a-4c05-bbab-bb6f81c15369',
+      symbol: 'XAUUSD',
+      side: 'BUY',
+      type: 'market',
+      volume: .25,
+      requestedPrice: 4102.125,
+      status: 'filled',
+      time: '2026.09.01 10:00:00',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...videoReferenceOverrides,
+          demoOrdersProvider.overrideWithValue(const [order]),
+        ],
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('history-tab-1')));
+    await tester.pump();
+    await tester.tap(find.byKey(ValueKey('history-order-${order.id}')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('#71383708458'), findsOneWidget);
+    expect(find.textContaining(order.id), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...videoReferenceOverrides,
+          demoHistoryPositionsProvider.overrideWithValue(const [
+            DemoHistoryPosition(
+              id: '894faaa5-5d41-49bd-8a52-5daf0281d948',
+              title: 'XAUUSD',
+              side: 'BUY',
+              volume: .25,
+              openPrice: 4102.125,
+              closePrice: 4102.396,
+              profit: 6.78,
+              time: '2026.09.01 10:00:00',
+            ),
+          ]),
+        ],
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+    await pumpBottomAnchor(tester);
+    await tester.tap(
+      find.byKey(
+        const ValueKey('history-position-894faaa5-5d41-49bd-8a52-5daf0281d948'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('#11615687251'), findsOneWidget);
+    expect(
+      find.textContaining('894faaa5-5d41-49bd-8a52-5daf0281d948'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('standalone history detail title hides a server GUID', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HistoryDetailScreen(
+          dealId: '894faaa5-5d41-49bd-8a52-5daf0281d948',
+        ),
+      ),
+    );
+
+    expect(find.text('11615687251'), findsOneWidget);
+    expect(find.text('894faaa5-5d41-49bd-8a52-5daf0281d948'), findsNothing);
+  });
+
+  testWidgets('History trade rows use synchronized compact trailing values', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...videoReferenceOverrides,
+          demoHistoryPositionsProvider.overrideWithValue(const [
+            DemoHistoryPosition(
+              id: 'history-buy',
+              title: 'XAUUSD+',
+              side: 'BUY',
+              volume: .25,
+              openPrice: 4600,
+              closePrice: 4610,
+              profit: 250,
+              time: '2026.08.28 08:00:00',
+            ),
+            DemoHistoryPosition(
+              id: 'history-sell',
+              title: 'XAUUSD+',
+              side: 'SELL',
+              volume: .25,
+              openPrice: 4600,
+              closePrice: 4610,
+              profit: -250,
+              time: '2026.08.28 08:01:00',
+            ),
+          ]),
+        ],
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+    await pumpBottomAnchor(tester);
+
+    final actions = tester
+        .widgetList<Text>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Text &&
+                widget.key is ValueKey<String> &&
+                (widget.key! as ValueKey<String>).value.startsWith(
+                  'history-positions-action-',
+                ),
+          ),
+        )
+        .toList();
+    final buyAction = actions.singleWhere((text) => text.data!.contains('buy'));
+    final sellAction = actions.singleWhere(
+      (text) => text.data!.contains('sell'),
+    );
+    for (final action in actions) {
+      expect(action.style?.fontFamily, AppTypography.historyAction.fontFamily);
+      expect(action.style?.fontSize, AppTypography.historyAction.fontSize);
+      expect(action.style?.fontWeight, AppTypography.historyAction.fontWeight);
+      expect(
+        action.style?.fontVariations,
+        AppTypography.historyAction.fontVariations,
+      );
+      expect(
+        action.style?.letterSpacing,
+        AppTypography.historyAction.letterSpacing,
+      );
+    }
+    expect(buyAction.style?.color, const Color(0xFF007AFF));
+    expect(sellAction.style?.color, const Color(0xFFE42D30));
+
+    final titles = tester
+        .widgetList<Text>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Text &&
+                widget.key is ValueKey<String> &&
+                (widget.key! as ValueKey<String>).value.startsWith(
+                  'history-positions-primary-',
+                ),
+          ),
+        )
+        .toList();
+    for (final title in titles) {
+      final rootSpan = title.textSpan! as TextSpan;
+      final symbolSpan = rootSpan.children!.first as TextSpan;
+      expect(
+        symbolSpan.style?.fontFamily,
+        AppTypography.historyPrimary.fontFamily,
+      );
+      expect(
+        symbolSpan.style?.fontWeight,
+        AppTypography.historyPrimary.fontWeight,
+      );
+      expect(symbolSpan.style?.fontVariations, isNull);
+    }
+
+    final profits = tester
+        .widgetList<Text>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Text &&
+                widget.key is ValueKey<String> &&
+                (widget.key! as ValueKey<String>).value.startsWith(
+                  'history-positions-trailing-primary-',
+                ),
+          ),
+        )
+        .toList();
+    final positiveProfit = profits.singleWhere(
+      (text) => !text.data!.startsWith('-'),
+    );
+    final negativeProfit = profits.singleWhere(
+      (text) => text.data!.startsWith('-'),
+    );
+    for (final profit in profits) {
+      expect(
+        profit.style?.fontFamily,
+        AppTypography.historyTrailingPrimary.fontFamily,
+      );
+      expect(
+        profit.style?.fontSize,
+        AppTypography.historyTrailingPrimary.fontSize,
+      );
+      expect(
+        profit.style?.fontWeight,
+        AppTypography.historyTrailingPrimary.fontWeight,
+      );
+      expect(profit.style?.fontVariations, isNull);
+      expect(
+        profit.style?.letterSpacing,
+        AppTypography.historyTrailingPrimary.letterSpacing,
+      );
+    }
+    expect(positiveProfit.style?.color, const Color(0xFF007AFF));
+    expect(negativeProfit.style?.color, const Color(0xFFE42D30));
+
+    final timestamp = tester.widget<Text>(
+      find.byKey(const ValueKey('history-positions-trailing-secondary-0')),
+    );
+    expect(timestamp.style?.color, const Color(0xFF3C3C43));
+    expect(
+      timestamp.style?.fontSize,
+      AppTypography.historyTrailingSecondary.fontSize,
+    );
+    expect(
+      timestamp.style?.fontWeight,
+      AppTypography.historyTrailingSecondary.fontWeight,
+    );
+    expect(timestamp.style?.fontVariations, isNull);
+
+    final priceRanges = tester
+        .widgetList<Text>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Text &&
+                widget.key is ValueKey<String> &&
+                (widget.key! as ValueKey<String>).value.startsWith(
+                  'history-positions-secondary-',
+                ),
+          ),
+        )
+        .toList();
+    for (final priceRange in priceRanges) {
+      expect(priceRange.style?.color, const Color(0xFF3C3C43));
+      expect(
+        priceRange.style?.fontSize,
+        AppTypography.historyPriceRange.fontSize,
+      );
+      expect(
+        priceRange.style?.fontWeight,
+        AppTypography.historyPriceRange.fontWeight,
+      );
+      expect(priceRange.style?.fontVariations, isNull);
+      expect(
+        priceRange.style?.letterSpacing,
+        AppTypography.historyPriceRange.letterSpacing,
+      );
+    }
+  });
+
+  testWidgets('History Trade-equivalent glyphs keep unscaled paint geometry', (
+    tester,
+  ) async {
+    await tester.pumpWidget(testApp());
+    await pumpBottomAnchor(tester);
+
+    final positionsList = tester.widget<ListView>(
+      find.byKey(const PageStorageKey('history-positions-list')),
+    );
+    positionsList.controller!.jumpTo(0);
+    await tester.pump();
+
+    double paintScaleY(Finder finder) {
+      final box = tester.renderObject<RenderBox>(finder);
+      final origin = box.localToGlobal(Offset.zero);
+      final edge = box.localToGlobal(Offset(0, box.size.height));
+      return (edge.dy - origin.dy) / box.size.height;
+    }
+
+    expect(
+      paintScaleY(find.byKey(const ValueKey('history-positions-action-0'))),
+      closeTo(1, .001),
+    );
+    expect(
+      paintScaleY(
+        find.byKey(const ValueKey('history-positions-trailing-primary-0')),
+      ),
+      closeTo(1, .001),
+    );
+    expect(
+      paintScaleY(find.byKey(const ValueKey('history-positions-secondary-0'))),
+      closeTo(1, .001),
+    );
+    expect(
+      paintScaleY(
+        find.byKey(const ValueKey('history-positions-trailing-secondary-0')),
+      ),
+      closeTo(1, .001),
+      reason: 'The timestamp must paint at the same 16px scale as the price.',
+    );
+
+    await tester.tap(find.byKey(const Key('history-tab-1')));
+    await tester.pump();
+    expect(
+      paintScaleY(find.byKey(const ValueKey('history-orders-action-0'))),
+      closeTo(1, .001),
+    );
+    expect(
+      paintScaleY(
+        find.byKey(const ValueKey('history-orders-trailing-primary-0')),
+      ),
+      closeTo(1, .001),
+    );
+
+    await tester.tap(find.byKey(const Key('history-tab-2')));
+    await tester.pump();
+    expect(
+      paintScaleY(find.byKey(const ValueKey('history-deals-action-0'))),
+      closeTo(1, .001),
+    );
+    expect(
+      paintScaleY(find.byKey(const ValueKey('history-deals-secondary-0'))),
+      closeTo(1, .001),
+    );
+  });
+
   testWidgets(
-    'iOS History accent text keeps one optical weight in every mode',
+    'iOS History accent text keeps the locked winner role in every mode',
     (tester) async {
       await tester.pumpWidget(testApp(platform: TargetPlatform.iOS));
       await pumpBottomAnchor(tester);
@@ -53,54 +426,60 @@ void main() {
       positionsList.controller!.jumpTo(0);
       await tester.pump();
 
-      expect(
-        _variableWeight(
-          tester
-              .widget<Text>(
-                find.byKey(const ValueKey('history-positions-action-0')),
-              )
-              .style,
-        ),
-        400,
+      final positionAction = tester.widget<Text>(
+        find.byKey(const ValueKey('history-positions-action-0')),
+      );
+      final positionProfit = tester.widget<Text>(
+        find.byKey(const ValueKey('history-positions-trailing-primary-0')),
       );
       expect(
-        _variableWeight(
-          tester
-              .widget<Text>(
-                find.byKey(
-                  const ValueKey('history-positions-trailing-primary-0'),
-                ),
-              )
-              .style,
-        ),
-        400,
+        positionAction.style?.fontFamily,
+        AppTypography.historyAction.fontFamily,
       );
+      expect(
+        positionAction.style?.fontWeight,
+        AppTypography.historyAction.fontWeight,
+      );
+      expect(positionAction.style?.fontVariations, isNull);
+      expect(
+        positionProfit.style?.fontFamily,
+        AppTypography.historyTrailingPrimary.fontFamily,
+      );
+      expect(
+        positionProfit.style?.fontWeight,
+        AppTypography.historyTrailingPrimary.fontWeight,
+      );
+      expect(positionProfit.style?.fontVariations, isNull);
 
       await tester.tap(find.byKey(const Key('history-tab-1')));
       await tester.pump();
-      expect(
-        _variableWeight(
-          tester
-              .widget<Text>(
-                find.byKey(const ValueKey('history-orders-action-0')),
-              )
-              .style,
-        ),
-        400,
+      final orderAction = tester.widget<Text>(
+        find.byKey(const ValueKey('history-orders-action-0')),
       );
+      expect(
+        orderAction.style?.fontFamily,
+        AppTypography.historyAction.fontFamily,
+      );
+      expect(
+        orderAction.style?.fontWeight,
+        AppTypography.historyAction.fontWeight,
+      );
+      expect(orderAction.style?.fontVariations, isNull);
 
       await tester.tap(find.byKey(const Key('history-tab-2')));
       await tester.pump();
-      expect(
-        _variableWeight(
-          tester
-              .widget<Text>(
-                find.byKey(const ValueKey('history-deals-action-0')),
-              )
-              .style,
-        ),
-        400,
+      final dealAction = tester.widget<Text>(
+        find.byKey(const ValueKey('history-deals-action-0')),
       );
+      expect(
+        dealAction.style?.fontFamily,
+        AppTypography.historyAction.fontFamily,
+      );
+      expect(
+        dealAction.style?.fontWeight,
+        AppTypography.historyAction.fontWeight,
+      );
+      expect(dealAction.style?.fontVariations, isNull);
     },
   );
 
@@ -109,39 +488,78 @@ void main() {
   ) async {
     await tester.pumpWidget(testApp());
 
-    expect(find.text('Cac giao d...'), findsOneWidget);
+    expect(find.text('Cac giao dich'), findsOneWidget);
     await pumpBottomAnchor(tester);
 
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('history-segment-label-0')))
-          .data,
-      'Lenh co tr...',
+    final positionsSegmentFinder = find.byKey(
+      const ValueKey('history-segment-label-0'),
+    );
+    final dealsSegmentFinder = find.byKey(
+      const ValueKey('history-segment-label-2'),
     );
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('history-segment-label-0')))
-          .style,
-      AppTypography.historySegment,
+      tester.widget<Text>(positionsSegmentFinder).data,
+      'Lenh co trang thai',
     );
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('history-segment-label-2')))
-          .style,
-      AppTypography.historyDealsSegment,
+      tester.widget<Text>(positionsSegmentFinder).style,
+      _resolvedHistoryRole(
+        tester,
+        positionsSegmentFinder,
+        role: ReferenceTextRole.historySegment,
+        colorRole: ReferenceTextColorRole.primary,
+        variant: TypographyVariantId.historyPositions,
+      ),
     );
-    final summary = tester.widget<Text>(
-      find.byKey(const ValueKey('history-summary-label-Tien nap')),
-    );
-    expect(summary.style, AppTypography.historySummary);
     expect(
-      tester
-          .widget<Text>(
-            find.byKey(const ValueKey('history-summary-value-Tien nap')),
-          )
-          .style,
-      AppTypography.historySummaryValue,
+      tester.widget<Text>(dealsSegmentFinder).style,
+      _resolvedHistoryRole(
+        tester,
+        dealsSegmentFinder,
+        role: ReferenceTextRole.historyDealsSegment,
+        colorRole: ReferenceTextColorRole.primary,
+        variant: TypographyVariantId.historyDeals,
+      ),
     );
+    final summaryFinder = find.byKey(
+      const ValueKey('history-summary-label-Tien nap'),
+    );
+    final summary = tester.widget<Text>(summaryFinder);
+    expect(summary.data, 'Tien nap');
+    expect(
+      summary.style,
+      _resolvedHistoryRole(
+        tester,
+        summaryFinder,
+        role: ReferenceTextRole.historySummary,
+        colorRole: ReferenceTextColorRole.primary,
+        variant: TypographyVariantId.historyBalance,
+      ),
+    );
+    expect(summary.style?.fontSize, 15);
+    expect(summary.style?.fontWeight, FontWeight.w600);
+    expect(summary.style?.fontVariations, const <FontVariation>[
+      FontVariation('wght', 600),
+    ]);
+    final summaryValueFinder = find.byKey(
+      const ValueKey('history-summary-value-Tien nap'),
+    );
+    final summaryValue = tester.widget<Text>(summaryValueFinder);
+    expect(
+      summaryValue.style,
+      _resolvedHistoryRole(
+        tester,
+        summaryValueFinder,
+        role: ReferenceTextRole.historySummaryValue,
+        colorRole: ReferenceTextColorRole.primary,
+        variant: TypographyVariantId.historyBalance,
+      ),
+    );
+    expect(summaryValue.style?.fontSize, 15);
+    expect(summaryValue.style?.fontWeight, FontWeight.w600);
+    expect(summaryValue.style?.fontVariations, const <FontVariation>[
+      FontVariation('wght', 600),
+    ]);
 
     final positionsList = tester.widget<ListView>(
       find.byKey(const PageStorageKey('history-positions-list')),
@@ -152,16 +570,34 @@ void main() {
     void expectRowTypography(String tab) {
       final primaryFinder = find.byKey(ValueKey('history-$tab-primary-0'));
       final secondaryFinder = find.byKey(ValueKey('history-$tab-secondary-0'));
+      final variant = switch (tab) {
+        'positions' => TypographyVariantId.historyPositions,
+        'orders' => TypographyVariantId.historyOrders,
+        'deals' => TypographyVariantId.historyDeals,
+        _ => throw ArgumentError.value(tab),
+      };
       expect(
         tester.widget<Text>(primaryFinder).style,
-        AppTypography.historyPrimary,
+        _resolvedHistoryRole(
+          tester,
+          primaryFinder,
+          role: ReferenceTextRole.historyPrimary,
+          colorRole: ReferenceTextColorRole.primary,
+          variant: variant,
+        ),
         reason: tab,
       );
       expect(
         tester.widget<Text>(secondaryFinder).style,
-        tab == 'positions'
-            ? AppTypography.historyPriceRange
-            : AppTypography.historySecondary,
+        _resolvedHistoryRole(
+          tester,
+          secondaryFinder,
+          role: tab == 'positions'
+              ? ReferenceTextRole.historyPriceRange
+              : ReferenceTextRole.historySecondary,
+          colorRole: ReferenceTextColorRole.secondary,
+          variant: variant,
+        ),
         reason: tab,
       );
       expect(
@@ -171,8 +607,7 @@ void main() {
               (tab == 'positions'
                   ? TabReferenceMetrics.historyPriceRangeTop
                   : tab == 'deals'
-                  ? TabReferenceMetrics.historyDealSecondaryTop +
-                        TabReferenceMetrics.historyDealSecondaryOffsetY
+                  ? TabReferenceMetrics.historyDealSecondaryTop
                   : TabReferenceMetrics.historySecondaryTop) -
               TabReferenceMetrics.historyPrimaryTop,
           .1,
@@ -200,16 +635,19 @@ void main() {
           ?.letterSpacing,
       -.2,
     );
-    expect(AppTypography.historySecondary.letterSpacing, closeTo(.22, .01));
+    expect(AppTypography.historySecondary.letterSpacing, 0);
+    final positionsTimestampFinder = find.byKey(
+      const ValueKey('history-positions-trailing-secondary-0'),
+    );
     expect(
-      tester
-          .widget<Text>(
-            find.byKey(
-              const ValueKey('history-positions-trailing-secondary-0'),
-            ),
-          )
-          .style,
-      AppTypography.historyTrailingSecondary,
+      tester.widget<Text>(positionsTimestampFinder).style,
+      _resolvedHistoryRole(
+        tester,
+        positionsTimestampFinder,
+        role: ReferenceTextRole.historyTrailingSecondary,
+        colorRole: ReferenceTextColorRole.secondary,
+        variant: TypographyVariantId.historyPositions,
+      ),
     );
     await tester.tap(find.byKey(const Key('history-tab-1')));
     await tester.pump();
@@ -323,7 +761,7 @@ void main() {
     expect(find.text('1.5 at 1.23456'), findsOneWidget);
   });
 
-  testWidgets('exit deals expose their realized profit on the primary line', (
+  testWidgets('entry deals keep their price without showing zero profit', (
     tester,
   ) async {
     const deals = <DemoDeal>[
@@ -366,9 +804,24 @@ void main() {
       find.byKey(const ValueKey('history-deals-trailing-primary-0')),
     );
     expect(profit.data, '814.00');
-    expect(profit.style?.color, AppColors.primary);
+    expect(profit.style?.color, const Color(0xFF007AFF));
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('history-deals-secondary-0')))
+          .style
+          ?.color,
+      const Color(0xFF3C3C43),
+    );
+    expect(find.text('1 at 4637.05'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('history-deals-trailing-primary-1')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('history-deal-reference-entry-deal')),
+        matching: find.text('0.00'),
+      ),
       findsNothing,
     );
   });
@@ -453,7 +906,7 @@ void main() {
   });
 
   testWidgets(
-    'wallet history Balance rows match the deposit and withdrawal reference',
+    'sort-revealed wallet history keeps order ink with synchronized metadata',
     (tester) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1;
@@ -489,7 +942,10 @@ void main() {
             ...videoReferenceOverrides,
             demoHistoryPositionsProvider.overrideWithValue(entries),
           ],
-          child: const MaterialApp(home: HistoryScreen()),
+          child: MaterialApp(
+            theme: ThemeData(platform: TargetPlatform.iOS),
+            home: const HistoryScreen(),
+          ),
         ),
       );
       await pumpBottomAnchor(tester);
@@ -524,30 +980,202 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.text('518.54')).style?.color,
-        AppColors.primary,
+        const Color(0xFF007AFF),
       );
       expect(
         tester.widget<Text>(find.text('-2 000.00')).style?.color,
-        AppColors.negative,
+        const Color(0xFFE42D30),
       );
+
+      await tester.tap(find.byKey(const Key('history-sort-button')));
+      await tester.pump();
+
+      final balanceTitles = tester
+          .widgetList<Text>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is Text &&
+                  widget.key is ValueKey<String> &&
+                  (widget.key! as ValueKey<String>).value.startsWith(
+                    'history-positions-primary-',
+                  ),
+            ),
+          )
+          .toList();
+      expect(balanceTitles, hasLength(2));
+      for (final title in balanceTitles) {
+        final titleFinder = find.byWidget(title);
+        expect(
+          title.style,
+          _resolvedHistoryRole(
+            tester,
+            titleFinder,
+            role: ReferenceTextRole.historyBalancePrimary,
+            colorRole: ReferenceTextColorRole.primary,
+            variant: TypographyVariantId.historyBalance,
+          ),
+        );
+        final rootSpan = title.textSpan! as TextSpan;
+        final balanceSpan = rootSpan.children!.first as TextSpan;
+        expect(balanceSpan.style?.color, const Color(0xFF000000));
+        expect(
+          balanceSpan.style?.fontFamily,
+          AppTypography.historyBalancePrimary.fontFamily,
+        );
+        expect(
+          balanceSpan.style?.fontWeight,
+          AppTypography.historyBalancePrimary.fontWeight,
+        );
+        expect(
+          balanceSpan.style?.fontWeight,
+          AppTypography.historyPrimary.fontWeight,
+          reason:
+              'Sort-revealed Balance titles must be as bold as XAUUSD titles.',
+        );
+        expect(balanceSpan.style?.fontVariations, isNull);
+      }
+
+      final references = tester
+          .widgetList<Text>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is Text &&
+                  widget.key is ValueKey<String> &&
+                  (widget.key! as ValueKey<String>).value.startsWith(
+                    'history-positions-secondary-',
+                  ),
+            ),
+          )
+          .toList();
+      expect(references, hasLength(2));
+      for (final reference in references) {
+        final referenceFinder = find.byWidget(reference);
+        expect(reference.style?.color, const Color(0xFF3C3C43));
+        expect(
+          reference.style,
+          _resolvedHistoryRole(
+            tester,
+            referenceFinder,
+            role: ReferenceTextRole.historyBalanceSecondary,
+            colorRole: ReferenceTextColorRole.secondary,
+            variant: TypographyVariantId.historyBalance,
+          ),
+        );
+      }
+
+      final dates = tester
+          .widgetList<Text>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is Text &&
+                  widget.key is ValueKey<String> &&
+                  (widget.key! as ValueKey<String>).value.startsWith(
+                    'history-positions-trailing-secondary-',
+                  ),
+            ),
+          )
+          .toList();
+      expect(dates, hasLength(2));
+      for (final date in dates) {
+        final dateFinder = find.byWidget(date);
+        expect(date.style?.color, const Color(0xFF3C3C43));
+        expect(
+          date.style,
+          _resolvedHistoryRole(
+            tester,
+            dateFinder,
+            role: ReferenceTextRole.historyBalanceSecondary,
+            colorRole: ReferenceTextColorRole.secondary,
+            variant: TypographyVariantId.historyBalance,
+          ),
+        );
+        final intrinsicDate = TextPainter(
+          text: TextSpan(text: date.data, style: date.style),
+          textDirection: TextDirection.ltr,
+          textScaler: MediaQuery.textScalerOf(tester.element(dateFinder)),
+          maxLines: 1,
+        )..layout();
+        expect(
+          tester.getSize(dateFinder).width,
+          closeTo(intrinsicDate.width, .01),
+          reason:
+              'Sort-revealed Balance dates must stay shrink-wrapped at the '
+              'right edge instead of occupying a flexible middle slot.',
+        );
+      }
+
+      final amounts = tester
+          .widgetList<Text>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is Text &&
+                  widget.key is ValueKey<String> &&
+                  (widget.key! as ValueKey<String>).value.startsWith(
+                    'history-positions-trailing-primary-',
+                  ),
+            ),
+          )
+          .toList();
+      expect(amounts, hasLength(2));
+      for (final amount in amounts) {
+        final amountFinder = find.byWidget(amount);
+        final expectedAmountStyle = _resolvedHistoryRole(
+          tester,
+          amountFinder,
+          role: ReferenceTextRole.historyBalanceTrailingPrimary,
+          colorRole: amount.data!.startsWith('-')
+              ? ReferenceTextColorRole.negative
+              : ReferenceTextColorRole.positive,
+          variant: TypographyVariantId.historyBalance,
+        );
+        expect(amount.style?.fontFamily, expectedAmountStyle.fontFamily);
+        expect(amount.style?.fontSize, expectedAmountStyle.fontSize);
+        expect(amount.style?.fontWeight, expectedAmountStyle.fontWeight);
+        expect(amount.style?.fontVariations, isNull);
+        expect(amount.style?.letterSpacing, expectedAmountStyle.letterSpacing);
+        expect(amount.style?.height, expectedAmountStyle.height);
+        expect(amount.style?.color, expectedAmountStyle.color);
+      }
+
+      double paintScaleY(Text text) {
+        final box = tester.renderObject<RenderBox>(find.byWidget(text));
+        final origin = box.localToGlobal(Offset.zero);
+        final edge = box.localToGlobal(Offset(0, box.size.height));
+        return (edge.dy - origin.dy) / box.size.height;
+      }
+
+      for (final text in [
+        ...balanceTitles,
+        ...references,
+        ...dates,
+        ...amounts,
+      ]) {
+        expect(paintScaleY(text), closeTo(1, .001));
+      }
     },
   );
 
-  testWidgets('position history typography matches the compact reference', (
+  testWidgets('position history uses compact synchronized profit values', (
     tester,
   ) async {
     await tester.pumpWidget(testApp());
     await pumpBottomAnchor(tester);
 
-    final summaryLabel = tester.widget<Text>(
-      find.descendant(
-        of: find.byKey(const ValueKey('history-summary-Tien nap')),
-        matching: find.text('Tien nap'),
+    final summaryLabelFinder = find.byKey(
+      const ValueKey('history-summary-label-Tien nap'),
+    );
+    final summaryLabel = tester.widget<Text>(summaryLabelFinder);
+    expect(summaryLabel.data, 'Tien nap');
+    expect(
+      summaryLabel.style,
+      _resolvedHistoryRole(
+        tester,
+        summaryLabelFinder,
+        role: ReferenceTextRole.historySummary,
+        colorRole: ReferenceTextColorRole.primary,
+        variant: TypographyVariantId.historyBalance,
       ),
     );
-    expect(summaryLabel.style?.fontSize, 14.5);
-    expect(summaryLabel.style?.fontWeight, FontWeight.w400);
-    expect(summaryLabel.style?.fontFamily, AppTypography.tabPlainFamily);
 
     final listFinder = find.byKey(
       const PageStorageKey('history-positions-list'),
@@ -568,14 +1196,50 @@ void main() {
     final price = texts.firstWhere((text) => labelOf(text).contains('4061.39'));
     final time = texts.firstWhere((text) => labelOf(text).startsWith('2026.'));
 
-    expect(title.style?.fontSize, 16);
-    expect(profit.style?.fontSize, 16);
-    expect(price.style?.fontSize, 14);
-    expect(time.style?.fontSize, 14);
-    expect(title.style?.fontFamily, AppTypography.tabCondensedFamily);
-    expect(profit.style?.fontFamily, AppTypography.tabCondensedFamily);
-    expect(price.style?.fontFamily, AppTypography.tabCondensedFamily);
-    expect(time.style?.fontFamily, AppTypography.tabCondensedFamily);
+    final titleFinder = find.byWidget(title);
+    final profitFinder = find.byWidget(profit);
+    final priceFinder = find.byWidget(price);
+    final timeFinder = find.byWidget(time);
+    expect(
+      title.style,
+      _resolvedHistoryRole(
+        tester,
+        titleFinder,
+        role: ReferenceTextRole.historyPrimary,
+        colorRole: ReferenceTextColorRole.primary,
+        variant: TypographyVariantId.historyPositions,
+      ),
+    );
+    final expectedProfitStyle = _resolvedHistoryRole(
+      tester,
+      profitFinder,
+      role: ReferenceTextRole.historyTrailingPrimary,
+      colorRole: ReferenceTextColorRole.negative,
+      variant: TypographyVariantId.historyPositions,
+    );
+    expect(profit.style?.fontFamily, expectedProfitStyle.fontFamily);
+    expect(profit.style?.fontWeight, expectedProfitStyle.fontWeight);
+    expect(profit.style?.color, expectedProfitStyle.color);
+    expect(
+      price.style,
+      _resolvedHistoryRole(
+        tester,
+        priceFinder,
+        role: ReferenceTextRole.historyPriceRange,
+        colorRole: ReferenceTextColorRole.secondary,
+        variant: TypographyVariantId.historyPositions,
+      ),
+    );
+    expect(
+      time.style,
+      _resolvedHistoryRole(
+        tester,
+        timeFinder,
+        role: ReferenceTextRole.historyTrailingSecondary,
+        colorRole: ReferenceTextColorRole.secondary,
+        variant: TypographyVariantId.historyPositions,
+      ),
+    );
     expect(
       tester.getTopLeft(find.byWidget(price)).dy -
           tester.getTopLeft(find.byWidget(title)).dy,
@@ -591,7 +1255,7 @@ void main() {
     );
   });
 
-  testWidgets('order and deal rows use the compact reference typography', (
+  testWidgets('order and deal rows use the shared winner typography', (
     tester,
   ) async {
     await tester.pumpWidget(testApp());
@@ -605,13 +1269,22 @@ void main() {
           find.descendant(of: order, matching: find.byType(Text)),
         )
         .toList();
-    expect(orderTexts.first.style?.fontSize, 16);
-    expect(orderTexts.last.style?.fontSize, 14);
     expect(
       orderTexts.first.style?.fontFamily,
-      AppTypography.tabCondensedFamily,
+      AppTypography.historyPrimary.fontFamily,
     );
-    expect(orderTexts.last.style?.fontFamily, AppTypography.tabCondensedFamily);
+    expect(
+      orderTexts.first.style?.fontWeight,
+      AppTypography.historyPrimary.fontWeight,
+    );
+    expect(
+      orderTexts.last.style?.fontFamily,
+      AppTypography.historyTrailingSecondary.fontFamily,
+    );
+    expect(
+      orderTexts.last.style?.fontWeight,
+      AppTypography.historyTrailingSecondary.fontWeight,
+    );
 
     await tester.tap(find.byKey(const Key('history-tab-2')));
     await tester.pump();
@@ -621,10 +1294,22 @@ void main() {
           find.descendant(of: deal, matching: find.byType(Text)),
         )
         .toList();
-    expect(dealTexts.first.style?.fontSize, 16);
-    expect(dealTexts.last.style?.fontSize, 14);
-    expect(dealTexts.first.style?.fontFamily, AppTypography.tabCondensedFamily);
-    expect(dealTexts.last.style?.fontFamily, AppTypography.tabCondensedFamily);
+    expect(
+      dealTexts.first.style?.fontFamily,
+      AppTypography.historyPrimary.fontFamily,
+    );
+    expect(
+      dealTexts.first.style?.fontWeight,
+      AppTypography.historyPrimary.fontWeight,
+    );
+    expect(
+      dealTexts.last.style?.fontFamily,
+      AppTypography.historyTrailingSecondary.fontFamily,
+    );
+    expect(
+      dealTexts.last.style?.fontWeight,
+      AppTypography.historyTrailingSecondary.fontWeight,
+    );
   });
 
   testWidgets('history segment labels use deterministic compact styles', (
@@ -639,23 +1324,41 @@ void main() {
     await tester.pumpWidget(testApp());
     await pumpBottomAnchor(tester);
 
+    const labelValues = ['Lenh co trang thai', 'Cac lenh', 'Cac giao dich'];
+    final labelFinders = <Finder>[
+      for (var index = 0; index < labelValues.length; index++)
+        find.byKey(ValueKey('history-segment-label-$index')),
+    ];
     final labels = <Text>[
-      tester.widget<Text>(find.text('Lenh co tr...')),
-      tester.widget<Text>(find.text('Cac lenh')),
-      tester.widget<Text>(find.text('Cac giao d...')),
+      for (final finder in labelFinders) tester.widget<Text>(finder),
     ];
 
     for (final (index, label) in labels.indexed) {
-      expect(label.style?.fontFamily, AppTypography.tabPlainFamily);
-      expect(label.style?.fontSize, index == 2 ? 14 : 14.5);
+      expect(label.data, labelValues[index]);
+      final expectedStyle = _resolvedHistoryRole(
+        tester,
+        labelFinders[index],
+        role: index == 2
+            ? ReferenceTextRole.historyDealsSegment
+            : ReferenceTextRole.historySegment,
+        colorRole: ReferenceTextColorRole.primary,
+        variant: const [
+          TypographyVariantId.historyPositions,
+          TypographyVariantId.historyOrders,
+          TypographyVariantId.historyDeals,
+        ][index],
+      );
+      expect(label.style?.fontFamily, expectedStyle.fontFamily);
+      expect(label.style?.fontSize, 14);
       expect(label.style?.height, 1);
+      expect(label.style?.color, const Color(0xFF000000));
     }
 
-    final firstRect = tester.getRect(find.text('Lenh co tr...'));
-    final secondRect = tester.getRect(find.text('Cac lenh'));
-    final thirdRect = tester.getRect(find.text('Cac giao d...'));
-    expect(firstRect.right, lessThan(secondRect.left));
-    expect(secondRect.right, lessThan(thirdRect.left));
+    final firstRect = tester.getRect(labelFinders[0]);
+    final secondRect = tester.getRect(labelFinders[1]);
+    final thirdRect = tester.getRect(labelFinders[2]);
+    expect(firstRect.right, lessThanOrEqualTo(secondRect.left));
+    expect(secondRect.right, lessThanOrEqualTo(thirdRect.left));
   });
 
   testWidgets('history rows keep both lines separate at larger text scales', (
@@ -857,9 +1560,90 @@ void main() {
     final footerRect = tester.getRect(
       find.byKey(const ValueKey('history-summary-Số dư')),
     );
+    final navigationFadeTop =
+        listRect.bottom - TabReferenceMetrics.bottomNavigationFadeHeight;
     expect(footerRect.top, greaterThan(listRect.top));
-    expect(footerRect.bottom, lessThanOrEqualTo(listRect.bottom));
+    expect(
+      footerRect.bottom,
+      closeTo(navigationFadeTop, .01),
+      reason: 'The initial balance footer must sit above the navigation fade.',
+    );
+
+    await tester.drag(listFinder, const Offset(0, 100));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('history-summary-Số dư')))
+          .bottom,
+      greaterThan(navigationFadeTop),
+      reason: 'The footer may enter the fade only after the user scrolls.',
+    );
     expect(find.text('2 301.60'), findsOneWidget);
+  });
+
+  testWidgets('a newly closed position appears at the bottom immediately', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        demoHistoryPositionsProvider.overrideWith(
+          (ref) => ref.watch(_liveHistoryRowsProvider),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final existing = List<DemoHistoryPosition>.generate(
+      40,
+      (index) => DemoHistoryPosition(
+        id: 'existing-$index',
+        title: 'XAUUSD+',
+        side: 'BUY',
+        volume: 1 + index.toDouble(),
+        openPrice: 4200,
+        closePrice: 4201,
+        profit: 1 + index.toDouble(),
+        time:
+            '2026.08.${(index % 28 + 1).toString().padLeft(2, '0')} '
+            '10:00:00',
+      ),
+    );
+    container.read(_liveHistoryRowsProvider.notifier).replace(existing);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+    await pumpBottomAnchor(tester);
+
+    const newest = DemoHistoryPosition(
+      id: 'just-closed',
+      title: 'XAUUSD+',
+      side: 'SELL',
+      volume: 0.01,
+      openPrice: 4400,
+      closePrice: 4399,
+      profit: -1,
+      time: '2026.09.01 12:00:00',
+    );
+    container.read(_liveHistoryRowsProvider.notifier).replace([
+      ...existing,
+      newest,
+    ]);
+    await pumpBottomAnchor(tester);
+
+    final list = tester.widget<ListView>(
+      find.byKey(const PageStorageKey('history-positions-list')),
+    );
+    expect(
+      list.controller!.position.pixels,
+      closeTo(list.controller!.position.maxScrollExtent, .01),
+    );
+    expect(
+      find.byKey(const ValueKey('history-position-just-closed')),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -1203,8 +1987,8 @@ void main() {
       expect(selectedTab.height, closeTo(39.4666666667, .01));
       expect(
         firstLabel.center.dx,
-        closeTo(111.208231322, .01),
-        reason: 'The first label is optically left-aligned in the reference.',
+        closeTo(selectedTab.center.dx, 1),
+        reason: 'The winner font is centered without a text-only transform.',
       );
       expect(find.byKey(const Key('history-header-overlay')), findsOneWidget);
 
@@ -1452,6 +2236,19 @@ void main() {
   });
 }
 
+final _liveHistoryRowsProvider =
+    NotifierProvider<_LiveHistoryRowsController, List<DemoHistoryPosition>>(
+      _LiveHistoryRowsController.new,
+    );
+
+final class _LiveHistoryRowsController
+    extends Notifier<List<DemoHistoryPosition>> {
+  @override
+  List<DemoHistoryPosition> build() => const [];
+
+  void replace(List<DemoHistoryPosition> rows) => state = rows;
+}
+
 Finder _priceRange(String openPrice, String closePrice) =>
     find.byWidgetPredicate(
       (widget) =>
@@ -1459,15 +2256,6 @@ Finder _priceRange(String openPrice, String closePrice) =>
           widget.openPrice == openPrice &&
           widget.closePrice == closePrice,
     );
-
-double? _variableWeight(TextStyle? style) {
-  final weights = style?.fontVariations
-      ?.where((variation) => variation.axis == 'wght')
-      .toList();
-  if (weights == null || weights.isEmpty) return null;
-  expect(weights, hasLength(1));
-  return weights.single.value;
-}
 
 Future<({Rect bounds, int pixels})> _historyButtonInkMetrics(
   WidgetTester tester,

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,7 +10,6 @@ import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/features/chart/data/chart_market_warmup_provider.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
-import 'package:trading_mobile/features/chart/presentation/theme/chart_reference_theme.dart';
 import 'package:trading_mobile/features/market_watch/presentation/screens/market_watch_screen.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/account_detail_screen.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/profile_screen.dart';
@@ -464,7 +462,7 @@ void main() {
   });
 
   testWidgets(
-    'trade quote tick updates six rows and all derived account metrics',
+    'trade quote tick updates state immediately and renders on the next frame',
     (tester) async {
       useVideoViewport(tester);
       final semantics = tester.ensureSemantics();
@@ -496,8 +494,6 @@ void main() {
       );
       quoteController.add(tick);
       await tester.pump();
-      await tester.pump();
-      await tester.pump();
 
       final positions = container.read(demoPositionsProvider);
       final account = container.read(demoAccountProvider);
@@ -527,6 +523,8 @@ void main() {
         account.marginLevel,
         closeTo(account.equity / account.margin * 100, .000001),
       );
+
+      await tester.pump();
 
       for (final position in positions) {
         final row = find.byKey(ValueKey('trade-position-${position.id}'));
@@ -569,6 +567,70 @@ void main() {
     },
   );
 
+  testWidgets('trade applies the cached live quote when the tab opens', (
+    tester,
+  ) async {
+    useVideoViewport(tester);
+    final quoteController = StreamController<DemoQuote>();
+    addTearDown(quoteController.close);
+    final container = createVideoReferenceContainer(
+      overrides: [
+        demoQuoteProvider.overrideWith((ref, symbol) => quoteController.stream),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final quoteSubscription = container.listen<AsyncValue<DemoQuote>>(
+      demoQuoteProvider('XAUUSD+'),
+      (previous, next) {},
+      fireImmediately: true,
+    );
+    addTearDown(quoteSubscription.close);
+    const cachedTick = DemoQuote(
+      symbol: 'XAUUSD+',
+      name: 'Gold US Dollar',
+      bid: 4110,
+      ask: 4110.13,
+      changePercent: .2,
+    );
+    quoteController.add(cachedTick);
+    await container.read(demoQuoteProvider('XAUUSD+').future);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: TradeScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final positions = container.read(demoPositionsProvider);
+    expect(positions, isNotEmpty);
+    expect(
+      positions.every((position) => position.currentPrice == cachedTick.bid),
+      isTrue,
+    );
+    final firstPosition = positions.first;
+    final firstRow = find.byKey(ValueKey('trade-position-${firstPosition.id}'));
+    expect(firstRow, findsOneWidget);
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is MtPriceRangeText &&
+              widget.closePrice == cachedTick.bid.toStringAsFixed(2),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(formatAccount(container.read(demoAccountProvider).equity)),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('one-click chevrons and SELL/Buy create matching positions', (
     tester,
   ) async {
@@ -605,14 +667,12 @@ void main() {
 
     await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
     await tester.pump();
-    final downChevron = tester.widget<Icon>(
-      find.descendant(
-        of: find.byKey(const Key('chart-one-click-panel')),
-        matching: find.byIcon(CupertinoIcons.chevron_down),
-      ),
+    final downChevron = find.descendant(
+      of: find.byKey(const Key('chart-one-click-panel')),
+      matching: find.byKey(const Key('chart-one-click-volume-down-chevron')),
     );
-    expect(downChevron.color, ChartReferenceTheme.light.foreground);
-    expect(downChevron.size, 12);
+    expect(downChevron, findsOneWidget);
+    expect(tester.getSize(downChevron), const Size(14, 12));
 
     await tester.tap(find.text('SELL'));
     await tester.pump();

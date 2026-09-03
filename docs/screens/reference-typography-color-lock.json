@@ -1,0 +1,765 @@
+{
+  "schemaVersion": 1,
+  "claim": "source-hashed observed-composite text-color evidence; not renderer provenance or raw-pixel certification",
+  "decoder": {
+    "command": "ffmpeg -v error -i <source> -f rawvideo -pix_fmt rgb24 pipe:1",
+    "coordinateSystem": "zero-based physical source pixels; rectangles use left/top inclusive and right/bottom exclusive",
+    "sampleSelection": "stable glyph-core pixels inside the named text region; fade bands, system UI, icons, and JPEG edge pixels are excluded",
+    "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+    "opacityInterpretation": "Every decoded source is opaque RGB. Sample and consensus opacity 1.0 describe the observed composite, not an unrecoverable latent paint alpha.",
+    "consensusMethod": "per-channel median of the listed accepted samples"
+  },
+  "sourceSet": {
+    "hashAlgorithm": "sha256(sorted(repositoryRelativePath + NUL + rawFileSha256 + NUL))",
+    "sha256": "8b8c162079c14abea242c1f7077ac5018bd707a97f589c97657da092dad7cdfb",
+    "sources": [
+      {
+        "id": "settings-primary",
+        "path": "iconMau/anhmau/image.png",
+        "sha256": "4c4f508369707ef576521c220e918bc0db5c9f3bdb900334ff5a5a859fcfcf9c",
+        "width": 590,
+        "height": 1280,
+        "encoding": "png",
+        "theme": "light",
+        "sourceClass": "losslessUnprovenanced",
+        "evidenceUse": "appText"
+      },
+      {
+        "id": "trade-dark",
+        "path": "iconMau/anhmau/photo_2026-08-21_16-51-41.jpg",
+        "sha256": "349b41ed7ab4e974966b7bf1394e65f39cd43f07667613c5f92f0e2e8b2cefe9",
+        "width": 413,
+        "height": 881,
+        "encoding": "jpeg-progressive",
+        "theme": "dark",
+        "sourceClass": "jpegDiagnostic",
+        "evidenceUse": "appText"
+      },
+      {
+        "id": "prices",
+        "path": "iconMau/anhmau/photo_2026-08-25_22-30-10.jpg",
+        "sha256": "6739a1668fa87ca745f5e43ea472c2413ef0434fa1074c3b180c7278ea658db5",
+        "width": 590,
+        "height": 1280,
+        "encoding": "jpeg-progressive",
+        "theme": "light",
+        "sourceClass": "jpegDiagnostic",
+        "evidenceUse": "appText"
+      },
+      {
+        "id": "chart",
+        "path": "iconMau/anhmau/photo_2026-08-25_22-30-17.jpg",
+        "sha256": "e5d878286e76f843fec97ac2fc14de68d219fd20475a381a2bda941226854e31",
+        "width": 590,
+        "height": 1280,
+        "encoding": "jpeg-progressive",
+        "theme": "light",
+        "sourceClass": "jpegDiagnostic",
+        "evidenceUse": "appText"
+      },
+      {
+        "id": "trade-light",
+        "path": "iconMau/anhmau/photo_2026-08-25_22-30-20.jpg",
+        "sha256": "5c619acae61c2cbf11f6210a0888fe0cd2cf5fb49917e9189015c9431769becc",
+        "width": 590,
+        "height": 1280,
+        "encoding": "jpeg-progressive",
+        "theme": "light",
+        "sourceClass": "jpegDiagnostic",
+        "evidenceUse": "appText"
+      },
+      {
+        "id": "history-positions",
+        "path": "iconMau/anhmau/photo_2026-08-25_22-30-23.jpg",
+        "sha256": "40bfd8ddf3e24158453da32e4318e9219d02a201b09bb2fb53d6ee95a98a5924",
+        "width": 590,
+        "height": 1280,
+        "encoding": "jpeg-progressive",
+        "theme": "light",
+        "sourceClass": "jpegDiagnostic",
+        "evidenceUse": "appText"
+      },
+      {
+        "id": "history-orders-offset",
+        "path": "iconMau/anhmau/photo_2026-08-25_22-30-26.jpg",
+        "sha256": "48dbab6778e247325222bf0e10e991f0ef4d160ecf4cb4127be1e6d1b6eb83c1",
+        "width": 590,
+        "height": 1280,
+        "encoding": "jpeg-progressive",
+        "theme": "light",
+        "sourceClass": "jpegDiagnostic",
+        "evidenceUse": "appText"
+      },
+      {
+        "id": "history-orders-summary",
+        "path": "iconMau/anhmau/photo_2026-08-25_22-30-29.jpg",
+        "sha256": "7f8d2fe5c086eacb5a8364435373645a4ba3e2ba3df7b852467b5a51d0ee45ee",
+        "width": 590,
+        "height": 1280,
+        "encoding": "jpeg-progressive",
+        "theme": "light",
+        "sourceClass": "jpegDiagnostic",
+        "evidenceUse": "appText"
+      },
+      {
+        "id": "history-deals-summary",
+        "path": "iconMau/anhmau/photo_2026-08-25_22-30-34.jpg",
+        "sha256": "6fbbf3ccfc834b94052df32713a153c10518298b644844fb9482fa51a70e3bb9",
+        "width": 590,
+        "height": 1280,
+        "encoding": "jpeg-progressive",
+        "theme": "light",
+        "sourceClass": "jpegDiagnostic",
+        "evidenceUse": "appText"
+      },
+      {
+        "id": "settings-secondary",
+        "path": "iconMau/anhmau/photo_2026-08-27_21-13-34.jpg",
+        "sha256": "bf67307f7e12f378ac2bf6abbbdf3b351d1e5492d59a50f0a0233b9a8955d092",
+        "width": 590,
+        "height": 1280,
+        "encoding": "jpeg-progressive",
+        "theme": "light",
+        "sourceClass": "jpegDiagnostic",
+        "evidenceUse": "sharedSettingsRolesOnly"
+      },
+      {
+        "id": "partial-system-ui-crop",
+        "path": "iconMau/anhmau/photo_2026-08-31_10-47-10.jpg",
+        "sha256": "3e6d3c3693119c96f78c56e07638f54a16e8238911ec55b7cc94bddfb65ced57",
+        "width": 336,
+        "height": 331,
+        "encoding": "jpeg-progressive",
+        "theme": "light",
+        "sourceClass": "jpegDiagnostic",
+        "evidenceUse": "excludedSystemUiOnly"
+      }
+    ]
+  },
+  "colorRoles": [
+    {
+      "colorRoleId": "primary",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "losslessUnprovenancedObservedComposite",
+          "consensus": { "rgb": [0, 0, 0], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [0, 0, 0],
+            "channelMax": [0, 0, 0],
+            "maxAbsoluteChannelDeviation": [0, 0, 0],
+            "confidence": "highForObservedComposite",
+            "limitations": "Lossless source bytes, but capture and renderer provenance are absent."
+          },
+          "evidence": [
+            {
+              "sourceId": "settings-primary",
+              "sourceSha256": "4c4f508369707ef576521c220e918bc0db5c9f3bdb900334ff5a5a859fcfcf9c",
+              "sourceClass": "losslessUnprovenanced",
+              "regionId": "settings-primary:row-title-new-account",
+              "sampleRect": { "left": 110, "top": 230, "width": 200, "height": 40 },
+              "decodedBackground": { "rgb": [255, 255, 255], "sample": { "x": 300, "y": 250 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 141, "y": 240, "rgb": [0, 0, 0], "opacity": 1.0 },
+                { "x": 255, "y": 240, "rgb": [0, 0, 0], "opacity": 1.0 },
+                { "x": 117, "y": 241, "rgb": [0, 0, 0], "opacity": 1.0 }
+              ]
+            }
+          ]
+        },
+        {
+          "variantId": "dark",
+          "theme": "dark",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [238, 238, 238], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [238, 238, 238],
+            "channelMax": [238, 238, 238],
+            "maxAbsoluteChannelDeviation": [0, 0, 0],
+            "confidence": "diagnostic",
+            "limitations": "Progressive JPEG can preserve repeated decoded cores without proving the latent paint RGB."
+          },
+          "evidence": [
+            {
+              "sourceId": "trade-dark",
+              "sourceSha256": "349b41ed7ab4e974966b7bf1394e65f39cd43f07667613c5f92f0e2e8b2cefe9",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "trade-dark:account-metric-labels",
+              "sampleRect": { "left": 0, "top": 85, "width": 150, "height": 65 },
+              "decodedBackground": { "rgb": [0, 0, 0], "sample": { "x": 150, "y": 100 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 8, "y": 100, "rgb": [238, 238, 238], "opacity": 1.0 },
+                { "x": 4, "y": 122, "rgb": [238, 238, 238], "opacity": 1.0 },
+                { "x": 9, "y": 130, "rgb": [238, 238, 238], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "colorRoleId": "secondary",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [61, 61, 65], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [60, 60, 64],
+            "channelMax": [62, 61, 68],
+            "maxAbsoluteChannelDeviation": [1, 1, 3],
+            "confidence": "diagnostic",
+            "limitations": "JPEG chroma loss prevents resolving whether the latent source used an opaque gray or a translucent secondary-label color."
+          },
+          "evidence": [
+            {
+              "sourceId": "history-positions",
+              "sourceSha256": "40bfd8ddf3e24158453da32e4318e9219d02a201b09bb2fb53d6ee95a98a5924",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "history-positions:position-secondary-first-row",
+              "sampleRect": { "left": 4, "top": 275, "width": 190, "height": 38 },
+              "decodedBackground": { "rgb": [255, 255, 255], "sample": { "x": 200, "y": 295 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 123, "y": 295, "rgb": [61, 61, 65], "opacity": 1.0 },
+                { "x": 119, "y": 288, "rgb": [62, 61, 68], "opacity": 1.0 },
+                { "x": 112, "y": 292, "rgb": [60, 60, 64], "opacity": 1.0 }
+              ]
+            }
+          ]
+        },
+        {
+          "variantId": "light.settingsRows",
+          "theme": "light",
+          "lockStatus": "losslessUnprovenancedObservedComposite",
+          "consensus": { "rgb": [142, 142, 142], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [142, 142, 142],
+            "channelMax": [142, 142, 142],
+            "maxAbsoluteChannelDeviation": [0, 0, 0],
+            "confidence": "highForObservedComposite",
+            "limitations": "The screenshot proves the displayed composite on white, not an underlying foreground RGB/alpha decomposition."
+          },
+          "evidence": [
+            {
+              "sourceId": "settings-primary",
+              "sourceSha256": "4c4f508369707ef576521c220e918bc0db5c9f3bdb900334ff5a5a859fcfcf9c",
+              "sourceClass": "losslessUnprovenanced",
+              "regionId": "settings-primary:mailbox-subtitle",
+              "sampleRect": { "left": 110, "top": 320, "width": 405, "height": 30 },
+              "decodedBackground": { "rgb": [255, 255, 255], "sample": { "x": 550, "y": 340 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 163, "y": 330, "rgb": [142, 142, 142], "opacity": 1.0 },
+                { "x": 197, "y": 330, "rgb": [142, 142, 142], "opacity": 1.0 },
+                { "x": 205, "y": 330, "rgb": [142, 142, 142], "opacity": 1.0 }
+              ]
+            }
+          ]
+        },
+        {
+          "variantId": "dark",
+          "theme": "dark",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [150, 150, 150], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [149, 149, 149],
+            "channelMax": [150, 150, 151],
+            "maxAbsoluteChannelDeviation": [1, 1, 1],
+            "confidence": "diagnostic",
+            "limitations": "Progressive JPEG diagnostic only."
+          },
+          "evidence": [
+            {
+              "sourceId": "trade-dark",
+              "sourceSha256": "349b41ed7ab4e974966b7bf1394e65f39cd43f07667613c5f92f0e2e8b2cefe9",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "trade-dark:position-secondary-first-row",
+              "sampleRect": { "left": 0, "top": 282, "width": 220, "height": 25 },
+              "decodedBackground": { "rgb": [0, 0, 0], "sample": { "x": 200, "y": 295 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 9, "y": 296, "rgb": [150, 150, 150], "opacity": 1.0 },
+                { "x": 57, "y": 293, "rgb": [150, 150, 151], "opacity": 1.0 },
+                { "x": 19, "y": 292, "rgb": [149, 149, 149], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "colorRoleId": "navigationSelected",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [1, 125, 244], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [0, 125, 241],
+            "channelMax": [1, 127, 246],
+            "maxAbsoluteChannelDeviation": [1, 2, 3],
+            "confidence": "diagnostic",
+            "limitations": "Small antialiased navigation glyphs and JPEG encoding do not expose a provenance-complete paint value."
+          },
+          "evidence": [
+            {
+              "sourceId": "chart",
+              "sourceSha256": "e5d878286e76f843fec97ac2fc14de68d219fd20475a381a2bda941226854e31",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "chart:navigation-chart-label",
+              "sampleRect": { "left": 150, "top": 1223, "width": 110, "height": 21 },
+              "decodedBackground": { "rgb": [238, 234, 235], "sample": { "x": 220, "y": 1238 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 207, "y": 1230, "rgb": [1, 127, 246], "opacity": 1.0 },
+                { "x": 206, "y": 1231, "rgb": [0, 125, 244], "opacity": 1.0 },
+                { "x": 207, "y": 1228, "rgb": [1, 125, 241], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "colorRoleId": "navigationUnselected",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "losslessUnprovenancedObservedComposite",
+          "consensus": { "rgb": [0, 0, 2], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [0, 0, 2],
+            "channelMax": [0, 0, 2],
+            "maxAbsoluteChannelDeviation": [0, 0, 0],
+            "confidence": "highForObservedComposite",
+            "limitations": "The two-blue-channel offset is in the supplied PNG bytes; capture provenance is absent."
+          },
+          "evidence": [
+            {
+              "sourceId": "settings-primary",
+              "sourceSha256": "4c4f508369707ef576521c220e918bc0db5c9f3bdb900334ff5a5a859fcfcf9c",
+              "sourceClass": "losslessUnprovenanced",
+              "regionId": "settings-primary:navigation-prices-label",
+              "sampleRect": { "left": 60, "top": 1223, "width": 60, "height": 21 },
+              "decodedBackground": { "rgb": [251, 250, 255], "sample": { "x": 120, "y": 1240 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 91, "y": 1223, "rgb": [0, 0, 2], "opacity": 1.0 },
+                { "x": 91, "y": 1229, "rgb": [0, 0, 2], "opacity": 1.0 },
+                { "x": 81, "y": 1230, "rgb": [0, 0, 2], "opacity": 1.0 }
+              ]
+            }
+          ]
+        },
+        {
+          "variantId": "dark",
+          "theme": "dark",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [253, 253, 253], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [247, 247, 247],
+            "channelMax": [255, 255, 255],
+            "maxAbsoluteChannelDeviation": [6, 6, 6],
+            "confidence": "diagnosticLow",
+            "limitations": "The native-size JPEG proves a near-white state, but small glyph cores retain substantial compression uncertainty."
+          },
+          "evidence": [
+            {
+              "sourceId": "trade-dark",
+              "sourceSha256": "349b41ed7ab4e974966b7bf1394e65f39cd43f07667613c5f92f0e2e8b2cefe9",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "trade-dark:navigation-prices-label",
+              "sampleRect": { "left": 35, "top": 830, "width": 45, "height": 22 },
+              "decodedBackground": { "rgb": [24, 24, 24], "sample": { "x": 80, "y": 840 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 47, "y": 837, "rgb": [247, 247, 247], "opacity": 1.0 },
+                { "x": 61, "y": 841, "rgb": [253, 253, 253], "opacity": 1.0 },
+                { "x": 47, "y": 840, "rgb": [255, 255, 255], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "colorRoleId": "blueAction",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [0, 122, 255], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [0, 122, 255],
+            "channelMax": [0, 123, 255],
+            "maxAbsoluteChannelDeviation": [0, 1, 0],
+            "confidence": "diagnostic",
+            "limitations": "Progressive JPEG diagnostic only."
+          },
+          "evidence": [
+            {
+              "sourceId": "history-positions",
+              "sourceSha256": "40bfd8ddf3e24158453da32e4318e9219d02a201b09bb2fb53d6ee95a98a5924",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "history-positions:position-action-first-row",
+              "sampleRect": { "left": 75, "top": 238, "width": 85, "height": 38 },
+              "decodedBackground": { "rgb": [255, 255, 255], "sample": { "x": 150, "y": 250 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 89, "y": 251, "rgb": [0, 122, 255], "opacity": 1.0 },
+                { "x": 88, "y": 256, "rgb": [0, 122, 255], "opacity": 1.0 },
+                { "x": 94, "y": 263, "rgb": [0, 123, 255], "opacity": 1.0 }
+              ]
+            }
+          ]
+        },
+        {
+          "variantId": "dark",
+          "theme": "dark",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [6, 120, 240], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [1, 111, 236],
+            "channelMax": [9, 123, 240],
+            "maxAbsoluteChannelDeviation": [5, 9, 4],
+            "confidence": "diagnosticLow",
+            "limitations": "Thin blue action glyphs in the dark progressive JPEG do not expose a flat latent paint core."
+          },
+          "evidence": [
+            {
+              "sourceId": "trade-dark",
+              "sourceSha256": "349b41ed7ab4e974966b7bf1394e65f39cd43f07667613c5f92f0e2e8b2cefe9",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "trade-dark:position-action-first-row",
+              "sampleRect": { "left": 70, "top": 250, "width": 100, "height": 32 },
+              "decodedBackground": { "rgb": [0, 0, 0], "sample": { "x": 170, "y": 265 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 135, "y": 262, "rgb": [1, 123, 240], "opacity": 1.0 },
+                { "x": 76, "y": 266, "rgb": [6, 111, 240], "opacity": 1.0 },
+                { "x": 76, "y": 267, "rgb": [9, 120, 236], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "colorRoleId": "positive",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [0, 122, 255], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [0, 122, 255],
+            "channelMax": [0, 122, 255],
+            "maxAbsoluteChannelDeviation": [0, 0, 0],
+            "confidence": "diagnostic",
+            "limitations": "Repeated exact decoded cores remain JPEG-diagnostic, not certification evidence."
+          },
+          "evidence": [
+            {
+              "sourceId": "prices",
+              "sourceSha256": "6739a1668fa87ca745f5e43ea472c2413ef0434fa1074c3b180c7278ea658db5",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "prices:first-quote-bid",
+              "sampleRect": { "left": 361, "top": 180, "width": 109, "height": 37 },
+              "decodedBackground": { "rgb": [255, 255, 255], "sample": { "x": 355, "y": 190 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 435, "y": 189, "rgb": [0, 122, 255], "opacity": 1.0 },
+                { "x": 451, "y": 192, "rgb": [0, 122, 255], "opacity": 1.0 },
+                { "x": 451, "y": 193, "rgb": [0, 122, 255], "opacity": 1.0 }
+              ]
+            }
+          ]
+        },
+        {
+          "variantId": "dark",
+          "theme": "dark",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [0, 124, 255], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [0, 123, 255],
+            "channelMax": [0, 125, 255],
+            "maxAbsoluteChannelDeviation": [0, 1, 0],
+            "confidence": "diagnostic",
+            "limitations": "Progressive JPEG diagnostic only."
+          },
+          "evidence": [
+            {
+              "sourceId": "trade-dark",
+              "sourceSha256": "349b41ed7ab4e974966b7bf1394e65f39cd43f07667613c5f92f0e2e8b2cefe9",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "trade-dark:header-and-position-profit",
+              "sampleRect": { "left": 130, "top": 25, "width": 280, "height": 280 },
+              "decodedBackground": { "rgb": [0, 0, 0], "sample": { "x": 300, "y": 280 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 354, "y": 280, "rgb": [0, 123, 255], "opacity": 1.0 },
+                { "x": 354, "y": 279, "rgb": [0, 124, 255], "opacity": 1.0 },
+                { "x": 204, "y": 46, "rgb": [0, 125, 255], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "colorRoleId": "negative",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [229, 46, 48], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [228, 45, 48],
+            "channelMax": [231, 47, 51],
+            "maxAbsoluteChannelDeviation": [2, 1, 3],
+            "confidence": "diagnostic",
+            "limitations": "Progressive JPEG diagnostic only; the result must not be normalized to an existing red token without separate approval."
+          },
+          "evidence": [
+            {
+              "sourceId": "trade-light",
+              "sourceSha256": "5c619acae61c2cbf11f6210a0888fe0cd2cf5fb49917e9189015c9431769becc",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "trade-light:negative-position-profit-rows",
+              "sampleRect": { "left": 486, "top": 945, "width": 95, "height": 187 },
+              "decodedBackground": { "rgb": [255, 255, 255], "sample": { "x": 480, "y": 950 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 505, "y": 950, "rgb": [228, 45, 51], "opacity": 1.0 },
+                { "x": 506, "y": 1122, "rgb": [231, 46, 48], "opacity": 1.0 },
+                { "x": 576, "y": 1125, "rgb": [229, 47, 48], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "colorRoleId": "historyStatus",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [41, 68, 118], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [40, 68, 115],
+            "channelMax": [42, 70, 120],
+            "maxAbsoluteChannelDeviation": [1, 2, 3],
+            "confidence": "diagnostic",
+            "limitations": "Repeated status text supports a distinct darker blue role, but the progressive JPEG cannot certify its latent paint value."
+          },
+          "evidence": [
+            {
+              "sourceId": "history-orders-offset",
+              "sourceSha256": "48dbab6778e247325222bf0e10e991f0ef4d160ecf4cb4127be1e6d1b6eb83c1",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "history-orders-offset:filled-status-repeated-rows",
+              "sampleRect": { "left": 530, "top": 680, "width": 59, "height": 350 },
+              "decodedBackground": { "rgb": [255, 255, 255], "sample": { "x": 520, "y": 702 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 564, "y": 1011, "rgb": [40, 68, 118], "opacity": 1.0 },
+                { "x": 559, "y": 702, "rgb": [42, 68, 119], "opacity": 1.0 },
+                { "x": 572, "y": 702, "rgb": [42, 70, 120], "opacity": 1.0 }
+              ]
+            },
+            {
+              "sourceId": "history-orders-summary",
+              "sourceSha256": "7f8d2fe5c086eacb5a8364435373645a4ba3e2ba3df7b852467b5a51d0ee45ee",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "history-orders-summary:filled-status-repeated-rows",
+              "sampleRect": { "left": 530, "top": 590, "width": 59, "height": 280 },
+              "decodedBackground": { "rgb": [255, 255, 255], "sample": { "x": 520, "y": 846 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 579, "y": 846, "rgb": [40, 68, 118], "opacity": 1.0 },
+                { "x": 559, "y": 844, "rgb": [41, 68, 115], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "colorRoleId": "chartToolbar",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [64, 64, 64], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [63, 63, 63],
+            "channelMax": [65, 65, 65],
+            "maxAbsoluteChannelDeviation": [1, 1, 1],
+            "confidence": "diagnostic",
+            "limitations": "Progressive JPEG diagnostic only."
+          },
+          "evidence": [
+            {
+              "sourceId": "chart",
+              "sourceSha256": "e5d878286e76f843fec97ac2fc14de68d219fd20475a381a2bda941226854e31",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "chart:toolbar-timeframe",
+              "sampleRect": { "left": 12, "top": 92, "width": 52, "height": 42 },
+              "decodedBackground": { "rgb": [255, 255, 255], "sample": { "x": 50, "y": 110 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 20, "y": 108, "rgb": [64, 64, 64], "opacity": 1.0 },
+                { "x": 20, "y": 109, "rgb": [63, 63, 63], "opacity": 1.0 },
+                { "x": 20, "y": 106, "rgb": [65, 65, 65], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "colorRoleId": "chartPlot",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [61, 135, 234], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [53, 126, 225],
+            "channelMax": [67, 143, 238],
+            "maxAbsoluteChannelDeviation": [8, 9, 9],
+            "confidence": "diagnosticLow",
+            "limitations": "The small plot-title glyphs show JPEG chroma spread; the role is demonstrably distinct from History status, but its exact latent RGB remains unlocked."
+          },
+          "evidence": [
+            {
+              "sourceId": "chart",
+              "sourceSha256": "e5d878286e76f843fec97ac2fc14de68d219fd20475a381a2bda941226854e31",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "chart:plot-symbol-and-timeframe-run",
+              "sampleRect": { "left": 0, "top": 202, "width": 115, "height": 23 },
+              "decodedBackground": { "rgb": [255, 255, 255], "sample": { "x": 108, "y": 216 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 23, "y": 214, "rgb": [61, 134, 238], "opacity": 1.0 },
+                { "x": 23, "y": 215, "rgb": [53, 126, 230], "opacity": 1.0 },
+                { "x": 12, "y": 220, "rgb": [56, 136, 225], "opacity": 1.0 },
+                { "x": 29, "y": 208, "rgb": [67, 135, 234], "opacity": 1.0 },
+                { "x": 19, "y": 216, "rgb": [62, 143, 234], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "colorRoleId": "white",
+      "variants": [
+        {
+          "variantId": "light",
+          "theme": "light",
+          "lockStatus": "jpegDiagnosticObservedComposite",
+          "consensus": { "rgb": [255, 255, 255], "opacity": 1.0 },
+          "uncertainty": {
+            "channelMin": [255, 254, 254],
+            "channelMax": [255, 255, 255],
+            "maxAbsoluteChannelDeviation": [0, 1, 1],
+            "confidence": "diagnostic",
+            "limitations": "Stable cores exist in the typed Chart ticket-price regions, but the source remains a progressive JPEG."
+          },
+          "evidence": [
+            {
+              "sourceId": "chart",
+              "sourceSha256": "e5d878286e76f843fec97ac2fc14de68d219fd20475a381a2bda941226854e31",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "chart:ticket-sell-price",
+              "sampleRect": { "left": 35, "top": 162, "width": 120, "height": 33 },
+              "decodedBackground": { "rgb": [0, 124, 255], "sample": { "x": 160, "y": 180 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 108, "y": 165, "rgb": [255, 255, 255], "opacity": 1.0 }
+              ]
+            },
+            {
+              "sourceId": "chart",
+              "sourceSha256": "e5d878286e76f843fec97ac2fc14de68d219fd20475a381a2bda941226854e31",
+              "sourceClass": "jpegDiagnostic",
+              "regionId": "chart:ticket-buy-price",
+              "sampleRect": { "left": 445, "top": 162, "width": 135, "height": 33 },
+              "decodedBackground": { "rgb": [0, 124, 255], "sample": { "x": 430, "y": 180 } },
+              "compositingMethod": "opaqueObservedGlyphCoreOnLocallySampledBackground",
+              "acceptedSamples": [
+                { "x": 509, "y": 174, "rgb": [255, 254, 255], "opacity": 1.0 },
+                { "x": 520, "y": 168, "rgb": [255, 255, 254], "opacity": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "deferredVariants": [
+    {
+      "colorRoleId": "navigationSelected",
+      "variantId": "dark",
+      "theme": "dark",
+      "sourceIds": ["trade-dark"],
+      "reason": "The source proves a blue selected label, but the 413x881 progressive JPEG has no stable selected-label glyph core from which an exact observed composite can be locked."
+    },
+    {
+      "colorRoleId": "negative",
+      "variantId": "dark",
+      "theme": "dark",
+      "sourceIds": ["trade-dark"],
+      "reason": "Only a clipped negative value is visible near the bottom/fade boundary; its decoded cores vary too widely to lock a dark override honestly."
+    },
+    {
+      "colorRoleId": "historyStatus",
+      "variantId": "dark",
+      "theme": "dark",
+      "sourceIds": [],
+      "reason": "No dark History source was supplied."
+    },
+    {
+      "colorRoleId": "chartToolbar",
+      "variantId": "dark",
+      "theme": "dark",
+      "sourceIds": [],
+      "reason": "No dark Chart source was supplied."
+    },
+    {
+      "colorRoleId": "chartPlot",
+      "variantId": "dark",
+      "theme": "dark",
+      "sourceIds": [],
+      "reason": "No dark Chart source was supplied."
+    },
+    {
+      "colorRoleId": "white",
+      "variantId": "dark",
+      "theme": "dark",
+      "sourceIds": [],
+      "reason": "Dark navigation-unselected evidence belongs to navigationUnselected and is not aliased to the distinct white role."
+    }
+  ],
+  "excludedEvidence": [
+    {
+      "sourceId": "partial-system-ui-crop",
+      "reason": "The clock, location arrow, and keyboard/password icon are system-owned UI and prove no app-controlled semantic text-color role."
+    }
+  ]
+}

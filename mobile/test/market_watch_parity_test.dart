@@ -8,8 +8,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/features/market_watch/presentation/screens/market_watch_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
+import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 import 'test_support/load_test_fonts.dart';
@@ -49,7 +51,84 @@ void main() {
     return scope;
   }
 
-  testWidgets('iOS quote change accent keeps the reference optical weight', (
+  Future<ProviderContainer> pumpModernReference(WidgetTester tester) async {
+    final quotes = <DemoQuote>[
+      DemoQuote(
+        symbol: 'XAUUSD+',
+        name: 'Gold US Dollar',
+        bid: 4413.456,
+        ask: 4413.638,
+        changePercent: 88.88,
+        sourceTimestamp: DateTime.utc(2026, 8, 31, 4, 32, 31),
+      ),
+      DemoQuote(
+        symbol: 'BTCUSD',
+        name: 'Bitcoin',
+        bid: 77480.31,
+        ask: 77487.31,
+        changePercent: 77.77,
+        sourceTimestamp: DateTime.utc(2026, 8, 31, 4, 32, 30),
+      ),
+    ];
+    final dailyCandles = <String, List<MarketCandle>>{
+      'XAUUSD+': [
+        MarketCandle(
+          time: DateTime.utc(2026, 8, 30),
+          open: 4439,
+          high: 4466,
+          low: 4435,
+          close: 4458.279,
+        ),
+        MarketCandle(
+          time: DateTime.utc(2026, 8, 31),
+          open: 4458.301,
+          high: 4472.462,
+          low: 4396.372,
+          close: 4413.456,
+        ),
+      ],
+      'BTCUSD': [
+        MarketCandle(
+          time: DateTime.utc(2026, 8, 30),
+          open: 78000,
+          high: 79000,
+          low: 77000,
+          close: 77673.16,
+        ),
+        MarketCandle(
+          time: DateTime.utc(2026, 8, 31),
+          open: 77673.16,
+          high: 78175.38,
+          low: 77363.95,
+          close: 77480.31,
+        ),
+      ],
+    };
+    final container = ProviderContainer(
+      overrides: [
+        demoQuotesProvider.overrideWithValue(quotes),
+        demoQuoteProvider.overrideWith(
+          (ref, symbol) => Stream.value(
+            quotes.firstWhere((quote) => quote.symbol == symbol),
+          ),
+        ),
+        marketCandlesProvider.overrideWith(
+          (ref, request) => Stream.value(
+            dailyCandles[request.symbol] ?? const <MarketCandle>[],
+          ),
+        ),
+      ],
+    );
+    await pumpMarket(
+      tester,
+      container: container,
+      platform: TargetPlatform.iOS,
+    );
+    await tester.pump();
+    return container;
+  }
+
+  testWidgets('iOS quote change uses the static reference face and weight', (
     tester,
   ) async {
     await pumpMarket(tester, platform: TargetPlatform.iOS);
@@ -61,8 +140,11 @@ void main() {
         .cast<TextSpan>()
         .toList();
 
-    expect(_variableWeight(dailyChange.style), 300);
-    expect(_variableWeight(spans[1].style), 400);
+    expect(dailyChange.style?.fontFamily, 'Mt5ReferenceRoboto');
+    expect(dailyChange.style?.fontWeight, FontWeight.w400);
+    expect(dailyChange.style?.fontVariations, isNull);
+    expect(spans[1].style?.fontWeight, FontWeight.w700);
+    expect(spans[1].style?.fontVariations, isNull);
   });
 
   testWidgets('Quotes toolbar icon ink matches the measured references', (
@@ -83,12 +165,15 @@ void main() {
       const Key('market-search-button'),
     );
 
-    expect(list.bounds, const Rect.fromLTWH(14, 14, 15, 12));
-    expect(list.pixels, inInclusiveRange(50, 75));
-    expect(edit.bounds, const Rect.fromLTWH(13, 13, 15, 14));
-    expect(edit.pixels, inInclusiveRange(50, 75));
-    expect(search.bounds, const Rect.fromLTWH(12, 11, 19, 19));
-    expect(search.pixels, inInclusiveRange(70, 100));
+    expect(list.bounds.width, closeTo(16, 1));
+    expect(list.bounds.height, closeTo(14, 1));
+    expect(list.pixels, inInclusiveRange(70, 105));
+    expect(edit.bounds.width, closeTo(17, 1));
+    expect(edit.bounds.height, closeTo(17, 1));
+    expect(edit.pixels, inInclusiveRange(65, 100));
+    expect(search.bounds.width, closeTo(22, 1));
+    expect(search.bounds.height, closeTo(22, 1));
+    expect(search.pixels, inInclusiveRange(100, 145));
   });
 
   double rowOffset(WidgetTester tester, String symbol) {
@@ -119,20 +204,20 @@ void main() {
       find.byKey(const Key('market-search-button')),
     );
 
-    expect(toggleRect.left, closeTo(17.3, .1));
-    expect(toggleRect.top, closeTo(54.6666666667, .1));
-    expect(toggleRect.width, closeTo(42.6666666667, .01));
-    expect(toggleRect.height, closeTo(42.6666666667, .01));
-    expect(manageRect.left, closeTo(274.6333333333, .1));
-    expect(manageRect.top, closeTo(54, .1));
-    expect(searchRect.left, closeTo(324.7, .1));
-    expect(searchRect.top, closeTo(54, .1));
+    expect(toggleRect.left, closeTo(16, .1));
+    expect(toggleRect.top, closeTo(64, .1));
+    expect(toggleRect.width, closeTo(44, .01));
+    expect(toggleRect.height, closeTo(44, .01));
+    expect(manageRect.left, closeTo(268, .1));
+    expect(manageRect.top, closeTo(64, .1));
+    expect(searchRect.left, closeTo(323.5, .1));
+    expect(searchRect.top, closeTo(64, .1));
     expect(
       <Rect>[
         toggleRect,
         manageRect,
         searchRect,
-      ].every((rect) => rect.width >= 42.6669 && rect.height >= 42.6669),
+      ].every((rect) => rect.width >= 44 && rect.height >= 44),
       isTrue,
       reason: 'Visual discs may shrink, but toolbar hit targets stay usable.',
     );
@@ -142,57 +227,108 @@ void main() {
     final dailyChange = tester.widget<Text>(
       find.byKey(const ValueKey('market-change-XAUUSD+')),
     );
-    expect(dailyChange.style, AppTypography.quoteChange);
+    expect(
+      dailyChange.style,
+      AppTypography.quoteChange.copyWith(color: const Color(0xFF3C3C43)),
+    );
     final symbolFinder = find.byKey(const ValueKey('market-symbol-XAUUSD+'));
     final symbol = tester.widget<Text>(symbolFinder);
     expect(symbol.style, AppTypography.quoteSymbol);
+    expect(symbol.style?.fontFamily, 'Mt5ReferenceRobotoCondensed');
+    expect(symbol.style?.fontWeight, FontWeight.w700);
+    expect(symbol.style?.fontVariations, isNull);
     final btcSymbolFinder = find.byKey(const ValueKey('market-symbol-BTCUSD'));
     final btcSymbol = tester.widget<Text>(btcSymbolFinder);
-    expect(btcSymbol.data, 'BTC');
-    expect(btcSymbol.style?.fontSize, 15);
+    expect(btcSymbol.data, 'BTCUSD');
+    expect(btcSymbol.style, AppTypography.quoteSymbol);
+    expect(btcSymbol.style?.fontVariations, isNull);
     expect(
       tester.getTopLeft(btcSymbolFinder).dy -
           tester.getTopLeft(symbolFinder).dy,
-      closeTo(66.6666666667, .01),
-      reason: 'Prices rows use the canonical 100-physical-pixel pitch.',
+      closeTo(72, .01),
+      reason: 'Modern Prices rows use the measured 216-physical-pixel pitch.',
     );
-    expect(tester.getTopLeft(symbolFinder).dy, closeTo(128.0666666667, .75));
+    expect(tester.getTopLeft(symbolFinder).dy, closeTo(143, .75));
     final tickTime = tester.widget<Text>(
       find.byKey(const ValueKey('market-time-XAUUSD+')),
     );
-    expect(tickTime.style, AppTypography.quoteTimeMeta);
+    expect(
+      tickTime.style,
+      AppTypography.quoteTimeMeta.copyWith(color: const Color(0xFF3C3C43)),
+    );
+    expect(tickTime.data, '04:32:31');
     expect(
       tickTime.style?.color,
-      const Color(0xFF545454),
-      reason: 'Prices metadata uses the measured reference secondary ink.',
+      const Color(0xFF3C3C43),
+      reason: 'Prices metadata uses the locked secondary reference ink.',
     );
-    expect(find.byKey(const ValueKey('market-delay-BTCUSD')), findsOneWidget);
+    expect(tickTime.style?.fontWeight, FontWeight.w400);
+    expect(tickTime.style?.fontVariations, isNull);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('market-time-XAUUSD+'))).dy,
+      closeTo(166.67, .1),
+      reason: 'The metadata baseline starts one point above the old layout.',
+    );
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('market-time-XAUUSD+'))).dx,
+      closeTo(7.33, .1),
+      reason: 'The metadata ink starts at the measured reference inset.',
+    );
+    final spread = tester.widget<Text>(
+      find.byKey(const ValueKey('market-spread-XAUUSD+')),
+    );
+    expect(
+      spread.style,
+      AppTypography.quoteSpreadMeta.copyWith(color: const Color(0xFF3C3C43)),
+      reason:
+          'The reference keeps only the spread glyph pale; its number uses '
+          'the same secondary ink as the timestamp and range values.',
+    );
+    expect(spread.style?.fontVariations, isNull);
+    final btcDelay = find.byKey(const ValueKey('market-delay-BTCUSD'));
+    expect(btcDelay, findsNothing);
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
           .style,
-      AppTypography.quoteRangeValue,
+      AppTypography.quoteRangeValue.copyWith(color: const Color(0xFF3C3C43)),
     );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
           .style,
-      AppTypography.quoteRangeValue,
+      AppTypography.quoteRangeValue.copyWith(color: const Color(0xFF3C3C43)),
     );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-high-BTCUSD')))
           .style,
-      AppTypography.quoteBtcHighMeta,
-      reason: 'BTC high uses the narrower reference digit spacing.',
+      AppTypography.quoteRangeValue.copyWith(color: const Color(0xFF3C3C43)),
+      reason: 'Both modern quote rows use the same range geometry and style.',
+    );
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('market-low-label-XAUUSD+')))
+          .dy,
+      closeTo(167.67, .1),
     );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-low-label-XAUUSD+')))
           .style
           ?.color,
-      const Color(0xFF545454),
+      const Color(0xFF3C3C43),
     );
+    for (final key in const <ValueKey<String>>[
+      ValueKey('market-low-label-XAUUSD+'),
+      ValueKey('market-low-XAUUSD+'),
+      ValueKey('market-high-label-XAUUSD+'),
+      ValueKey('market-high-XAUUSD+'),
+    ]) {
+      final rangeText = tester.widget<Text>(find.byKey(key));
+      expect(rangeText.style?.fontWeight, FontWeight.w400, reason: '$key');
+      expect(rangeText.style?.fontVariations, isNull, reason: '$key');
+    }
 
     expect(
       tester
@@ -216,22 +352,32 @@ void main() {
     final xauBid = tester.widget<Text>(
       find.byKey(const ValueKey('market-bid-XAUUSD+')),
     );
-    final bidSpans = (xauBid.textSpan! as TextSpan).children!
-        .cast<TextSpan>()
-        .toList();
-    expect(bidSpans[0].text, '4104.');
-    expect(bidSpans[0].style, AppTypography.quotePriceMajor);
-    expect(bidSpans[1].text, '09');
-    expect(bidSpans[1].style, AppTypography.quotePriceMinor);
+    final bidSpans = (xauBid.textSpan! as TextSpan).children!;
+    expect((bidSpans[0] as TextSpan).text, '4104.');
+    expect((bidSpans[0] as TextSpan).style?.fontWeight, FontWeight.w400);
+    expect((bidSpans[0] as TextSpan).style?.fontVariations, isNull);
+    expect(bidSpans, hasLength(2));
+    expect((bidSpans[1] as TextSpan).text, '09');
+    expect(
+      (bidSpans[1] as TextSpan).style,
+      AppTypography.quotePriceMinor.copyWith(color: const Color(0xFF007AFF)),
+    );
+    expect(
+      find.byKey(const ValueKey('market-bid-pipette-XAUUSD+')),
+      findsNothing,
+    );
 
     final btcBid = tester.widget<Text>(
       find.byKey(const ValueKey('market-bid-BTCUSD')),
     );
-    final btcSpans = (btcBid.textSpan! as TextSpan).children!
-        .cast<TextSpan>()
-        .toList();
-    expect(btcSpans[0].text, '65175.');
-    expect(btcSpans[1].text, '98');
+    final btcSpans = (btcBid.textSpan! as TextSpan).children!;
+    expect((btcSpans[0] as TextSpan).text, '65175.');
+    expect(btcSpans, hasLength(2));
+    expect((btcSpans[1] as TextSpan).text, '98');
+    expect(
+      find.byKey(const ValueKey('market-bid-pipette-BTCUSD')),
+      findsNothing,
+    );
 
     await tester.tap(find.text('XAUUSD'));
     await tester.pumpAndSettle();
@@ -246,6 +392,131 @@ void main() {
         .first;
     expect(tester.getSize(actionMaterial).height, 47);
   });
+
+  testWidgets(
+    'modern reference renders UTC D1 statistics, precision and shared rows',
+    (tester) async {
+      await pumpModernReference(tester);
+
+      expect(
+        _plainText(tester, const ValueKey('market-change-XAUUSD+')),
+        '-4482 -1.01%',
+      );
+      expect(
+        _plainText(tester, const ValueKey('market-change-BTCUSD')),
+        '-19285 -0.25%',
+      );
+      expect(find.text('XAUUSD'), findsOneWidget);
+      expect(find.text('BTCUSD'), findsOneWidget);
+      expect(find.text('BTC'), findsNothing);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-time-XAUUSD+')))
+            .data,
+        '04:32:31',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-time-BTCUSD')))
+            .data,
+        '04:32:30',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-spread-XAUUSD+')))
+            .data,
+        '18',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-spread-BTCUSD')))
+            .data,
+        '700',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
+            .data,
+        '4396.37',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
+            .data,
+        '4472.46',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-low-BTCUSD')))
+            .data,
+        '77363.95',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-high-BTCUSD')))
+            .data,
+        '78175.38',
+      );
+
+      _expectPriceParts(
+        tester,
+        const ValueKey('market-bid-XAUUSD+'),
+        leading: '4413.',
+        emphasized: '46',
+      );
+      _expectPriceParts(
+        tester,
+        const ValueKey('market-ask-XAUUSD+'),
+        leading: '4413.',
+        emphasized: '64',
+      );
+      _expectPriceParts(
+        tester,
+        const ValueKey('market-bid-BTCUSD'),
+        leading: '77480.',
+        emphasized: '31',
+      );
+      _expectPriceParts(
+        tester,
+        const ValueKey('market-ask-BTCUSD'),
+        leading: '77487.',
+        emphasized: '31',
+      );
+
+      final bidRight = tester
+          .getRect(find.byKey(const ValueKey('market-bid-XAUUSD+')))
+          .right;
+      final askRight = tester
+          .getRect(find.byKey(const ValueKey('market-ask-XAUUSD+')))
+          .right;
+      expect(bidRight, closeTo(280.7, .75));
+      expect(askRight, closeTo(376.7, .75));
+      expect(askRight - bidRight, closeTo(96, 1));
+      expect(
+        await _rectContainsColoredInk(
+          tester,
+          Rect.fromLTWH(
+            0,
+            tester
+                .getTopLeft(
+                  find
+                      .ancestor(
+                        of: find.byKey(const ValueKey('market-symbol-XAUUSD+')),
+                        matching: find.byType(AnimatedContainer),
+                      )
+                      .first,
+                )
+                .dy,
+            8,
+            10,
+          ),
+        ),
+        isFalse,
+        reason: 'The modern reference has no blue XAU corner marker.',
+      );
+      expect(find.byKey(const ValueKey('market-delay-BTCUSD')), findsNothing);
+    },
+  );
 
   testWidgets(
     'quote row follows drag, resists overscroll and snaps by threshold',
@@ -348,6 +619,9 @@ void main() {
         demoQuoteProvider.overrideWith(
           (ref, symbol) => controllers[symbol]!.stream,
         ),
+        marketCandlesProvider.overrideWith(
+          (ref, request) => Stream.value(const <MarketCandle>[]),
+        ),
       ],
     );
     await pumpMarket(tester, container: container);
@@ -365,12 +639,16 @@ void main() {
     );
 
     controllers['XAUUSD+']!.add(
-      const DemoQuote(
+      DemoQuote(
         symbol: 'XAUUSD+',
         name: 'Gold US Dollar',
         bid: 4104.10,
         ask: 4104.21,
         changePercent: -1.24,
+        sourceTimestamp: DateTime.utc(2026, 8, 31, 4, 32, 31),
+        previousClose: 4155.62980963953,
+        dailyLow: 4100,
+        dailyHigh: 4160,
       ),
     );
     await tester.pump();
@@ -402,64 +680,465 @@ void main() {
     final dailySpans = (dailyChange.textSpan! as TextSpan).children!
         .cast<TextSpan>()
         .toList();
-    expect(dailySpans[1].style?.color, AppColors.negative);
+    expect(dailySpans[1].style?.color, const Color(0xFFE42D30));
     expect(dailyChange.textSpan!.toPlainText(), contains('-1.24%'));
   });
 
-  testWidgets('production quote metadata stays coherent with the live price', (
+  testWidgets(
+    'fallback receive time is stable across candle rebuilds and advances on a new tick',
+    (tester) async {
+      var clockCalls = 0;
+      final quoteControllers = <String, StreamController<DemoQuote>>{
+        'XAUUSD+': StreamController<DemoQuote>.broadcast(),
+        'BTCUSD': StreamController<DemoQuote>.broadcast(),
+      };
+      final candleControllers = <String, StreamController<List<MarketCandle>>>{
+        'XAUUSD+': StreamController<List<MarketCandle>>.broadcast(),
+        'BTCUSD': StreamController<List<MarketCandle>>.broadcast(),
+      };
+      addTearDown(() async {
+        for (final controller in quoteControllers.values) {
+          await controller.close();
+        }
+        for (final controller in candleControllers.values) {
+          await controller.close();
+        }
+      });
+      final quotes = <DemoQuote>[
+        const DemoQuote(
+          symbol: 'XAUUSD+',
+          name: 'Gold US Dollar',
+          bid: 4104.09,
+          ask: 4104.22,
+          changePercent: 0,
+          previousClose: 4104.09,
+          dailyLow: 4104.09,
+          dailyHigh: 4104.22,
+        ),
+        const DemoQuote(
+          symbol: 'BTCUSD',
+          name: 'Bitcoin',
+          bid: 65175.98,
+          ask: 65193.10,
+          changePercent: 0,
+          previousClose: 65175.98,
+          dailyLow: 65175.98,
+          dailyHigh: 65193.10,
+        ),
+      ];
+      final container = ProviderContainer(
+        overrides: [
+          demoQuotesProvider.overrideWithValue(quotes),
+          demoQuoteProvider.overrideWith(
+            (ref, symbol) => quoteControllers[symbol]!.stream,
+          ),
+          marketCandlesProvider.overrideWith(
+            (ref, request) => candleControllers[request.symbol]!.stream,
+          ),
+          marketClockProvider.overrideWithValue(
+            () => DateTime.utc(2026, 8, 31, 4, 32, 10 + clockCalls++),
+          ),
+        ],
+      );
+      await pumpMarket(tester, container: container);
+
+      final timeFinder = find.byKey(const ValueKey('market-time-XAUUSD+'));
+      final initialTime = tester.widget<Text>(timeFinder).data;
+      candleControllers['XAUUSD+']!.add(const <MarketCandle>[]);
+      await tester.pump();
+      await tester.pump();
+      expect(tester.widget<Text>(timeFinder).data, initialTime);
+
+      await tester.tap(find.byKey(const Key('market-toggle-view')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('market-toggle-view')));
+      await tester.pump();
+      expect(tester.widget<Text>(timeFinder).data, initialTime);
+
+      quoteControllers['XAUUSD+']!.add(
+        const DemoQuote(
+          symbol: 'XAUUSD+',
+          name: 'Gold US Dollar',
+          bid: 4104.10,
+          ask: 4104.23,
+          changePercent: 0,
+          previousClose: 4104.09,
+          dailyLow: 4104.09,
+          dailyHigh: 4104.23,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(tester.widget<Text>(timeFinder).data, isNot(initialTime));
+    },
+  );
+
+  testWidgets('XAU omits the final digit from upper prices and lower ranges', (
     tester,
   ) async {
-    const quotes = [
+    await pumpModernReference(tester);
+
+    expect(_plainText(tester, const ValueKey('market-bid-XAUUSD+')), '4413.46');
+    expect(_plainText(tester, const ValueKey('market-ask-XAUUSD+')), '4413.64');
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
+          .data,
+      '4396.37',
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
+          .data,
+      '4472.46',
+    );
+    expect(
+      find.byKey(const ValueKey('market-bid-pipette-XAUUSD+')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('market-bid-pipette-BTCUSD')),
+      findsNothing,
+      reason: 'BTC keeps both decimal digits at full size and baseline.',
+    );
+  });
+
+  testWidgets('last D1 statistics survive loading and error refresh states', (
+    tester,
+  ) async {
+    final candleControllers = <String, StreamController<List<MarketCandle>>>{
+      'XAUUSD+': StreamController<List<MarketCandle>>.broadcast(),
+      'BTCUSD': StreamController<List<MarketCandle>>.broadcast(),
+    };
+    addTearDown(() async {
+      for (final controller in candleControllers.values) {
+        await controller.close();
+      }
+    });
+    final quotes = <DemoQuote>[
       DemoQuote(
         symbol: 'XAUUSD+',
         name: 'Gold US Dollar',
-        bid: 3345.20,
-        ask: 3345.65,
-        changePercent: .42,
+        bid: 100.100,
+        ask: 100.200,
+        changePercent: 99,
+        sourceTimestamp: DateTime.utc(2026, 8, 31, 4, 32, 31),
       ),
       DemoQuote(
         symbol: 'BTCUSD',
         name: 'Bitcoin',
         bid: 60000,
         ask: 60010,
-        changePercent: .82,
+        changePercent: 99,
+        sourceTimestamp: DateTime.utc(2026, 8, 31, 4, 32, 30),
       ),
     ];
     final container = ProviderContainer(
       overrides: [
         demoQuotesProvider.overrideWithValue(quotes),
-        demoQuoteProvider.overrideWith((ref, symbol) {
-          return Stream.value(
+        demoQuoteProvider.overrideWith(
+          (ref, symbol) => Stream.value(
             quotes.firstWhere((quote) => quote.symbol == symbol),
-          );
-        }),
+          ),
+        ),
+        marketCandlesProvider.overrideWith(
+          (ref, request) => candleControllers[request.symbol]!.stream,
+        ),
       ],
     );
-
     await pumpMarket(tester, container: container);
 
-    final dailyChange = tester.widget<Text>(
-      find.byKey(const ValueKey('market-change-BTCUSD')),
-    );
-    expect(dailyChange.textSpan!.toPlainText(), contains('0.82%'));
-    final low = tester
-        .widget<Text>(find.byKey(const ValueKey('market-low-BTCUSD')))
-        .data!;
-    final high = tester
-        .widget<Text>(find.byKey(const ValueKey('market-high-BTCUSD')))
-        .data!;
-    expect(double.parse(low), greaterThan(59000));
-    expect(double.parse(high), greaterThan(59000));
+    candleControllers['XAUUSD+']!.add([
+      MarketCandle(
+        time: DateTime.utc(2026, 8, 30),
+        open: 101,
+        high: 102,
+        low: 100,
+        close: 101,
+      ),
+      MarketCandle(
+        time: DateTime.utc(2026, 8, 31),
+        open: 101,
+        high: 102,
+        low: 99,
+        close: 100.1,
+      ),
+    ]);
+    candleControllers['BTCUSD']!.add(const <MarketCandle>[]);
+    await tester.pump();
+    await tester.pump();
+
+    void expectRetainedStatistics() {
+      expect(
+        _plainText(tester, const ValueKey('market-change-XAUUSD+')),
+        '-90 -0.89%',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
+            .data,
+        '99.00',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
+            .data,
+        '102.00',
+      );
+    }
+
+    expectRetainedStatistics();
+    const request = MarketDataRequest('XAUUSD+', 'D1');
+    container.invalidate(marketCandlesProvider(request));
+    await tester.pump();
+    expectRetainedStatistics();
+
+    candleControllers['XAUUSD+']!.addError(StateError('refresh failed'));
+    await tester.pump();
+    await tester.pump();
+    expectRetainedStatistics();
   });
+
+  testWidgets('live D1 extrema do not move backward between REST refreshes', (
+    tester,
+  ) async {
+    final controller = StreamController<DemoQuote>.broadcast();
+    addTearDown(controller.close);
+    final initial = DemoQuote(
+      symbol: 'XAUUSD+',
+      name: 'Gold US Dollar',
+      bid: 105,
+      ask: 105.1,
+      changePercent: 0,
+      sourceTimestamp: DateTime.utc(2026, 8, 31, 12),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        demoQuotesProvider.overrideWithValue([initial]),
+        demoQuoteProvider.overrideWith((ref, symbol) => controller.stream),
+        marketCandlesProvider.overrideWith(
+          (ref, request) => Stream.value([
+            MarketCandle(
+              time: DateTime.utc(2026, 8, 30),
+              open: 99,
+              high: 101,
+              low: 98,
+              close: 100,
+            ),
+            MarketCandle(
+              time: DateTime.utc(2026, 8, 31),
+              open: 100,
+              high: 102,
+              low: 99,
+              close: 101,
+            ),
+          ]),
+        ),
+      ],
+    );
+    await pumpMarket(tester, container: container);
+    await tester.pump();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
+          .data,
+      '105.10',
+    );
+
+    controller.add(
+      DemoQuote(
+        symbol: 'XAUUSD+',
+        name: 'Gold US Dollar',
+        bid: 104,
+        ask: 104.1,
+        changePercent: 0,
+        sourceTimestamp: DateTime.utc(2026, 8, 31, 12, 0, 1),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
+          .data,
+      '105.10',
+    );
+
+    await tester.tap(find.byKey(const Key('market-toggle-view')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('market-toggle-view')));
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
+          .data,
+      '105.10',
+      reason:
+          'The live session high must survive replacing detailed rows with '
+          'compact rows and back.',
+    );
+  });
+
+  testWidgets(
+    'zero catalog quote renders an unavailable row without crashing',
+    (tester) async {
+      const quote = DemoQuote(
+        symbol: 'C',
+        name: 'Citigroup Inc',
+        bid: 0,
+        ask: 0,
+        changePercent: 0,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          demoQuotesProvider.overrideWithValue(const [quote]),
+          marketSymbolsProvider.overrideWith(
+            () => _FixedMarketSymbolsController(const ['C']),
+          ),
+          demoQuoteProvider.overrideWith((ref, symbol) => Stream.value(quote)),
+          marketCandlesProvider.overrideWith(
+            (ref, request) => Stream.value(const <MarketCandle>[]),
+          ),
+        ],
+      );
+
+      await pumpMarket(tester, container: container);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(_plainText(tester, const ValueKey('market-bid-C')), '--');
+      expect(_plainText(tester, const ValueKey('market-ask-C')), '--');
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('market-spread-C'))).data,
+        '--',
+      );
+    },
+  );
+
+  testWidgets('five-digit FX keeps two terminal pips and one raised pipette', (
+    tester,
+  ) async {
+    final quote = DemoQuote(
+      symbol: 'EURUSD',
+      name: 'Euro vs US Dollar',
+      bid: 1.12345,
+      ask: 1.12355,
+      changePercent: 0,
+      sourceTimestamp: DateTime.utc(2026, 8, 31, 12),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        demoQuotesProvider.overrideWithValue([quote]),
+        marketSymbolsProvider.overrideWith(
+          () => _FixedMarketSymbolsController(const ['EURUSD']),
+        ),
+        demoQuoteProvider.overrideWith((ref, symbol) => Stream.value(quote)),
+        marketCandlesProvider.overrideWith(
+          (ref, request) => Stream.value(const <MarketCandle>[]),
+        ),
+      ],
+    );
+    await pumpMarket(tester, container: container);
+    await tester.pump();
+
+    _expectPriceParts(
+      tester,
+      const ValueKey('market-bid-EURUSD'),
+      leading: '1.12',
+      emphasized: '34',
+      pipetteKey: const ValueKey('market-bid-pipette-EURUSD'),
+    );
+  });
+
+  testWidgets(
+    'missing session history is shown without fabricated statistics',
+    (tester) async {
+      final quotes = <DemoQuote>[
+        DemoQuote(
+          symbol: 'XAUUSD+',
+          name: 'Gold US Dollar',
+          bid: 3345.20,
+          ask: 3345.65,
+          changePercent: .42,
+          sourceTimestamp: DateTime.utc(2026, 8, 31, 4, 32, 31),
+        ),
+        DemoQuote(
+          symbol: 'BTCUSD',
+          name: 'Bitcoin',
+          bid: 60000,
+          ask: 60010,
+          changePercent: .82,
+          sourceTimestamp: DateTime.utc(2026, 8, 31, 4, 32, 30),
+        ),
+      ];
+      final container = ProviderContainer(
+        overrides: [
+          demoQuotesProvider.overrideWithValue(quotes),
+          demoQuoteProvider.overrideWith((ref, symbol) {
+            return Stream.value(
+              quotes.firstWhere((quote) => quote.symbol == symbol),
+            );
+          }),
+          marketCandlesProvider.overrideWith(
+            (ref, request) => Stream.value(const <MarketCandle>[]),
+          ),
+        ],
+      );
+
+      await pumpMarket(tester, container: container);
+
+      final dailyChange = tester.widget<Text>(
+        find.byKey(const ValueKey('market-change-BTCUSD')),
+      );
+      expect(dailyChange.textSpan!.toPlainText(), '-- --');
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-low-BTCUSD')))
+            .data,
+        '--',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('market-high-BTCUSD')))
+            .data,
+        '--',
+      );
+    },
+  );
 }
 
-double? _variableWeight(TextStyle? style) {
-  final weights = style?.fontVariations
-      ?.where((variation) => variation.axis == 'wght')
-      .toList();
-  if (weights == null || weights.isEmpty) return null;
-  expect(weights, hasLength(1));
-  return weights.single.value;
+class _FixedMarketSymbolsController extends MarketSymbolsController {
+  _FixedMarketSymbolsController(this.symbols);
+
+  final List<String> symbols;
+
+  @override
+  List<String> build() => symbols;
+}
+
+String _plainText(WidgetTester tester, ValueKey<String> key) => tester
+    .widget<Text>(find.byKey(key))
+    .textSpan!
+    .toPlainText(includeSemanticsLabels: false);
+
+void _expectPriceParts(
+  WidgetTester tester,
+  ValueKey<String> priceKey, {
+  required String leading,
+  required String emphasized,
+  ValueKey<String>? pipetteKey,
+}) {
+  final price = tester.widget<Text>(find.byKey(priceKey));
+  final parts = (price.textSpan! as TextSpan).children!;
+  expect(parts, hasLength(pipetteKey == null ? 2 : 3));
+  expect((parts[0] as TextSpan).text, leading);
+  expect((parts[1] as TextSpan).text, emphasized);
+  if (pipetteKey != null) {
+    expect(parts[2], isA<WidgetSpan>());
+    expect(find.byKey(pipetteKey), findsOneWidget);
+  }
 }
 
 Future<({Rect bounds, int pixels})> _buttonInkMetrics(
@@ -517,4 +1196,45 @@ Future<({Rect bounds, int pixels})> _buttonInkMetrics(
     ).shift(-origin),
     pixels: pixels,
   );
+}
+
+Future<bool> _rectContainsColoredInk(
+  WidgetTester tester,
+  Rect logicalRect,
+) async {
+  const pixelRatio = 3.0;
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(const Key('market-icon-reference-capture')),
+  );
+  final captured = await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
+    final bytes = await image.toByteData(format: ImageByteFormat.rawRgba);
+    final result = (width: image.width, height: image.height, bytes: bytes);
+    image.dispose();
+    return result;
+  });
+  if (captured == null || captured.bytes == null) {
+    throw StateError('Unable to inspect the quote row corner pixels');
+  }
+  final left = (logicalRect.left * pixelRatio).floor().clamp(0, captured.width);
+  final top = (logicalRect.top * pixelRatio).floor().clamp(0, captured.height);
+  final right = (logicalRect.right * pixelRatio).ceil().clamp(
+    0,
+    captured.width,
+  );
+  final bottom = (logicalRect.bottom * pixelRatio).ceil().clamp(
+    0,
+    captured.height,
+  );
+  for (var y = top; y < bottom; y++) {
+    for (var x = left; x < right; x++) {
+      final offset = (y * captured.width + x) * 4;
+      final red = captured.bytes!.getUint8(offset);
+      final green = captured.bytes!.getUint8(offset + 1);
+      final blue = captured.bytes!.getUint8(offset + 2);
+      final alpha = captured.bytes!.getUint8(offset + 3);
+      if (alpha >= 128 && blue > red + 30 && blue > green + 15) return true;
+    }
+  }
+  return false;
 }

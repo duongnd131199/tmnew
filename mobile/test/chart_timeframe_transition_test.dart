@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -300,7 +299,9 @@ void main() {
 
       await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
       await tester.pump();
-      await tester.tap(find.byIcon(CupertinoIcons.chevron_up));
+      await tester.tap(
+        find.byKey(const Key('chart-one-click-volume-up-chevron')),
+      );
       await tester.pump();
       expect(find.text('0.26'), findsOneWidget);
 
@@ -436,12 +437,17 @@ void main() {
       expect(painter.debugResolvedCandles.last.volume, h4.last.volume);
       expect(painter.viewport.barSpacing, retainedSpacing);
       expect(painter.viewport.scrollOffset, 0);
-      expect(painter.viewport.rightPadding, 8);
       final visible = painter.hitTargets.visibleCandles;
       final newestCenter =
           painter.hitTargets.firstCandleCenterX +
           (visible.length - 1) * painter.hitTargets.candleWidth;
-      expect(newestCenter, closeTo(painter.hitTargets.chartWidth - 8, .01));
+      expect(
+        newestCenter,
+        closeTo(
+          painter.hitTargets.chartWidth - painter.hitTargets.candleWidth,
+          .01,
+        ),
+      );
       expect(painter.theme.background, const Color(0xFFFFFFFF));
       expect(painter.crosshairEnabled, isTrue);
       expect(painter.crosshairPosition, isNull);
@@ -476,7 +482,14 @@ Future<void> _expectHeldFrame(
   expect(painter.debugResolvedCandles.first.time, heldFirstTime);
   expect(painter.viewport.barSpacing, retainedSpacing);
   expect(painter.viewport.scrollOffset, 0);
-  expect(painter.viewport.rightPadding, 8);
+  final visible = painter.hitTargets.visibleCandles;
+  final newestCenter =
+      painter.hitTargets.firstCandleCenterX +
+      (visible.length - 1) * painter.hitTargets.candleWidth;
+  expect(
+    painter.hitTargets.chartWidth - newestCenter,
+    closeTo(painter.hitTargets.candleWidth, .01),
+  );
   expect(painter.theme.background, const Color(0xFFFFFFFF));
   expect(painter.crosshairEnabled, isTrue);
   expect(painter.crosshairPosition, isNull);

@@ -16,6 +16,14 @@ import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
+  test('production endpoints use the canonical V2 route and hub', () {
+    expect(ExV2Config.production.restBaseUrl, 'https://trochoi.top/ex/v2/api');
+    expect(
+      ExV2Config.production.hubUrl,
+      'https://trochoi.top/ex/v2/hubs/trading',
+    );
+  });
+
   test('production loading never exposes offline fixture accounts', () {
     final gate = Completer<ExV2AccountViewState?>();
     final container = ProviderContainer(
@@ -62,6 +70,29 @@ void main() {
     expect(accounts.single.company, 'Trading Account');
     expect(accounts.single.server, 'Trading Server');
     expect(accounts.single.accessPoint, 'Access Point #1');
+  });
+
+  test('initial bootstrap retries one transient server failure', () async {
+    final adapter = _TransientBootstrapAdapter();
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+      ..httpClientAdapter = adapter;
+    final container = ProviderContainer(
+      overrides: [
+        exV2EnabledProvider.overrideWithValue(true),
+        exV2DioProvider.overrideWithValue(dio),
+        deviceTokenStoreProvider.overrideWithValue(
+          _MemoryTokenStore('test-token'),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final state = await container
+        .read(exV2AccountProvider.future)
+        .timeout(const Duration(seconds: 2));
+
+    expect(state?.accountCode, 'TEST-100');
+    expect(adapter.bootstrapCalls, 2);
   });
 
   test('empty account API never exposes a local-only account', () async {
@@ -190,6 +221,147 @@ void main() {
     expect(profile.historyCommission, -2.5);
   });
 
+  test(
+    'deposit rows never replace the canonical history summary total',
+    () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+        ..httpClientAdapter = _BootstrapAdapter(
+          productionHistory: true,
+          historySummaryDeposit: 0,
+          depositRows: const [
+            {
+              'id': 'deposit-completed',
+              'accountId': 'account-1',
+              'amount': 518.54,
+              'currency': 'USD',
+              'method': 'demo',
+              'reference': 'completed',
+              'status': 'approved',
+              'createdAtUtc': '2026-07-21T02:28:53Z',
+              'updatedAtUtc': '2026-07-21T02:31:53Z',
+              'approvedAtUtc': '2026-07-21T02:31:53Z',
+              'rejectedAtUtc': null,
+              'transactionId': '11111111-1111-4111-8111-111111111111',
+              'snapshotVersion': 2,
+            },
+            {
+              'id': 'deposit-pending',
+              'accountId': 'account-1',
+              'amount': 100,
+              'currency': 'USD',
+              'method': 'demo',
+              'reference': 'pending',
+              'status': 'pending',
+              'createdAtUtc': '2026-07-22T02:28:53Z',
+              'updatedAtUtc': '2026-07-22T02:28:53Z',
+              'approvedAtUtc': null,
+              'rejectedAtUtc': null,
+              'transactionId': null,
+              'snapshotVersion': 3,
+            },
+            {
+              'id': 'deposit-rejected',
+              'accountId': 'account-1',
+              'amount': 20,
+              'currency': 'USD',
+              'method': 'demo',
+              'reference': 'rejected',
+              'status': 'rejected',
+              'createdAtUtc': '2026-07-23T02:28:53Z',
+              'updatedAtUtc': '2026-07-23T02:31:53Z',
+              'approvedAtUtc': null,
+              'rejectedAtUtc': '2026-07-23T02:31:53Z',
+              'transactionId': null,
+              'snapshotVersion': 4,
+            },
+          ],
+        );
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          exV2DioProvider.overrideWithValue(dio),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('test-token'),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(exV2AccountProvider.future);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      final profile = container.read(activeDemoAccountProvider);
+      expect(profile.historyDeposit, 0);
+    },
+  );
+
+  test(
+    'wallet transactions never replace the canonical summary total',
+    () async {
+      const reference = 'D-ALLINT-USD-INT-924750483461';
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+        ..httpClientAdapter = _BootstrapAdapter(
+          productionHistory: true,
+          historySummaryDeposit: 0,
+          historyTransactionRows: const [
+            {
+              'id': 'transaction-deposit',
+              'type': 'deposit',
+              'amount': 75,
+              'currency': 'USD',
+              'status': 'completed',
+              'reference': reference,
+              'completedAtUtc': '2026-07-21T02:28:53Z',
+            },
+          ],
+          depositRows: const [],
+        );
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          exV2DioProvider.overrideWithValue(dio),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('test-token'),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(exV2AccountProvider.future);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expect(container.read(activeDemoAccountProvider).historyDeposit, 0);
+    },
+  );
+
+  test('deposit transport retry reuses one idempotency key', () async {
+    final adapter = _BootstrapAdapter(depositTransportFailures: 1);
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+      ..httpClientAdapter = adapter;
+    final container = ProviderContainer(
+      overrides: [
+        exV2EnabledProvider.overrideWithValue(true),
+        exV2DioProvider.overrideWithValue(dio),
+        deviceTokenStoreProvider.overrideWithValue(
+          _MemoryTokenStore('test-token'),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+
+    await container
+        .read(exV2AccountProvider.notifier)
+        .createWalletRequest(isDeposit: true, amount: 500, note: 'retry');
+
+    expect(adapter.depositPosts, 2);
+    expect(adapter.depositIdempotencyKeys.toSet(), hasLength(1));
+    expect(
+      container.read(exV2AccountProvider).requireValue!.deposits,
+      hasLength(1),
+    );
+  });
+
   test('transient history failure preserves the confirmed snapshot', () async {
     final adapter = _BootstrapAdapter(productionHistory: true);
     final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
@@ -230,7 +402,7 @@ void main() {
     );
   });
 
-  test('wallet request appears before the server responds', () async {
+  test('deposit is not shown before the server confirms HTTP 201', () async {
     final gate = Completer<void>();
     final adapter = _BootstrapAdapter(mutationGate: gate);
     final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
@@ -252,13 +424,114 @@ void main() {
         .createWalletRequest(isDeposit: true, amount: 500, note: 'demo');
     await Future<void>.delayed(Duration.zero);
 
-    expect(
-      container.read(exV2AccountProvider).value?.deposits.single['status'],
-      'sending',
-    );
+    expect(container.read(exV2AccountProvider).value?.deposits, isEmpty);
     gate.complete();
     await submitting;
   });
+
+  test(
+    'pending deposit stays visible in History while the server list lags',
+    () async {
+      final gate = Completer<void>();
+      final adapter = _BootstrapAdapter(mutationGate: gate);
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+        ..httpClientAdapter = adapter;
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          exV2DioProvider.overrideWithValue(dio),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('test-token'),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+      final controller = container.read(exV2AccountProvider.notifier);
+
+      final submitting = controller.createWalletRequest(
+        isDeposit: true,
+        amount: 5000000,
+        note: 'deposit-five-million',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      var accountState = container.read(exV2AccountProvider).requireValue!;
+      expect(accountState.deposits, isEmpty);
+      expect(
+        accountState.historyPositions.where(
+          (entry) => entry.id.startsWith('wallet-'),
+        ),
+        isEmpty,
+      );
+      expect(accountState.historySummary.deposit, 0);
+
+      gate.complete();
+      await submitting;
+      await controller.refresh(queueAfterInFlight: true);
+
+      accountState = container.read(exV2AccountProvider).requireValue!;
+      expect(accountState.deposits.single['status'], 'pending');
+      final pendingRows = accountState.historyPositions
+          .where((entry) => entry.id.startsWith('wallet-'))
+          .toList(growable: false);
+      expect(
+        pendingRows,
+        hasLength(1),
+        reason: pendingRows
+            .map((entry) => '${entry.id}|${entry.profit}|${entry.subtitle}')
+            .join('\n'),
+      );
+      expect(pendingRows.single.profit, 5000000);
+      expect(accountState.historySummary.deposit, 0);
+    },
+  );
+
+  test(
+    'approved status without a decision snapshot never fabricates totals',
+    () async {
+      final adapter = _BootstrapAdapter(depositMutationStatus: 'approved');
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+        ..httpClientAdapter = adapter;
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          exV2DioProvider.overrideWithValue(dio),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('test-token'),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+      final controller = container.read(exV2AccountProvider.notifier);
+
+      await controller.createWalletRequest(
+        isDeposit: true,
+        amount: 5000000,
+        note: 'completed-five-million',
+      );
+
+      var accountState = container.read(exV2AccountProvider).requireValue!;
+      expect(accountState.historySummary.deposit, 0);
+      expect(
+        accountState.historyPositions
+            .singleWhere((entry) => entry.id.startsWith('wallet-'))
+            .profit,
+        5000000,
+      );
+
+      await controller.refresh(queueAfterInFlight: true);
+
+      accountState = container.read(exV2AccountProvider).requireValue!;
+      expect(accountState.historySummary.deposit, 0);
+      final completedRows = accountState.historyPositions
+          .where((entry) => entry.id.startsWith('wallet-'))
+          .toList(growable: false);
+      expect(completedRows, hasLength(1));
+      expect(completedRows.single.profit, 5000000);
+    },
+  );
 
   test('notification becomes read before the server responds', () async {
     final gate = Completer<void>();
@@ -461,6 +734,40 @@ void main() {
   );
 }
 
+final class _TransientBootstrapAdapter implements HttpClientAdapter {
+  int bootstrapCalls = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final path = options.uri.path;
+    if (path.endsWith('/mobile/bootstrap')) {
+      bootstrapCalls += 1;
+      if (bootstrapCalls == 1) {
+        return ResponseBody.fromString(
+          jsonEncode({
+            'code': 'INTERNAL_ERROR',
+            'message': 'Temporary server failure',
+          }),
+          503,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+      }
+      return _response(_bootstrapForAccount('account-1', 'TEST-100'));
+    }
+    if (path.endsWith('/settings')) return _response(<String, Object?>{});
+    return _response(<Object?>[]);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 final class _GenerationAdapter implements HttpClientAdapter {
   bool failBootstrap = false;
 
@@ -655,13 +962,25 @@ final class _BootstrapAdapter implements HttpClientAdapter {
     this.mutationGate,
     this.includeNotification = false,
     this.includeLinkedAccounts = false,
-  });
+    this.historySummaryDeposit = 1200,
+    this.depositRows,
+    this.historyTransactionRows,
+    this.depositMutationStatus = 'pending',
+    int depositTransportFailures = 0,
+  }) : remainingDepositTransportFailures = depositTransportFailures;
 
   final Duration historyDelay;
   final bool productionHistory;
   final Completer<void>? mutationGate;
   final bool includeNotification;
   final bool includeLinkedAccounts;
+  final double historySummaryDeposit;
+  final List<Map<String, Object?>>? depositRows;
+  final List<Map<String, Object?>>? historyTransactionRows;
+  final String depositMutationStatus;
+  int remainingDepositTransportFailures;
+  int depositPosts = 0;
+  final List<String> depositIdempotencyKeys = <String>[];
   bool failHistoryDeals = false;
   int activationCalls = 0;
 
@@ -736,14 +1055,39 @@ final class _BootstrapAdapter implements HttpClientAdapter {
       );
     }
     if (path.endsWith('/deposits') && options.method == 'POST') {
+      depositPosts += 1;
+      depositIdempotencyKeys.add(
+        options.headers['Idempotency-Key']?.toString() ?? '',
+      );
+      if (remainingDepositTransportFailures > 0) {
+        remainingDepositTransportFailures -= 1;
+        throw DioException(
+          requestOptions: options,
+          type: DioExceptionType.connectionError,
+          error: 'synthetic connection failure',
+        );
+      }
       await mutationGate?.future;
+      final body = (options.data as Map).cast<String, Object?>();
       return _jsonResponse({
-        'id': 'deposit-1',
-        'amount': 500,
-        'currency': 'USD',
-        'status': 'pending',
-        'createdAt': '2026-08-13T08:01:00Z',
-      });
+        'id': '11111111-1111-4111-8111-111111111111',
+        'accountId': 'account-1',
+        'amount': body['amount'],
+        'currency': body['currency'],
+        'method': body['method'],
+        'reference': body['reference'],
+        'status': depositMutationStatus,
+        'createdAtUtc': '2026-08-13T08:01:00Z',
+        'updatedAtUtc': '2026-08-13T08:01:00Z',
+        'approvedAtUtc': depositMutationStatus == 'approved'
+            ? '2026-08-13T08:01:00Z'
+            : null,
+        'rejectedAtUtc': null,
+        'transactionId': depositMutationStatus == 'approved'
+            ? '22222222-2222-4222-8222-222222222222'
+            : null,
+        'snapshotVersion': 2,
+      }, statusCode: 201);
     }
     if (path.endsWith('/notifications/notification-1/read') &&
         options.method == 'PUT') {
@@ -754,7 +1098,12 @@ final class _BootstrapAdapter implements HttpClientAdapter {
       await Future<void>.delayed(historyDelay);
     }
     final historyPayload = productionHistory
-        ? _productionHistoryPayload(options.uri.path)
+        ? _productionHistoryPayload(
+            options.uri.path,
+            historySummaryDeposit: historySummaryDeposit,
+            depositRows: depositRows,
+            historyTransactionRows: historyTransactionRows,
+          )
         : null;
     if (includeNotification && path.endsWith('/notifications')) {
       return _jsonResponse([
@@ -779,16 +1128,22 @@ final class _BootstrapAdapter implements HttpClientAdapter {
   @override
   void close({bool force = false}) {}
 
-  ResponseBody _jsonResponse(Object value) => ResponseBody.fromString(
-    jsonEncode(value),
-    200,
-    headers: {
-      Headers.contentTypeHeader: [Headers.jsonContentType],
-    },
-  );
+  ResponseBody _jsonResponse(Object value, {int statusCode = 200}) =>
+      ResponseBody.fromString(
+        jsonEncode(value),
+        statusCode,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
 }
 
-Object? _productionHistoryPayload(String path) {
+Object? _productionHistoryPayload(
+  String path, {
+  required double historySummaryDeposit,
+  List<Map<String, Object?>>? depositRows,
+  List<Map<String, Object?>>? historyTransactionRows,
+}) {
   Object paged(Object item) => {
     'page': 1,
     'pageSize': 50,
@@ -843,7 +1198,7 @@ Object? _productionHistoryPayload(String path) {
   }
   if (path.endsWith('/history/summary')) {
     return {
-      'deposit': 1200,
+      'deposit': historySummaryDeposit,
       'withdrawal': -300,
       'realizedProfit': -12.34,
       'swap': -1.25,
@@ -852,6 +1207,10 @@ Object? _productionHistoryPayload(String path) {
     };
   }
   if (path.endsWith('/history/transactions')) {
+    final rows = historyTransactionRows;
+    if (rows != null) {
+      return {'page': 1, 'pageSize': 50, 'total': rows.length, 'items': rows};
+    }
     return paged({
       'id': 'transaction:1475391737862',
       'type': 'Rút tiền',
@@ -865,18 +1224,24 @@ Object? _productionHistoryPayload(String path) {
     return <Object?>[];
   }
   if (path.endsWith('/deposits')) {
-    return [
-      {
-        'id': 'deposit:1',
-        'amount': 518.54,
-        'currency': 'USD',
-        'method': 'VNVIETQR-1',
-        'reference': '924750483461',
-        'status': 'hoàn tất',
-        'createdAt': '2026-07-21T02:28:53Z',
-        'updatedAt': '2026-07-21T02:31:53Z',
-      },
-    ];
+    return depositRows ??
+        [
+          {
+            'id': 'deposit:1',
+            'accountId': 'account-1',
+            'amount': 518.54,
+            'currency': 'USD',
+            'method': 'VNVIETQR-1',
+            'reference': '924750483461',
+            'status': 'approved',
+            'createdAtUtc': '2026-07-21T02:28:53Z',
+            'updatedAtUtc': '2026-07-21T02:31:53Z',
+            'approvedAtUtc': '2026-07-21T02:31:53Z',
+            'rejectedAtUtc': null,
+            'transactionId': '11111111-1111-4111-8111-111111111111',
+            'snapshotVersion': 2,
+          },
+        ];
   }
   if (path.endsWith('/withdrawals')) {
     return [

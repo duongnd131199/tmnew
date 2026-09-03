@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:io' as io;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -9,13 +8,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/core/audio/order_success_sound.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/reference_typography_profile.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/chart/application/chart_timeframe_session.dart';
 import 'package:trading_mobile/features/chart/data/chart_market_warmup_provider.dart';
 import 'package:trading_mobile/features/chart/data/market_data_provider.dart';
 import 'package:trading_mobile/features/chart/data/market_data_service.dart';
+import 'package:trading_mobile/features/chart/presentation/geometry/chart_geometry.dart';
 import 'package:trading_mobile/features/chart/presentation/navigation/chart_navigation.dart';
 import 'package:trading_mobile/features/chart/presentation/rendering/chart_candle_resolver.dart';
 import 'package:trading_mobile/features/chart/presentation/rendering/chart_hit_targets.dart';
@@ -24,6 +26,7 @@ import 'package:trading_mobile/features/chart/presentation/rendering/mt5_candle_
 import 'package:trading_mobile/features/chart/presentation/theme/chart_reference_theme.dart';
 import 'package:trading_mobile/features/chart/presentation/viewport/chart_price_viewport.dart';
 import 'package:trading_mobile/features/chart/presentation/viewport/chart_viewport.dart';
+import 'package:trading_mobile/features/order/presentation/order_failure_message.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
@@ -32,8 +35,11 @@ import 'package:trading_mobile/shared/widgets/trading_drawer.dart';
 
 const _chartToolbarReferenceWidth = 384.0;
 const _chartToolbarHeight = 70.6666666667;
-const _oneClickPanelHeight = 38.6666666667;
+const _oneClickPanelHeight = 42.0;
 const _chartNavigationOverlap = 10.0;
+const _chartOhlcvTrailingGap = 10.0;
+const _verticalPanActivationSlop = 4.0;
+const _verticalPanToHorizontalRatio = .25;
 
 enum ChartLayoutProfile { standard, tabReferenceCapture }
 
@@ -248,6 +254,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
   Offset? measurementEnd;
   final Map<int, Offset> _chartPointers = <int, Offset>{};
   final Map<int, Offset> _viewportPointers = <int, Offset>{};
+  final Map<int, Offset> _viewportPointerOrigins = <int, Offset>{};
   final ChartHitTargets _chartHitTargets = ChartHitTargets();
   final ChartViewportController _viewportController = ChartViewportController();
   ChartViewport _viewport = const ChartViewport();
@@ -266,6 +273,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
   List<MarketCandle> _selectedResolvedHistoryPrefix = const <MarketCandle>[];
   MarketCandle? _resolvedActiveTemplate;
   bool _scaleGestureWasPinch = false;
+  bool _singlePointerPanActive = false;
+  bool _singlePointerPricePanActive = false;
+  Offset? _singlePointerPanOrigin;
   bool _h4ExpandedScaleSeen = false;
   late bool _showXauH1HistoryBadge;
   late final AnimationController _panInertiaController;
@@ -290,6 +300,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
   Offset? _pendingTapOrigin;
   bool _pendingTapMoved = false;
   Timer? _chartLongPressTimer;
+  Timer? _crosshairHintTimer;
   Timer? _pendingSubtitleTimer;
   int? _chartLongPressPointer;
   Offset? _chartLongPressOrigin;
@@ -305,6 +316,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
   double? pendingOrderPrice;
   double? _focusedChartPrice;
   bool _showPendingLevelSubtitle = false;
+  bool _showCrosshairHint = false;
   final Set<String> favoriteTimeframes = {
     'M1',
     'M5',
@@ -330,7 +342,6 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     final rememberedView = _chartViewSessionController.viewFor(widget.symbol);
     if (rememberedView?.timeframe == timeframe) {
       _viewport = rememberedView!.viewport;
-      _priceViewport = rememberedView.priceViewport;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -351,7 +362,11 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
         if (next == _viewport || !mounted) return;
         setState(() => _viewport = next);
       });
-    _volumeController = TextEditingController(text: volume.toStringAsFixed(2));
+    volume = _initialChartVolume();
+    _volumeController = TextEditingController(
+      text: _formatOneClickVolume(volume),
+    );
+    unawaited(ref.read(orderSuccessSoundPlayerProvider).warmUp());
     _listenToHistory(_selectedRequest, _requestGeneration);
   }
 
@@ -361,6 +376,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     WidgetsBinding.instance.removeObserver(this);
     _historySubscription?.close();
     _chartLongPressTimer?.cancel();
+    _crosshairHintTimer?.cancel();
     _pendingSubtitleTimer?.cancel();
     _panInertiaController.dispose();
     _dismissTransientPendingOverlay();
@@ -383,6 +399,24 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
 
   bool _sameSymbol(String left, String right) =>
       _normaliseSymbol(left) == _normaliseSymbol(right);
+
+  double _initialChartVolume() {
+    for (final position in ref.read(demoPositionsProvider)) {
+      if (_sameSymbol(position.symbol, widget.symbol) &&
+          position.volume.isFinite &&
+          position.volume > 0) {
+        return position.volume.clamp(.01, 100000.0);
+      }
+    }
+    for (final order in ref.read(demoPendingOrdersProvider)) {
+      if (_sameSymbol(order.symbol, widget.symbol) &&
+          order.volume.isFinite &&
+          order.volume > 0) {
+        return order.volume.clamp(.01, 100000.0);
+      }
+    }
+    return volume;
+  }
 
   void _rememberChartView({ChartViewport? viewport}) {
     _chartViewSessionController.remember(
@@ -438,9 +472,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
       tertiaryFixedDim: overBackground(_theme.priceLine, .72),
       onTertiaryFixed: _theme.background,
       onTertiaryFixedVariant: _theme.foreground,
-      error: _theme.bearish,
+      error: _theme.tradeRed,
       onError: _theme.background,
-      errorContainer: overBackground(_theme.bearish, .16),
+      errorContainer: overBackground(_theme.tradeRed, .16),
       onErrorContainer: _theme.foreground,
       surface: _theme.background,
       onSurface: _theme.foreground,
@@ -554,10 +588,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
           borderSide: BorderSide(color: _theme.tradeBlue, width: 1.2),
         ),
         errorBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: _theme.bearish),
+          borderSide: BorderSide(color: _theme.tradeRed),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: _theme.bearish, width: 1.2),
+          borderSide: BorderSide(color: _theme.tradeRed, width: 1.2),
         ),
       ),
       textButtonTheme: TextButtonThemeData(style: textButtonStyle),
@@ -615,6 +649,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
         measurementEnd = null;
         _chartPointers.clear();
         _viewportPointers.clear();
+        _viewportPointerOrigins.clear();
         _priceAxisPointer = null;
         _priceAxisDragOrigin = null;
       }
@@ -701,8 +736,13 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     final next = value.clamp(.01, 100000.0);
     setState(() {
       volume = next;
-      _volumeController.text = next.toStringAsFixed(2);
+      _volumeController.text = _formatOneClickVolume(next);
     });
+  }
+
+  String _formatOneClickVolume(double value) {
+    final fixed = value.toStringAsFixed(2);
+    return fixed.endsWith('.00') ? fixed.substring(0, fixed.length - 3) : fixed;
   }
 
   void _updateVolumeFromText(String value) {
@@ -748,7 +788,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
         ? volume
         : parsed.clamp(.01, 100000.0);
     volume = next;
-    _volumeController.text = next.toStringAsFixed(2);
+    _volumeController.text = _formatOneClickVolume(next);
   }
 
   Future<void> _openVolumeKeypad() async {
@@ -785,10 +825,28 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
       if (points.length >= 2) {
         measurementStart = points.first;
         measurementEnd = points[1];
-      } else {
-        measurementStart = null;
-        measurementEnd = null;
       }
+    });
+  }
+
+  void _toggleCrosshair() {
+    _crosshairHintTimer?.cancel();
+    final enableCrosshair = !crosshairEnabled;
+    setState(() {
+      crosshairEnabled = enableCrosshair;
+      _showCrosshairHint = enableCrosshair;
+      crosshairPosition ??= Offset(
+        _chartHitTargets.chartWidth * .58,
+        _chartHitTargets.priceTop + _chartHitTargets.priceHeight * .515,
+      );
+      measurementStart = null;
+      measurementEnd = null;
+      _chartPointers.clear();
+    });
+    if (!enableCrosshair) return;
+    _crosshairHintTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || !crosshairEnabled) return;
+      setState(() => _showCrosshairHint = false);
     });
   }
 
@@ -837,10 +895,14 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
         return;
       }
       _viewportPointers[event.pointer] = event.localPosition;
+      _viewportPointerOrigins[event.pointer] = event.localPosition;
       if (_viewportPointers.length >= 2) {
         _cancelChartLongPress();
         final points = _viewportPointers.values.take(2).toList(growable: false);
         final focalPoint = (points[0].dx + points[1].dx) / 2;
+        _singlePointerPanActive = false;
+        _singlePointerPricePanActive = false;
+        _singlePointerPanOrigin = null;
         _viewportController.beginScale(
           viewport: _viewport,
           focalPoint: focalPoint,
@@ -931,6 +993,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     }
     if (!crosshairEnabled) {
       _viewportPointers.remove(event.pointer);
+      _viewportPointerOrigins.remove(event.pointer);
       if (_chartLongPressPointer == event.pointer) {
         _cancelChartLongPress();
       }
@@ -954,14 +1017,6 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
       return;
     }
     _chartPointers.remove(event.pointer);
-    if (_chartPointers.isEmpty) {
-      setState(() {
-        measurementStart = null;
-        measurementEnd = null;
-      });
-      return;
-    }
-    _updateCrosshairPointers();
   }
 
   void _cancelChartLongPress() {
@@ -1466,14 +1521,14 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     if (_previousBid != null && quote.bid != _previousBid) {
       _sellQuoteColor = quote.bid > _previousBid!
           ? _theme.ticketBlue
-          : _theme.bearish;
+          : _theme.tradeRed;
     }
     if (_previousAsk == null) {
       _buyQuoteColor = _sellQuoteColor;
     } else if (quote.ask != _previousAsk) {
       _buyQuoteColor = quote.ask > _previousAsk!
           ? _theme.ticketBlue
-          : _theme.bearish;
+          : _theme.tradeRed;
     }
     _previousBid = quote.bid;
     _previousAsk = quote.ask;
@@ -1530,8 +1585,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
         pendingOrderPrice != null || activePendingOrder != null;
     final chartSubtitle = _showPendingLevelSubtitle
         ? 'Hien thi muc do giao dich'
+        : _normaliseSymbol(widget.symbol) == 'XAUUSD'
+        ? 'Gold vs US Dollar'
         : initial.name;
-    final chartTimeframeLabel = timeframe;
+    final chartTimeframeLabel = frameTimeframe;
     final indicators = ref.watch(chartIndicatorsVisibilityProvider)
         ? ref.watch(chartIndicatorsProvider)
         : const <String>{};
@@ -1602,6 +1659,13 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     _viewportCandleCount = viewportCandleCount;
     final usesM1ReferenceTypography =
         _normaliseSymbol(widget.symbol) == 'XAUUSD' && frameTimeframe == 'M1';
+    final chartTitleRightInset = usesM1ReferenceTypography
+        ? ChartGeometry.canonical.m1PriceAxisWidthFor(
+            MediaQuery.sizeOf(context).width,
+          )
+        : ChartGeometry.canonical.priceAxisWidthFor(
+            MediaQuery.sizeOf(context).width,
+          );
     final navigationOverlap =
         usesM1ReferenceTypography ||
             widget.layoutProfile == ChartLayoutProfile.tabReferenceCapture
@@ -1659,10 +1723,11 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                                       : () => _setVolume(volume - .01),
                                   icon: Transform.translate(
                                     offset: const Offset(0, -.6666666667),
-                                    child: Icon(
-                                      CupertinoIcons.chevron_down,
+                                    child: _OneClickVolumeChevron(
+                                      key: const Key(
+                                        'chart-one-click-volume-down-chevron',
+                                      ),
                                       color: _theme.foreground,
-                                      size: 12,
                                     ),
                                   ),
                                 ),
@@ -1688,10 +1753,12 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                                   onPressed: () => _setVolume(volume + .01),
                                   icon: Transform.translate(
                                     offset: const Offset(0, -.6666666667),
-                                    child: Icon(
-                                      CupertinoIcons.chevron_up,
+                                    child: _OneClickVolumeChevron(
+                                      key: const Key(
+                                        'chart-one-click-volume-up-chevron',
+                                      ),
                                       color: _theme.foreground,
-                                      size: 12,
+                                      pointsUp: true,
                                     ),
                                   ),
                                 ),
@@ -1734,12 +1801,6 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                         onPointerCancel: _handleChartPointerEnd,
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTapDown: crosshairEnabled
-                              ? (details) => setState(
-                                  () =>
-                                      crosshairPosition = details.localPosition,
-                                )
-                              : null,
                           onScaleStart: (details) {
                             if (crosshairEnabled ||
                                 _priceAxisScaleSuppressed ||
@@ -1747,17 +1808,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                               return;
                             }
                             _panInertiaController.stop();
-                            final plotWidth = math.max(
-                              0.0,
-                              _chartHitTargets.chartWidth,
-                            );
                             if (_viewportPointers.length < 2) {
-                              _viewportController.beginScale(
-                                viewport: _viewport,
-                                focalPoint: details.localFocalPoint.dx,
-                                plotWidth: plotWidth,
-                                candleCount: viewportCandleCount,
-                              );
+                              _singlePointerPanActive = false;
+                              _singlePointerPricePanActive = false;
+                              _singlePointerPanOrigin = null;
                               _scaleGestureWasPinch = false;
                             }
                             if (_showXauH1HistoryBadge) {
@@ -1776,6 +1830,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                             );
                             if (details.pointerCount > 1 &&
                                 !_scaleGestureWasPinch) {
+                              _singlePointerPricePanActive = false;
+                              _singlePointerPanOrigin = null;
                               _viewportController.beginScale(
                                 viewport: _viewport,
                                 focalPoint: details.localFocalPoint.dx,
@@ -1785,24 +1841,80 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                               );
                               _scaleGestureWasPinch = true;
                             }
-                            final next = details.pointerCount > 1
-                                ? _viewportController.updateScale(
-                                    scale: details.scale,
-                                    focalPoint: details.localFocalPoint.dx,
-                                    plotWidth: plotWidth,
-                                    candleCount: viewportCandleCount,
+                            late final ChartViewport next;
+                            if (details.pointerCount > 1) {
+                              _singlePointerPanActive = false;
+                              _singlePointerPricePanActive = false;
+                              _singlePointerPanOrigin = null;
+                              next = _viewportController.updateScale(
+                                scale: details.scale,
+                                focalPoint: details.localFocalPoint.dx,
+                                plotWidth: plotWidth,
+                                candleCount: viewportCandleCount,
+                              );
+                            } else {
+                              if (!_singlePointerPanActive) {
+                                _singlePointerPanOrigin =
+                                    !_scaleGestureWasPinch &&
+                                        _viewportPointerOrigins.length == 1
+                                    ? _viewportPointerOrigins.values.single
+                                    : details.localFocalPoint -
+                                          details.focalPointDelta;
+                                _viewportController.beginPan(
+                                  viewport: _viewport,
+                                  focalPoint: _scaleGestureWasPinch
+                                      ? details.localFocalPoint.dx
+                                      : _singlePointerPanOrigin!.dx,
+                                  plotWidth: plotWidth,
+                                  candleCount: viewportCandleCount,
+                                );
+                                _singlePointerPanActive = true;
+                              }
+                              final panOrigin =
+                                  _singlePointerPanOrigin ??
+                                  details.localFocalPoint;
+                              final panDelta =
+                                  details.localFocalPoint - panOrigin;
+                              if (!_singlePointerPricePanActive &&
+                                  panDelta.dy.abs() >=
+                                      _verticalPanActivationSlop &&
+                                  panDelta.dy.abs() >
+                                      panDelta.dx.abs() *
+                                          _verticalPanToHorizontalRatio) {
+                                _priceViewportController.beginPan(
+                                  viewport: _priceViewport,
+                                  focalY: panOrigin.dy,
+                                  displayedRange: ChartPriceRange(
+                                    minPrice: _chartHitTargets.minPrice,
+                                    maxPrice: _chartHitTargets.maxPrice,
+                                  ),
+                                );
+                                _singlePointerPricePanActive = true;
+                              }
+                              next = _viewportController.updatePan(
+                                focalPoint: details.localFocalPoint.dx,
+                                plotWidth: plotWidth,
+                                candleCount: viewportCandleCount,
+                              );
+                            }
+                            final nextPrice = _singlePointerPricePanActive
+                                ? _priceViewportController.updatePan(
+                                    focalY: details.localFocalPoint.dy,
+                                    priceHeight: _chartHitTargets.priceHeight,
                                   )
-                                : _viewportController.panBy(
-                                    viewport: _viewport,
-                                    delta: details.focalPointDelta.dx,
-                                    plotWidth: plotWidth,
-                                    candleCount: viewportCandleCount,
-                                  );
-                            if (next != _viewport) {
-                              setState(() => _viewport = next);
+                                : _priceViewport;
+                            if (next != _viewport ||
+                                nextPrice != _priceViewport) {
+                              setState(() {
+                                _viewport = next;
+                                _priceViewport = nextPrice;
+                              });
                             }
                           },
                           onScaleEnd: (details) {
+                            _singlePointerPanActive = false;
+                            _singlePointerPricePanActive = false;
+                            _singlePointerPanOrigin = null;
                             if (crosshairEnabled ||
                                 _priceAxisScaleSuppressed ||
                                 _pendingScalePointer != null) {
@@ -1879,102 +1991,49 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       ),
                     ),
                   ),
-                  if (crosshairEnabled)
-                    Positioned(
-                      left: 4,
-                      top:
-                          1 +
-                          (showOneClickTrading && !showTimeframes
-                              ? _oneClickPanelHeight
-                              : 0),
+                  Positioned(
+                    left: usesM1ReferenceTypography ? 2.6666666667 : 4,
+                    right: chartTitleRightInset + _chartOhlcvTrailingGap,
+                    top:
+                        (usesM1ReferenceTypography
+                            ? 2.3333333333
+                            : 2.3333333333) +
+                        (showOneClickTrading && !showTimeframes
+                            ? _oneClickPanelHeight
+                            : 0),
+                    child: FittedBox(
+                      key: const Key('chart-ohlcv-fit'),
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
                       child: Text.rich(
                         key: const Key('chart-plot-title'),
                         TextSpan(
                           children: [
                             TextSpan(
                               text: displayTradingSymbol(widget.symbol),
-                              style: TextStyle(
-                                color: _theme.tradeBlue,
-                                fontWeight: FontWeight.w500,
-                                fontVariations: const [
-                                  FontVariation('wght', 500),
-                                ],
-                              ),
-                            ),
-                            TextSpan(text: ' '),
-                            WidgetSpan(
-                              alignment: PlaceholderAlignment.middle,
-                              child: _ChartSymbolChevron(
-                                key: const Key('chart-symbol-chevron'),
-                                theme: _theme,
-                              ),
-                            ),
-                            TextSpan(
-                              text:
-                                  ' $chartTimeframeLabel, '
-                                  '${_crosshairOhlc(candles)}\n'
-                                  'Di chuyển con trỏ hoặc nhấn vào biểu đồ '
-                                  'để chuyển sang một\nloại thước',
-                              style: TextStyle(color: _theme.foreground),
-                            ),
-                          ],
-                        ),
-                        style: AppTypography.chartAnnotation.copyWith(
-                          color: _theme.foreground,
-                          fontSize: _usesVideo2ChartLayout ? 12.3 : 10.5,
-                          fontWeight: FontWeight.w400,
-                          height: _usesVideo2ChartLayout ? 1.35 : 1.1,
-                        ),
-                      ),
-                    )
-                  else ...[
-                    Positioned(
-                      left: usesM1ReferenceTypography ? 2 : 4,
-                      top:
-                          (usesM1ReferenceTypography
-                              ? 1.6666666667
-                              : 2.3333333333) +
-                          (showOneClickTrading && !showTimeframes
-                              ? _oneClickPanelHeight
-                              : 0),
-                      child: Text.rich(
-                        key: const Key('chart-plot-title'),
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: displayTradingSymbol(widget.symbol),
-                              style: TextStyle(
-                                color: usesM1ReferenceTypography
-                                    ? _theme.plotTitleBlue
-                                    : _theme.tradeBlue,
-                                fontFamily: usesM1ReferenceTypography
-                                    ? AppTypography.tabPlainFamily
-                                    : null,
-                                fontWeight: usesM1ReferenceTypography
-                                    ? FontWeight.w300
-                                    : FontWeight.w500,
-                                fontVariations: usesM1ReferenceTypography
-                                    ? const [FontVariation('wght', 250)]
-                                    : const [FontVariation('wght', 500)],
+                              style: AppTypography.chartAnnotation.copyWith(
+                                color: _theme.plotTitleBlue,
                                 fontSize: _usesVideo2ChartLayout ? 13 : null,
+                                fontWeight: FontWeight.w700,
                                 letterSpacing: _usesVideo2ChartLayout
                                     ? usesM1ReferenceTypography
-                                          ? 1.2
+                                          ? .1
                                           : .5
                                     : null,
                               ),
                             ),
-                            const TextSpan(text: ' '),
                             WidgetSpan(
                               alignment: PlaceholderAlignment.middle,
                               child: _ChartSymbolChevron(
                                 key: const Key('chart-symbol-chevron'),
-                                theme: _theme,
+                                color: _theme.plotTitleBlue,
                               ),
                             ),
                             TextSpan(
-                              text: ' $chartTimeframeLabel',
-                              style: TextStyle(
+                              text:
+                                  '$chartTimeframeLabel, '
+                                  '${crosshairEnabled ? _crosshairOhlcv(candles) : _activeOhlcv(candles)}',
+                              style: AppTypography.chartAnnotation.copyWith(
                                 color: _theme.foreground,
                                 fontSize: _usesVideo2ChartLayout ? 13 : null,
                                 letterSpacing: _usesVideo2ChartLayout
@@ -1984,6 +2043,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                             ),
                           ],
                         ),
+                        maxLines: 1,
+                        softWrap: false,
                         style: AppTypography.chartAnnotation.copyWith(
                           color: _theme.foreground,
                           fontSize: _usesVideo2ChartLayout ? 12.8 : 10.5,
@@ -1992,41 +2053,39 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                         ),
                       ),
                     ),
-                    Positioned(
-                      left: 3.3333333333,
-                      top:
-                          (usesM1ReferenceTypography ? 17.3333333333 : 16) +
-                          (showOneClickTrading && !showTimeframes
-                              ? _oneClickPanelHeight
-                              : 0),
-                      child: Transform.scale(
-                        alignment: Alignment.topLeft,
-                        scaleX: usesM1ReferenceTypography ? 1.035 : 1,
-                        scaleY: usesM1ReferenceTypography ? .85 : 1,
-                        transformHitTests: false,
-                        child: Text(
-                          chartSubtitle,
-                          key: const Key('chart-plot-subtitle'),
-                          style: AppTypography.chartAnnotation.copyWith(
-                            color: usesM1ReferenceTypography
-                                ? _theme.plotSubtitleText
-                                : _theme.foreground,
-                            fontFamily: usesM1ReferenceTypography
-                                ? AppTypography.tabPlainFamily
-                                : null,
-                            fontSize: _usesVideo2ChartLayout ? 12.5 : 10.5,
-                            fontWeight: usesM1ReferenceTypography
-                                ? FontWeight.w200
-                                : FontWeight.w400,
-                            fontVariations: usesM1ReferenceTypography
-                                ? const [FontVariation('wght', 225)]
-                                : null,
-                            letterSpacing: _usesVideo2ChartLayout ? .4 : null,
+                  ),
+                  Positioned(
+                    left: 3.3333333333,
+                    top:
+                        (usesM1ReferenceTypography ? 17.3333333333 : 16) +
+                        (showOneClickTrading && !showTimeframes
+                            ? _oneClickPanelHeight
+                            : 0),
+                    child: crosshairEnabled && _showCrosshairHint
+                        ? Text(
+                            'Di chuyển con trỏ hoặc nhấn vào biểu đồ để '
+                            'chuyển sang\nmột loại thước',
+                            key: const Key('chart-crosshair-hint'),
+                            maxLines: 2,
+                            softWrap: false,
+                            style: AppTypography.chartAnnotation.copyWith(
+                              color: _theme.foreground,
+                              fontSize: _usesVideo2ChartLayout ? 11.5 : 9.5,
+                              height: _usesVideo2ChartLayout ? 1.35 : 1.1,
+                            ),
+                          )
+                        : Text(
+                            chartSubtitle,
+                            key: const Key('chart-plot-subtitle'),
+                            style: AppTypography.chartAnnotation.copyWith(
+                              color: usesM1ReferenceTypography
+                                  ? _theme.plotSubtitleText
+                                  : _theme.foreground,
+                              fontSize: _usesVideo2ChartLayout ? 12.5 : 10.5,
+                              letterSpacing: _usesVideo2ChartLayout ? .4 : null,
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                   if (hasPendingLevel)
                     Positioned(
                       right: 76,
@@ -2141,10 +2200,10 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                     child: Center(
                       child: Text(
                         period,
-                        style: AppTypography.chartToolbar.copyWith(
+                        style: AppTypography.chartTimeframe.copyWith(
                           color: period == timeframe
                               ? _theme.tradeBlue
-                              : _theme.foreground,
+                              : _theme.toolbarInk,
                         ),
                       ),
                     ),
@@ -2163,10 +2222,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       offset: const Offset(0, 1),
                       child: Text(
                         '•••',
-                        style: TextStyle(
-                          color: _theme.foreground,
+                        style: AppTypography.chartToolbar.copyWith(
+                          color: _theme.toolbarInk,
                           fontSize: 16.5,
-                          fontWeight: FontWeight.w700,
                           letterSpacing: 2,
                         ),
                       ),
@@ -2213,7 +2271,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                         timeframe,
                         key: const Key('chart-toolbar-timeframe'),
                         maxLines: 1,
-                        style: AppTypography.chartToolbar.copyWith(
+                        style: AppTypography.chartTimeframe.copyWith(
                           color: _theme.toolbarInk,
                         ),
                       ),
@@ -2227,17 +2285,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                   height: 40,
                   child: InkWell(
                     key: const Key('chart-crosshair-button'),
-                    onTap: () => setState(() {
-                      crosshairEnabled = !crosshairEnabled;
-                      crosshairPosition ??= Offset(
-                        _chartHitTargets.chartWidth * .58,
-                        _chartHitTargets.priceTop +
-                            _chartHitTargets.priceHeight * .515,
-                      );
-                      measurementStart = null;
-                      measurementEnd = null;
-                      _chartPointers.clear();
-                    }),
+                    onTap: _toggleCrosshair,
                     child: Center(
                       child: _CrosshairIcon(
                         theme: _theme,
@@ -2316,13 +2364,21 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     return .00001;
   }
 
-  String _crosshairOhlc(List<MarketCandle> candles) {
+  String _activeOhlcv(List<MarketCandle> candles) {
+    if (candles.isEmpty) {
+      final value = _formatChartPrice(_latestMarketPrice);
+      return '$value $value $value $value 0';
+    }
+    return _formatChartCandle(candles.last);
+  }
+
+  String _crosshairOhlcv(List<MarketCandle> candles) {
     final visible = _chartHitTargets.visibleCandles.isNotEmpty
         ? _chartHitTargets.visibleCandles
         : candles;
     if (visible.isEmpty) {
-      final value = _format(_latestMarketPrice);
-      return '$value $value $value $value';
+      final value = _formatChartPrice(_latestMarketPrice);
+      return '$value $value $value $value 0';
     }
     final chartWidth = math.max(1.0, _chartHitTargets.chartWidth);
     final localX = (crosshairPosition?.dx ?? chartWidth * .5).clamp(
@@ -2332,9 +2388,38 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
     final index = _chartHitTargets.visibleCandles.isNotEmpty
         ? _chartHitTargets.visibleCandleIndex(localX)
         : ((localX / chartWidth) * (visible.length - 1)).round();
-    final candle = visible[index];
-    return '${_format(candle.open)} ${_format(candle.high)} '
-        '${_format(candle.low)} ${_format(candle.close)}';
+    return _formatChartCandle(visible[index]);
+  }
+
+  String _formatChartCandle(MarketCandle candle) =>
+      '${_formatChartPrice(candle.open)} ${_formatChartPrice(candle.high)} '
+      '${_formatChartPrice(candle.low)} ${_formatChartPrice(candle.close)} '
+      '${_formatChartVolume(candle.volume)}';
+
+  String _formatChartPrice(double value) =>
+      value.toStringAsFixed(_chartPriceDigits(value));
+
+  int _chartPriceDigits(double value) {
+    final symbol = _normaliseSymbol(widget.symbol).toUpperCase();
+    if (symbol.startsWith('XAU') ||
+        symbol.startsWith('XAG') ||
+        symbol.endsWith('JPY')) {
+      return 3;
+    }
+    if (symbol.startsWith('BTC')) return 2;
+    if (value.abs() >= 1000) return 2;
+    if (value.abs() >= 100) return 3;
+    return 5;
+  }
+
+  String _formatChartVolume(double volume) {
+    if (!volume.isFinite || volume <= 0) return '0';
+    final integer = volume.round();
+    if ((volume - integer).abs() < 1e-9) return integer.toString();
+    return volume
+        .toStringAsFixed(2)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   Future<void> _beginPendingOrderFromChart(Offset touchPosition) async {
@@ -2431,10 +2516,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                   child: Center(
                     child: Text(
                       period,
-                      style: AppTypography.chartToolbar.copyWith(
+                      style: AppTypography.chartDialogTimeframe.copyWith(
                         color: selected ? _theme.background : _theme.foreground,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -2527,11 +2610,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                                   'Nhấn và giữ một khung thời\n'
                                   'gian để thêm hoặc xóa nó\n'
                                   'khỏi menu biểu đồ',
-                                  style: AppTypography.chartToolbar.copyWith(
-                                    color: _theme.foreground,
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.49,
-                                  ),
+                                  key: const Key('chart-timeframe-hint-text'),
+                                  style: AppTypography.chartTimeframeHint
+                                      .copyWith(color: _theme.foreground),
                                 ),
                               ),
                             ),
@@ -2619,13 +2700,13 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       const Spacer(),
                       _ProtectionButton(
                         label: 'SL',
-                        color: _theme.bearish,
+                        color: _theme.tradeRed,
                         onTap: () => _showPriceDialog('Stop Loss'),
                       ),
                       const SizedBox(width: 8),
                       _ProtectionButton(
                         label: 'TP',
-                        color: _theme.bullish,
+                        color: _theme.tradeBlue,
                         onTap: () => _showPriceDialog('Take Profit'),
                       ),
                       IconButton(
@@ -2715,7 +2796,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: type == selected
-                                      ? _theme.bearish
+                                      ? _theme.tradeRed
                                       : _theme.foreground.withValues(
                                           alpha: .55,
                                         ),
@@ -2801,15 +2882,15 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                       height: 29,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: _theme.bearish.withValues(alpha: .14),
+                        color: _theme.tradeRed.withValues(alpha: .14),
                         border: Border(
-                          top: BorderSide(color: _theme.bearish, width: .8),
+                          top: BorderSide(color: _theme.tradeRed, width: .8),
                         ),
                       ),
                       child: Text(
                         'Không có kết nối',
                         style: TextStyle(
-                          color: _theme.bearish,
+                          color: _theme.tradeRed,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           height: 1,
@@ -2849,7 +2930,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                         const Spacer(),
                         _PendingProtectionButton(
                           label: 'SL',
-                          color: _theme.bearish,
+                          color: _theme.tradeRed,
                           onTap: () => _showPendingProtectionDialog(
                             currentOrder,
                             stopLoss: true,
@@ -2858,7 +2939,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                         const SizedBox(width: 8),
                         _PendingProtectionButton(
                           label: 'TP',
-                          color: _theme.bullish,
+                          color: _theme.tradeBlue,
                           onTap: () => _showPendingProtectionDialog(
                             currentOrder,
                             stopLoss: false,
@@ -3077,7 +3158,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                     onPressed: () => _showPriceDialog('Stop Loss'),
                     style: OutlinedButton.styleFrom(
                       shape: const CircleBorder(),
-                      foregroundColor: _theme.bearish,
+                      foregroundColor: _theme.tradeRed,
                     ),
                     child: const Text('SL'),
                   ),
@@ -3085,7 +3166,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                     onPressed: () => _showPriceDialog('Take Profit'),
                     style: OutlinedButton.styleFrom(
                       shape: const CircleBorder(),
-                      foregroundColor: _theme.bullish,
+                      foregroundColor: _theme.tradeBlue,
                     ),
                     child: const Text('TP'),
                   ),
@@ -3131,6 +3212,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
               takeProfit: pendingTakeProfit,
             );
         if (!mounted) return false;
+        unawaited(ref.read(orderSuccessSoundPlayerProvider).play());
         return true;
       }
       ref
@@ -3142,8 +3224,18 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
             executedPrice: price,
           );
       if (!mounted) return false;
+      unawaited(ref.read(orderSuccessSoundPlayerProvider).play());
       return true;
-    } catch (_) {
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              orderFailureMessage(error, fallback: 'Không thể đặt lệnh'),
+            ),
+          ),
+        );
+      }
       return false;
     }
   }
@@ -3171,6 +3263,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
               takeProfit: pendingTakeProfit,
             );
         if (!mounted) return false;
+        unawaited(ref.read(orderSuccessSoundPlayerProvider).play());
         return true;
       }
       ref
@@ -3183,8 +3276,19 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
             stopLoss: pendingStopLoss,
             takeProfit: pendingTakeProfit,
           );
+      if (!mounted) return false;
+      unawaited(ref.read(orderSuccessSoundPlayerProvider).play());
       return true;
-    } catch (_) {
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              orderFailureMessage(error, fallback: 'Không thể đặt lệnh chờ'),
+            ),
+          ),
+        );
+      }
       return false;
     } finally {
       _tradingCommandPending = false;
@@ -3591,7 +3695,7 @@ class _OrderTypeLabelState extends State<_OrderTypeLabel> {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: selected
-                  ? widget.theme.bearish
+                  ? widget.theme.tradeRed
                   : widget.theme.foreground.withValues(alpha: .55),
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -3875,30 +3979,30 @@ class _OneClickVolumeField extends StatelessWidget {
         child: SizedBox(
           height: 40,
           child: Center(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    value,
-                    key: const Key('chart-one-click-volume-text'),
-                    style: AppTypography.chartToolbar.copyWith(
-                      color: theme.foreground,
-                      fontFamily: AppTypography.condensedFamily,
-                      fontSize: 16.5,
-                      fontWeight: FontWeight.w400,
-                      fontFeatures: [FontFeature.tabularFigures()],
+            child: ClipRect(
+              child: OverflowBox(
+                minWidth: 0,
+                maxWidth: double.infinity,
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      value,
+                      key: const Key('chart-one-click-volume-text'),
+                      style: AppTypography.chartOneClickVolume.copyWith(
+                        color: theme.foreground,
+                      ),
                     ),
-                  ),
-                  if (active)
-                    SizedBox(
-                      key: Key('chart-one-click-volume-caret'),
-                      width: 1,
-                      height: 20,
-                      child: ColoredBox(color: theme.tradeBlue),
-                    ),
-                ],
+                    if (active)
+                      SizedBox(
+                        key: Key('chart-one-click-volume-caret'),
+                        width: 1,
+                        height: 20,
+                        child: ColoredBox(color: theme.tradeBlue),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -3906,6 +4010,56 @@ class _OneClickVolumeField extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OneClickVolumeChevron extends StatelessWidget {
+  const _OneClickVolumeChevron({
+    required this.color,
+    this.pointsUp = false,
+    super.key,
+  });
+
+  final Color color;
+  final bool pointsUp;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    size: const Size(14, 12),
+    painter: _OneClickVolumeChevronPainter(color: color, pointsUp: pointsUp),
+  );
+}
+
+class _OneClickVolumeChevronPainter extends CustomPainter {
+  const _OneClickVolumeChevronPainter({
+    required this.color,
+    required this.pointsUp,
+  });
+
+  final Color color;
+  final bool pointsUp;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final upperY = 3.5;
+    final lowerY = 8.5;
+    final path = Path()
+      ..moveTo(2.5, pointsUp ? lowerY : upperY)
+      ..lineTo(7, pointsUp ? upperY : lowerY)
+      ..lineTo(11.5, pointsUp ? lowerY : upperY);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _OneClickVolumeChevronPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.pointsUp != pointsUp;
 }
 
 class _ChartNumericKeypad extends StatelessWidget {
@@ -4141,72 +4295,54 @@ class _TradeQuote extends StatelessWidget {
       key: ValueKey('chart-ticket-${label.toLowerCase()}'),
       color: color,
       child: InkWell(
+        enableFeedback: false,
         onTap: onTap,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             Positioned(
               left: label == 'Buy' ? 5.3333333333 : 6.6666666667,
-              top: label == 'Buy' ? 4.3333333333 : 5,
+              top: 3,
               child: Text(
                 label,
-                style:
-                    (label == 'Buy'
-                            ? AppTypography.chartTicketLabel.copyWith(
-                                fontFamily: AppTypography.tabPlainFamily,
-                                fontSize: 7,
-                                fontVariations: const [
-                                  FontVariation('wght', 250),
-                                ],
-                                letterSpacing: 1.75,
-                              )
-                            : AppTypography.chartTicketLabel.copyWith(
-                                fontWeight: FontWeight.w200,
-                                fontVariations: const [
-                                  FontVariation('wght', 200),
-                                ],
-                                letterSpacing: .42,
-                              ))
-                        .copyWith(
-                          color: theme.background,
-                          fontWeight: io.Platform.isAndroid
-                              ? label == 'Buy'
-                                    ? FontWeight.w500
-                                    : FontWeight.w200
-                              : null,
-                          fontVariations: io.Platform.isAndroid
-                              ? label == 'Buy'
-                                    ? const [FontVariation('wght', 500)]
-                                    : const [FontVariation('wght', 200)]
-                              : null,
-                        ),
+                style: AppTypography.forRole(
+                  context,
+                  ReferenceTextRole.chartTicketLabel,
+                  colorRole: ReferenceTextColorRole.white,
+                  variant: label == 'Buy'
+                      ? TypographyVariantId.chartTicketBuy
+                      : TypographyVariantId.chartTicketSell,
+                ),
               ),
             ),
             Positioned(
               left: 0,
               right: 0,
-              top: 10.7,
-              height: 27,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.topCenter,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      leading,
-                      style: AppTypography.chartTicketPriceMajor.copyWith(
-                        color: theme.background,
+              top: 17.5,
+              height: 24,
+              child: ClipRect(
+                child: OverflowBox(
+                  minWidth: 0,
+                  maxWidth: double.infinity,
+                  alignment: Alignment.topCenter,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        leading,
+                        style: AppTypography.chartTicketPriceMajor.copyWith(
+                          color: theme.background,
+                        ),
                       ),
-                    ),
-                    Text(
-                      trailing,
-                      style: AppTypography.chartTicketPriceMinor.copyWith(
-                        color: theme.background,
+                      Text(
+                        trailing,
+                        style: AppTypography.chartTicketPriceMinor.copyWith(
+                          color: theme.background,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -4218,9 +4354,9 @@ class _TradeQuote extends StatelessWidget {
 }
 
 class _ChartSymbolChevron extends StatelessWidget {
-  const _ChartSymbolChevron({required this.theme, super.key});
+  const _ChartSymbolChevron({required this.color, super.key});
 
-  final ChartReferenceTheme theme;
+  final Color color;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -4228,9 +4364,9 @@ class _ChartSymbolChevron extends StatelessWidget {
     height: 12,
     child: Center(
       child: Icon(
-        CupertinoIcons.chevron_down,
-        color: theme.foreground,
-        size: 6.5,
+        CupertinoIcons.arrowtriangle_down_fill,
+        color: color,
+        size: 5.5,
       ),
     ),
   );
@@ -4243,9 +4379,9 @@ class _ChartModeIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Transform.translate(
-    offset: const Offset(2, 1.3333333333),
+    offset: const Offset(0, -0.6666666667),
     child: CustomPaint(
-      size: const Size(18, 14),
+      size: const Size(20, 16),
       painter: _ChartModePainter(theme),
     ),
   );
@@ -4260,12 +4396,12 @@ class _ChartModePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final ring = Path.combine(
       PathOperation.difference,
-      Path()..addOval(const Rect.fromLTWH(-0.6666666667, 0, 18.6666666667, 14)),
-      Path()..addOval(const Rect.fromLTWH(3.1666666667, 1.99, 11, 10.02)),
+      Path()..addOval(const Rect.fromLTWH(0, 0, 20, 16)),
+      Path()..addOval(const Rect.fromLTWH(4.3333333333, 2, 11.3333333333, 12)),
     );
     canvas
       ..save()
-      ..clipRect(const Rect.fromLTWH(0, 0, 8.3666666667, 14))
+      ..clipRect(const Rect.fromLTWH(0, 0, 9.6666666667, 16))
       ..drawPath(
         ring,
         Paint()
@@ -4274,7 +4410,7 @@ class _ChartModePainter extends CustomPainter {
       )
       ..restore()
       ..save()
-      ..clipRect(const Rect.fromLTWH(9.3, 0, 8.3666666667, 14))
+      ..clipRect(const Rect.fromLTWH(10.3333333333, 0, 9.6666666667, 16))
       ..drawPath(
         ring,
         Paint()
@@ -4283,9 +4419,9 @@ class _ChartModePainter extends CustomPainter {
       )
       ..restore();
     final hand = Path()
-      ..moveTo(8.3333333333, 4.4333333334)
-      ..lineTo(8.3333333333, 8.3333333334)
-      ..lineTo(10.4333333333, 9.7666666667);
+      ..moveTo(10, 5.1)
+      ..lineTo(10, 9)
+      ..lineTo(12.1, 10.4333333333);
     canvas.drawPath(
       hand,
       Paint()
@@ -4310,9 +4446,9 @@ class _ToolbarWindowsIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Transform.translate(
     key: const Key('chart-windows-icon-scale'),
-    offset: const Offset(0, 1.3333333333),
+    offset: const Offset(0, -.6666666667),
     child: CustomPaint(
-      size: const Size(18.3333333333, 12.6666666667),
+      size: const Size(20, 14),
       painter: _ToolbarWindowsIconPainter(theme),
     ),
   );
@@ -4326,18 +4462,18 @@ class _ToolbarWindowsIconPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final redRect = RRect.fromRectAndCorners(
-      const Rect.fromLTWH(0, 0, 9, 12.6666666667),
+      const Rect.fromLTWH(0, 0, 9.6666666667, 14),
       topLeft: const Radius.circular(2),
       topRight: const Radius.circular(2),
-      bottomLeft: const Radius.circular(3),
-      bottomRight: const Radius.circular(3),
+      bottomLeft: const Radius.circular(2),
+      bottomRight: const Radius.circular(2),
     );
     final blueRect = RRect.fromRectAndCorners(
-      const Rect.fromLTWH(10.0833333333, 0.3, 8.4166666667, 12.3666666667),
+      const Rect.fromLTWH(10.3333333333, 0, 9.6666666667, 14),
       topLeft: const Radius.circular(2),
       topRight: const Radius.circular(2),
-      bottomLeft: const Radius.circular(3),
-      bottomRight: const Radius.circular(3),
+      bottomLeft: const Radius.circular(2),
+      bottomRight: const Radius.circular(2),
     );
     canvas.drawRRect(
       redRect,
@@ -4349,17 +4485,12 @@ class _ToolbarWindowsIconPainter extends CustomPainter {
     );
 
     final outerLink = RRect.fromRectXY(
-      const Rect.fromLTWH(
-        4.3611111111,
-        3.3333333333,
-        9.7777777778,
-        5.3333333333,
-      ),
+      const Rect.fromLTWH(5, 4, 10, 6),
       1.5,
-      2.6666666667,
+      3,
     );
     final innerLink = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(5.75, 4.5, 7, 4),
+      const Rect.fromLTWH(6.5, 5, 7, 4),
       const Radius.circular(2),
     );
     canvas.drawRRect(outerLink, Paint()..color = theme.background);

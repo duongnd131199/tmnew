@@ -75,7 +75,7 @@ class Mt5CandlePainter extends CustomPainter {
   final bool showHistoryBadge;
   final bool useRealtimeCandles;
   final ChartHitTargets hitTargets;
-  final String referenceTextFamily = AppTypography.plainFamily;
+  final String referenceTextFamily = AppTypography.referencePlainFamily;
   List<MarketCandle> get candles => snapshot.resolvedCandles;
   List<MarketCandle> get liveTail => snapshot.liveTail;
   ChartViewport get viewport => snapshot.viewport;
@@ -90,6 +90,7 @@ class Mt5CandlePainter extends CustomPainter {
   Rect get priceGridRect => hitTargets.priceGridRect;
   Rect get priceAxisRect => hitTargets.priceAxisRect;
   Rect get timeAxisRect => hitTargets.timeAxisRect;
+  TextStyle get debugTimeAxisTextStyle => _timeAxisTextStyle;
   List<MarketCandle> get debugResolvedCandles => resolvedCandles;
   Rect? get debugCurrentPriceBadgeRect => _currentPriceBadgeRect;
   int get visibleCandleCount => hitTargets.visibleCandles.length;
@@ -588,6 +589,11 @@ class Mt5CandlePainter extends CustomPainter {
       2,
       ((chartHeight - priceTop) / gridPitch).round(),
     );
+    final priceScaleDivisions = math.max(
+      2,
+      ((chartHeight - priceTop) / (gridPitch / ChartGeometry.gridCellScale))
+          .round(),
+    );
     // The native chart keeps a header strip inside the canvas. Its visible
     // price scale starts 38 physical pixels below the frame and the final
     // (17th) interval continues below the clipped viewport.
@@ -614,12 +620,13 @@ class Mt5CandlePainter extends CustomPainter {
     hitTargets
       ..positionOverlays = const []
       ..positionLabelRects = const []
+      ..positionPriceTagLayouts = const []
       ..pendingOrderOverlays = const []
       ..horizontalGridYs = const []
       ..verticalGridXs = const []
       ..priceAxisLabels = const [];
     final grid = Paint()
-      ..color = theme.grid
+      ..color = theme.grid.withValues(alpha: ChartGeometry.gridOpacity)
       ..strokeWidth = .65;
     final gridDash = _usesVideo2ChartChrome ? 3.0 : 4.0;
     final gridGap = _usesVideo2ChartChrome ? 2.5 : 4.0;
@@ -689,13 +696,12 @@ class Mt5CandlePainter extends CustomPainter {
     );
     _visibleStartIndex = start;
     final visible = allCandles.sublist(start, end + 1);
-    var dataMin = visible.map((item) => item.low).reduce(math.min);
-    var dataMax = visible.map((item) => item.high).reduce(math.max);
-    dataMin = math.min(dataMin, currentPrice);
-    dataMax = math.max(dataMax, currentPrice);
-    final rawRange = math.max(dataMax - dataMin, currentPrice.abs() * .0004);
-    final priceStep = _nicePriceStep(rawRange * 1.12 / horizontalDivisions);
-    final axisRange = priceStep * horizontalDivisions;
+    final dataMin = visible.map((item) => item.low).reduce(math.min);
+    final dataMax = visible.map((item) => item.high).reduce(math.max);
+    final visibleMagnitude = math.max(dataMin.abs(), dataMax.abs());
+    final rawRange = math.max(dataMax - dataMin, visibleMagnitude * .0004);
+    final priceStep = _nicePriceStep(rawRange * 1.12 / priceScaleDivisions);
+    final axisRange = priceStep * priceScaleDivisions;
     final scaleCenter = focusedChartPrice ?? (dataMin + dataMax) * .5;
     final automaticMaxPrice = scaleCenter + axisRange * .5;
     final automaticMinPrice = automaticMaxPrice - axisRange;
@@ -759,7 +765,7 @@ class Mt5CandlePainter extends CustomPainter {
       visiblePositions.add((position, y));
       visiblePositionLabels.add(_positionLine(canvas, chartWidth, y, position));
       if (!_usesVideo2ChartChrome) {
-        final color = position.side == 'BUY' ? theme.tradeBlue : theme.bearish;
+        final color = position.side == 'BUY' ? theme.tradeBlue : theme.tradeRed;
         _positionMarker(canvas, chartWidth - 8, y, color, position.side);
       }
     }
@@ -874,12 +880,12 @@ class Mt5CandlePainter extends CustomPainter {
     }
 
     if (pendingOrderType != null && pendingOrderPrice != null) {
-      drawPendingProtection(pendingStopLoss, 'SL', theme.bearish);
-      drawPendingProtection(pendingTakeProfit, 'TP', theme.bullish);
+      drawPendingProtection(pendingStopLoss, 'SL', theme.tradeRed);
+      drawPendingProtection(pendingTakeProfit, 'TP', theme.tradeBlue);
     }
     for (final order in pendingOrders.skip(1)) {
-      drawPendingProtection(order.stopLoss, 'SL', theme.bearish);
-      drawPendingProtection(order.takeProfit, 'TP', theme.bullish);
+      drawPendingProtection(order.stopLoss, 'SL', theme.tradeRed);
+      drawPendingProtection(order.takeProfit, 'TP', theme.tradeBlue);
     }
 
     if (indicators.contains('Moving Average')) {
@@ -908,10 +914,14 @@ class Mt5CandlePainter extends CustomPainter {
     }
 
     final currentY = priceToY(currentPrice);
+    final currentPriceIsVisible =
+        currentPrice >= minPrice && currentPrice <= maxPrice;
     final currentPricePaint = Paint()
       ..color = theme.priceLine
       ..strokeWidth = .67;
-    if (!loadingPlaceholder && _usesVideo2ChartChrome) {
+    if (!loadingPlaceholder &&
+        currentPriceIsVisible &&
+        _usesVideo2ChartChrome) {
       _dashedLine(
         canvas,
         Offset(0, currentY),
@@ -920,7 +930,7 @@ class Mt5CandlePainter extends CustomPainter {
         1.5,
         1.5,
       );
-    } else if (!loadingPlaceholder) {
+    } else if (!loadingPlaceholder && currentPriceIsVisible) {
       canvas.drawLine(
         Offset(0, currentY),
         Offset(chartWidth, currentY),
@@ -936,25 +946,30 @@ class Mt5CandlePainter extends CustomPainter {
       minPrice,
       maxPrice,
     );
+    final positionPriceTagLayouts = <({Rect frame, Offset textOrigin})>[];
     if (!loadingPlaceholder) {
       for (final pendingLevel in visiblePendingLevels) {
-        _positionPriceTag(
-          canvas,
-          chartWidth,
-          pendingLevel.$1,
-          pendingLevel.$2,
-          theme.tradeBlue,
+        positionPriceTagLayouts.add(
+          _positionPriceTag(
+            canvas,
+            chartWidth,
+            pendingLevel.$1,
+            pendingLevel.$2,
+            theme.tradeBlue,
+          ),
         );
       }
     }
     if (!loadingPlaceholder) {
       for (final protection in visiblePendingProtections) {
-        _positionPriceTag(
-          canvas,
-          chartWidth,
-          protection.$1,
-          protection.$2,
-          protection.$4,
+        positionPriceTagLayouts.add(
+          _positionPriceTag(
+            canvas,
+            chartWidth,
+            protection.$1,
+            protection.$2,
+            protection.$4,
+          ),
         );
       }
     }
@@ -964,55 +979,24 @@ class Mt5CandlePainter extends CustomPainter {
             : visiblePositions) {
       final position = entry.$1;
       final y = entry.$2;
-      _positionPriceTag(
-        canvas,
-        chartWidth,
-        y,
-        position.openPrice,
-        position.side == 'BUY' ? theme.tradeBlue : theme.bearish,
+      positionPriceTagLayouts.add(
+        _positionPriceTag(
+          canvas,
+          chartWidth,
+          y,
+          position.openPrice,
+          position.side == 'BUY' ? theme.tradeBlue : theme.tradeRed,
+        ),
       );
     }
-    if (!loadingPlaceholder) {
+    hitTargets.positionPriceTagLayouts = List.unmodifiable(
+      positionPriceTagLayouts,
+    );
+    if (!loadingPlaceholder && currentPriceIsVisible) {
       _priceTag(canvas, chartWidth, currentY);
     }
     _timeLabels(canvas, chartWidth, chartHeight, visible);
     _chartFrameBorders(canvas, chartWidth, chartHeight);
-    if (showHistoryBadge && _isXauUsdVideo2Reference && timeframe == 'H1') {
-      const badgeHeight = 30.6666666667;
-      final label = 'Đến ${_formatAxisTime(allCandles.first.time)}';
-      hitTargets.historyBadgeLabel = label;
-      canvas.drawRect(
-        Rect.fromLTWH(0, chartHeight - badgeHeight, 121, badgeHeight),
-        Paint()..color = theme.foreground.withValues(alpha: .78),
-      );
-      _text(
-        canvas,
-        label,
-        Offset(8, chartHeight - 20.6666666667),
-        AppTypography.chartAnnotation.copyWith(
-          color: theme.background,
-          fontSize: 13.3333333333,
-          letterSpacing: .2,
-        ),
-      );
-    }
-    if (symbol == 'XAUEUR' && timeframe == 'D1') {
-      final label = 'Đến ${_formatAxisTime(allCandles.last.time)}';
-      hitTargets.historyBadgeLabel = label;
-      canvas.drawRect(
-        Rect.fromLTWH(0, chartHeight - 20, 91, 20),
-        Paint()..color = theme.foreground.withValues(alpha: .78),
-      );
-      _text(
-        canvas,
-        label,
-        Offset(5, chartHeight - 16),
-        AppTypography.chartAnnotation.copyWith(
-          color: theme.background,
-          fontSize: 9.5,
-        ),
-      );
-    }
     if (crosshairEnabled) {
       if (measurementStart != null && measurementEnd != null) {
         _drawMeasurement(
@@ -1220,7 +1204,6 @@ class Mt5CandlePainter extends CustomPainter {
           AppTypography.chartAnnotation.copyWith(
             color: theme.tradeBlue,
             fontSize: 11,
-            fontWeight: FontWeight.w500,
           ),
         );
         handles.add(Offset(x1, y1));
@@ -1434,7 +1417,9 @@ class Mt5CandlePainter extends CustomPainter {
       Paint()..color = theme.background,
     );
     final labels = <({String text, double y})>[];
-    for (final y in hitTargets.horizontalGridYs) {
+    for (var index = 0; index < ChartGeometry.priceAxisTickCount; index++) {
+      final y =
+          priceTop + priceHeight * index / ChartGeometry.priceAxisTickCount;
       final fraction = ((y - priceTop) / priceHeight).clamp(0.0, 1.0);
       final value = maxPrice - (maxPrice - minPrice) * fraction;
       final text = value >= 1000
@@ -1460,10 +1445,6 @@ class Mt5CandlePainter extends CustomPainter {
         AppTypography.chartAxis.copyWith(
           color: _axisTextColor,
           fontSize: _usesVideo2ChartChrome ? 12.5 : 9,
-          fontWeight: usesM1ReferenceChrome ? FontWeight.w200 : null,
-          fontVariations: usesM1ReferenceChrome
-              ? const [FontVariation('wght', 200)]
-              : null,
           letterSpacing: usesM1ReferenceChrome ? .2 : null,
         ),
       );
@@ -1504,20 +1485,7 @@ class Mt5CandlePainter extends CustomPainter {
         labels.add(label);
         labelOrigins.add(labelOrigin);
         anchors.add((x: x, text: label, candleTime: visible[candleIndex].time));
-        _text(
-          canvas,
-          label,
-          labelOrigin,
-          AppTypography.chartTimeAxis.copyWith(
-            color: _axisTextColor,
-            fontSize: 11.5,
-            fontWeight: usesM1ReferenceChrome ? FontWeight.w200 : null,
-            fontVariations: usesM1ReferenceChrome
-                ? const [FontVariation('wght', 200)]
-                : null,
-            letterSpacing: usesM1ReferenceChrome ? .25 : .1,
-          ),
-        );
+        _text(canvas, label, labelOrigin, _timeAxisTextStyle);
       }
       hitTargets.timeAxisLabels = List<String>.unmodifiable(labels);
       hitTargets.timeAxisLabelOrigins = List<Offset>.unmodifiable(labelOrigins);
@@ -1636,9 +1604,13 @@ class Mt5CandlePainter extends CustomPainter {
   // their own market data instead of inheriting the H4 fixture contour.
   bool get _usesVideo2ChartChrome => true;
 
-  Color get _axisTextColor => _isXauUsdVideo2Reference && timeframe == 'M1'
-      ? theme.axisText
-      : theme.foreground;
+  Color get _axisTextColor => theme.axisText;
+
+  TextStyle get _timeAxisTextStyle => AppTypography.chartTimeAxis.copyWith(
+    color: _axisTextColor,
+    fontSize: 11.5,
+    letterSpacing: _isXauUsdVideo2Reference && timeframe == 'M1' ? .25 : .1,
+  );
 
   String _formatAxisTime(DateTime time, {bool first = false}) {
     final displayTime = time.isUtc ? time.toLocal() : time;
@@ -1716,12 +1688,12 @@ class Mt5CandlePainter extends CustomPainter {
         ? theme.axisBorder
         : position.side == 'BUY'
         ? theme.tradeBlue
-        : theme.bearish;
+        : theme.tradeRed;
     final profitColor = editingPending
         ? theme.axisBorder
         : position.profit >= 0
         ? theme.tradeBlue
-        : theme.bearish;
+        : theme.tradeRed;
     final paint = Paint()
       ..color = sideColor
       ..strokeWidth = 1;
@@ -1830,7 +1802,7 @@ class Mt5CandlePainter extends CustomPainter {
     );
   }
 
-  void _positionPriceTag(
+  ({Rect frame, Offset textOrigin}) _positionPriceTag(
     Canvas canvas,
     double chartWidth,
     double y,
@@ -1856,15 +1828,17 @@ class Mt5CandlePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
+    final textOrigin = Offset(chartWidth + 5, y - 6);
     _text(
       canvas,
       formatted,
-      Offset(chartWidth + 5, y - 7),
+      textOrigin,
       AppTypography.chartAxis.copyWith(
         color: color,
         fontSize: _usesVideo2ChartChrome ? 11.5 : 9,
       ),
     );
+    return (frame: rect, textOrigin: textOrigin);
   }
 
   static void _dashedLine(

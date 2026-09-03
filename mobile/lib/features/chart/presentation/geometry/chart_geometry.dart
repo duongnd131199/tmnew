@@ -26,13 +26,13 @@ final class ChartGeometry {
   });
 
   static const canonical = ChartGeometry(
-    priceAxisWidth: 76,
+    priceAxisWidth: 70,
     m1PriceAxisWidth: 55 + 1 / 3,
     timeAxisHeight: 22,
     headerHeight: 64 / 3,
     m1HeaderHeight: 78 + 2 / 3,
-    targetGridPitch: 28,
-    m1TargetGridPitch: 36 + 2 / 3,
+    targetGridPitch: 38 + 2 / 3,
+    m1TargetGridPitch: 55,
     gridOriginInset: 2 / 3,
     m1GridOriginInset: 18,
     timeLabelInset: 2 / 3,
@@ -43,8 +43,12 @@ final class ChartGeometry {
     wickWidth: 2 / 3,
     axisLabelInset: 4,
     m1AxisLabelInset: 4 + 2 / 3,
-    newestCandleRightPadding: 8,
+    newestCandleRightPadding: 28,
   );
+
+  static const gridCellScale = 1.5;
+  static const gridOpacity = .72;
+  static const priceAxisTickCount = 17;
 
   final double priceAxisWidth;
   final double m1PriceAxisWidth;

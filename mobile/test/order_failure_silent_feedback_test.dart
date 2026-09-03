@@ -17,7 +17,7 @@ import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 void main() {
-  testWidgets('new-order market rejection stays silent', (tester) async {
+  testWidgets('new-order market rejection shows safe feedback', (tester) async {
     final adapter = _RejectOrderAdapter();
     final container = _container(adapter);
     addTearDown(container.dispose);
@@ -34,11 +34,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(adapter.orderPosts, 1);
-    expect(find.byType(SnackBar), findsNothing);
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.textContaining('Order rejected'), findsOneWidget);
+    expect(find.textContaining('ORDER_REJECTED'), findsOneWidget);
+    expect(find.textContaining('test-correlation-id'), findsOneWidget);
     expect(find.text('Sell by Market'), findsOneWidget);
   });
 
-  testWidgets('new-order pending rejection stays silent', (tester) async {
+  testWidgets('new-order pending rejection shows safe feedback', (
+    tester,
+  ) async {
     final adapter = _RejectOrderAdapter();
     final container = _container(adapter);
     addTearDown(container.dispose);
@@ -59,11 +64,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(adapter.orderPosts, 1);
-    expect(find.byType(SnackBar), findsNothing);
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.textContaining('Order rejected'), findsOneWidget);
+    expect(find.textContaining('ORDER_REJECTED'), findsOneWidget);
+    expect(find.textContaining('test-correlation-id'), findsOneWidget);
     expect(find.byKey(const Key('order-place-pending')), findsOneWidget);
   });
 
-  testWidgets('chart market rejection stays silent', (tester) async {
+  testWidgets('chart market rejection shows safe feedback', (tester) async {
     _useChartViewport(tester);
     final adapter = _RejectOrderAdapter();
     final container = _container(adapter);
@@ -85,11 +93,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(adapter.orderPosts, 1);
-    expect(find.byType(SnackBar), findsNothing);
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.textContaining('Order rejected'), findsOneWidget);
+    expect(find.textContaining('ORDER_REJECTED'), findsOneWidget);
+    expect(find.textContaining('test-correlation-id'), findsOneWidget);
     expect(find.byKey(const Key('chart-one-click-panel')), findsOneWidget);
   });
 
-  testWidgets('chart pending rejection stays silent', (tester) async {
+  testWidgets('chart pending rejection shows safe feedback', (tester) async {
     _useChartViewport(tester);
     final adapter = _RejectOrderAdapter();
     final container = _container(adapter);
@@ -111,7 +122,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(adapter.orderPosts, 1);
-    expect(find.byType(SnackBar), findsNothing);
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.textContaining('Order rejected'), findsOneWidget);
+    expect(find.textContaining('ORDER_REJECTED'), findsOneWidget);
+    expect(find.textContaining('test-correlation-id'), findsOneWidget);
     expect(find.byKey(const Key('chart-pending-order-pill')), findsOneWidget);
   });
 }

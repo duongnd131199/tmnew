@@ -47,6 +47,19 @@ class _WalletRequestScreenState extends ConsumerState<WalletRequestScreen> {
           );
       if (!mounted) return;
       context.pop();
+    } on ExV2RequestFailure catch (error) {
+      if (!mounted) return;
+      final destination = walletRequestFailureDestination(
+        isDeposit: widget.isDeposit,
+        error: error,
+      );
+      if (destination != null) {
+        context.go(destination);
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Không thể thực hiện')));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -93,3 +106,14 @@ class _WalletRequestScreenState extends ConsumerState<WalletRequestScreen> {
     );
   }
 }
+
+String? walletRequestFailureDestination({
+  required bool isDeposit,
+  required Object error,
+}) =>
+    isDeposit &&
+        error is ExV2RequestFailure &&
+        error.statusCode == 409 &&
+        error.code == 'DEPOSIT_CANONICAL_CONTEXT_REQUIRED'
+    ? '/accounts/add'
+    : null;
