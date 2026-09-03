@@ -76,38 +76,30 @@ class MetaquotesBrokerMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final unitScale = size / AccountVisualMetrics.brokerMark;
-    final renderedSize = (82 / 3) * unitScale;
-    final imageScale = renderedSize / _sourceCrop.width;
+    final imageScale = size / _sourceCrop.height;
     final scaledSourceSize = Size(
       _sourceSize.width * imageScale,
       _sourceSize.height * imageScale,
     );
-    final verticalOffset = (renderedSize - _sourceCrop.height * imageScale) / 2;
 
-    return Transform.translate(
-      offset: Offset((-2 / 3) * unitScale, (2 / 3) * unitScale),
-      child: Center(
-        child: SizedBox.square(
-          dimension: renderedSize,
-          child: ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.topLeft,
-              minWidth: scaledSourceSize.width,
-              maxWidth: scaledSourceSize.width,
-              minHeight: scaledSourceSize.height,
-              maxHeight: scaledSourceSize.height,
-              child: Transform.translate(
-                offset: Offset(-_sourceCrop.left * imageScale, verticalOffset),
-                child: Image.asset(
-                  _assetPath,
-                  width: scaledSourceSize.width,
-                  height: scaledSourceSize.height,
-                  fit: BoxFit.fill,
-                  filterQuality: FilterQuality.high,
-                ),
+    return SizedBox.square(
+      dimension: size,
+      child: ClipRect(
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            Positioned(
+              left: -_sourceCrop.left * imageScale - unitScale,
+              top: 0,
+              width: scaledSourceSize.width,
+              height: scaledSourceSize.height,
+              child: Image.asset(
+                _assetPath,
+                fit: BoxFit.fill,
+                filterQuality: FilterQuality.high,
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

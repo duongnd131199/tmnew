@@ -41,7 +41,7 @@ void main() {
       );
 
       expect(screen.top, 0);
-      expect(back.top - screen.top, closeTo(37, 0.1), reason: '$width');
+      expect(back.top - screen.top, closeTo(21, 0.1), reason: '$width');
       expect(title.center.dx, closeTo(screen.center.dx, 1), reason: '$width');
       expect(back.right, lessThan(title.left), reason: '$width');
       expect(qr.left, greaterThan(title.right), reason: '$width');
@@ -69,11 +69,15 @@ void main() {
       );
       final title = tester.getRect(find.text('Máy chủ'));
       final list = tester.getRect(find.byKey(const Key('server-list')));
+      final firstRow = tester.getRect(
+        find.byKey(const Key('server-row-server-1')),
+      );
 
-      expect(back.top - screen.top, closeTo(37, 0.1), reason: '$width');
+      expect(back.top - screen.top, closeTo(21, 0.1), reason: '$width');
       expect(title.center.dx, closeTo(screen.center.dx, 1), reason: '$width');
       expect(back.right, lessThan(title.left), reason: '$width');
-      expect(list.top - screen.top, closeTo(124, 0.1), reason: '$width');
+      expect(list.top - screen.top, closeTo(0, 0.1), reason: '$width');
+      expect(firstRow.top - screen.top, closeTo(103, 0.1), reason: '$width');
     }
   });
 
@@ -111,13 +115,13 @@ void main() {
       child: const TradingServerScreen(brokerId: 'yodo-demo'),
     );
 
-    expect(find.text('Exness-MT5Real20'), findsOneWidget);
+    expect(find.text('Exness-MT5Trial5'), findsOneWidget);
     expect(find.text('Exness-MT5Real17'), findsOneWidget);
     expect(find.text('Exness-MT5Real32'), findsOneWidget);
     expect(find.text('YODO-Demo-01'), findsNothing);
     expect(find.byIcon(Icons.check_rounded), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('Exness-MT5Real20')).dy,
+      tester.getTopLeft(find.text('Exness-MT5Trial5')).dy,
       lessThan(tester.getTopLeft(find.text('Exness-MT5Real17')).dy),
     );
     expect(
@@ -141,7 +145,7 @@ void main() {
     );
 
     final list = tester.widget<ListView>(find.byKey(const Key('server-list')));
-    expect(list.childrenDelegate.estimatedChildCount, 24);
+    expect(list.childrenDelegate.estimatedChildCount, 26);
 
     await tester.tap(find.text('Exness-MT5Real17'));
     await tester.pump();
@@ -168,7 +172,7 @@ void main() {
       child: const ExistingAccountLoginScreen(brokerId: 'yodo-demo'),
     );
 
-    expect(find.text('Exness-MT5Real20'), findsOneWidget);
+    expect(find.text('Exness-MT5Trial5'), findsOneWidget);
     expect(find.text('YODO-Demo-01'), findsNothing);
   });
 
@@ -188,12 +192,12 @@ void main() {
     final headerTitle = tester.widget<Text>(
       find.text('Exness Technologies Ltd'),
     );
-    final serverName = tester.widget<Text>(find.text('Exness-MT5Real20'));
+    final serverName = tester.widget<Text>(find.text('Exness-MT5Trial5'));
     expect(headerTitle.style?.fontFamily, AppTypography.plainFamily);
     expect(serverName.style?.fontFamily, AppTypography.plainFamily);
 
     final serverBlock = find.byKey(const Key('existing-account-server-row'));
-    expect(tester.getSize(serverBlock).height, 56);
+    expect(tester.getSize(serverBlock).height, 49);
     expect(
       tester
           .widget<Material>(
@@ -276,14 +280,14 @@ void main() {
       expect(find.text('MetaQuotes'), findsOneWidget);
       expect(
         tester.getCenter(find.byKey(const Key('broker-row-metaquotes'))).dy,
-        greaterThan(
+        lessThan(
           tester.getCenter(find.byKey(const Key('broker-row-exness'))).dy,
         ),
       );
     },
   );
 
-  testWidgets('MetaQuotes fallback is deduplicated and stays below Exness', (
+  testWidgets('MetaQuotes fallback is deduplicated and stays above Exness', (
     tester,
   ) async {
     await _pump(
@@ -297,9 +301,7 @@ void main() {
     expect(find.byKey(const Key('broker-row-metaquotes')), findsOneWidget);
     expect(
       tester.getCenter(find.byKey(const Key('broker-row-metaquotes'))).dy,
-      greaterThan(
-        tester.getCenter(find.byKey(const Key('broker-row-exness'))).dy,
-      ),
+      lessThan(tester.getCenter(find.byKey(const Key('broker-row-exness'))).dy),
     );
   });
 
@@ -386,12 +388,12 @@ void main() {
     expect(imageFinder, findsOneWidget);
     final crop = find.descendant(of: mark, matching: find.byType(ClipRect));
     expect(crop, findsOneWidget);
-    expect(tester.getSize(crop).width, closeTo(27.33, 0.01));
-    expect(tester.getSize(crop).height, closeTo(27.33, 0.01));
+    expect(tester.getSize(crop).width, closeTo(31, 0.01));
+    expect(tester.getSize(crop).height, closeTo(31, 0.01));
     final cropOffset =
         tester.getRect(crop).center - tester.getRect(mark).center;
-    expect(cropOffset.dx, closeTo(-2 / 3, 0.01));
-    expect(cropOffset.dy, closeTo(2 / 3, 0.01));
+    expect(cropOffset.dx, closeTo(0, 0.01));
+    expect(cropOffset.dy, closeTo(0, 0.01));
     final image = tester.widget<Image>(imageFinder);
     expect(image.image, isA<AssetImage>());
     expect(
@@ -413,14 +415,14 @@ void main() {
 
     expect(
       tester.widget<Text>(find.text('EX')).style?.fontFamily,
-      AppTypography.caption.fontFamily,
+      AppTypography.plainFamily,
     );
     expect(
       tester
           .widget<Text>(find.text('Exness Technologies Ltd'))
           .style
           ?.fontFamily,
-      AppTypography.titleMedium.fontFamily,
+      AppTypography.plainFamily,
     );
 
     await _pump(
@@ -630,7 +632,7 @@ void main() {
     expect(find.byKey(const Key('server-list')), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const Key('server-row-server-1'))).height,
-      56,
+      49,
     );
     expect(find.byKey(const Key('server-divider-server-1')), findsOneWidget);
     final firstRow = tester.getRect(

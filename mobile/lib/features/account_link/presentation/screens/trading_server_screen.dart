@@ -8,6 +8,7 @@ import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
+import 'package:trading_mobile/features/account_link/presentation/theme/account_link_reference_theme.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_toolbar.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
 
@@ -27,6 +28,7 @@ class TradingServerScreen extends ConsumerStatefulWidget {
 }
 
 class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
+  final _scrollController = ScrollController();
   String? _routeError;
 
   @override
@@ -35,6 +37,12 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_load());
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -53,66 +61,110 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
 
     return Scaffold(
       key: const Key('trading-server-screen'),
+      backgroundColor: AppColors.accountLinkServerHeader,
       body: SafeArea(
         bottom: false,
-        child: Column(
+        child: Stack(
           children: [
-            AccountLinkToolbar(
-              title: 'Máy chủ',
-              onBack: () => Navigator.of(context).maybePop(),
+            Positioned(
+              top:
+                  AccountLinkReferenceMetrics.toolbarHeight +
+                  AccountLinkReferenceMetrics.serverHeaderGap,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: const ColoredBox(color: AppColors.surface),
             ),
-            const SizedBox(height: 43),
-            Expanded(
+            Positioned.fill(
               child: switch ((
                 failed || message != null,
                 loading,
                 servers.isEmpty,
               )) {
-                (true, _, _) => _ServerFailure(
-                  message: message ?? 'Unable to link this account',
-                  onRetry: () => unawaited(_load()),
-                ),
-                (false, true, true) => const Center(
-                  child: CircularProgressIndicator(
-                    key: Key('server-catalog-loading'),
+                (true, _, _) => Padding(
+                  padding: const EdgeInsets.only(
+                    top:
+                        AccountLinkReferenceMetrics.toolbarHeight +
+                        AccountLinkReferenceMetrics.serverHeaderGap,
+                  ),
+                  child: _ServerFailure(
+                    message: message ?? 'Unable to link this account',
+                    onRetry: () => unawaited(_load()),
                   ),
                 ),
-                (_, _, true) => Center(
-                  child: Text(
-                    'Không có máy chủ',
-                    key: const Key('server-catalog-empty'),
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
+                (false, true, true) => const Padding(
+                  padding: EdgeInsets.only(
+                    top:
+                        AccountLinkReferenceMetrics.toolbarHeight +
+                        AccountLinkReferenceMetrics.serverHeaderGap,
+                  ),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      key: Key('server-catalog-loading'),
                     ),
                   ),
                 ),
-                _ => DecoratedBox(
-                  decoration: const BoxDecoration(color: AppColors.surface),
-                  child: Scrollbar(
-                    radius: const Radius.circular(2),
-                    thickness: 2,
-                    child: ListView.builder(
-                      key: const Key('server-list'),
-                      physics: const BouncingScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
+                (_, _, true) => Padding(
+                  padding: const EdgeInsets.only(
+                    top:
+                        AccountLinkReferenceMetrics.toolbarHeight +
+                        AccountLinkReferenceMetrics.serverHeaderGap,
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Không có máy chủ',
+                      key: const Key('server-catalog-empty'),
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
                       ),
-                      itemExtent: 56,
-                      itemCount: options.length,
-                      itemBuilder: (context, index) {
-                        final option = options[index];
-                        return _ServerRow(
-                          rowKey: option.rowKey,
-                          server: option.server,
-                          selected: option.isSelected(state?.selectedServer),
-                          referencePresentation:
-                              usesReferenceServerPresentation(widget.brokerId),
-                          onTap: () => _select(option.server),
-                        );
-                      },
                     ),
+                  ),
+                ),
+                _ => Scrollbar(
+                  controller: _scrollController,
+                  thumbVisibility: true,
+                  radius: const Radius.circular(2),
+                  thickness: 2,
+                  child: ListView.builder(
+                    key: const Key('server-list'),
+                    controller: _scrollController,
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    padding: const EdgeInsets.only(
+                      top:
+                          AccountLinkReferenceMetrics.toolbarHeight +
+                          AccountLinkReferenceMetrics.serverHeaderGap,
+                    ),
+                    itemExtent: AccountLinkReferenceMetrics.serverRowHeight,
+                    itemCount: options.length,
+                    itemBuilder: (context, index) {
+                      final option = options[index];
+                      return _ServerRow(
+                        rowKey: option.rowKey,
+                        server: option.server,
+                        selected: option.isSelected(state?.selectedServer),
+                        referencePresentation: usesReferenceServerPresentation(
+                          widget.brokerId,
+                        ),
+                        onTap: () => _select(option.server),
+                      );
+                    },
                   ),
                 ),
               },
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: ColoredBox(
+                color: AppColors.accountLinkServerHeader.withValues(alpha: .94),
+                child: AccountLinkToolbar(
+                  title: 'Máy chủ',
+                  onBack: () => Navigator.of(context).maybePop(),
+                ),
+              ),
             ),
           ],
         ),
@@ -184,14 +236,16 @@ class _ServerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     key: ValueKey('server-row-$rowKey'),
-    color: AppColors.transparent,
+    color: AppColors.surface,
     child: InkWell(
       onTap: onTap,
       child: Stack(
         children: [
           Positioned.fill(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AccountLinkReferenceMetrics.horizontalInset,
+              ),
               child: Row(
                 children: [
                   Expanded(
@@ -199,14 +253,12 @@ class _ServerRow extends StatelessWidget {
                       server.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          (referencePresentation
-                                  ? AppTypography.referenceServerName
-                                  : AppTypography.titleMedium)
-                              .copyWith(
-                                color: AppColors.textPrimary,
-                                height: 1,
-                              ),
+                      style: referencePresentation
+                          ? AccountLinkReferenceTypography.serverName
+                          : AppTypography.titleMedium.copyWith(
+                              color: AppColors.textPrimary,
+                              height: 1,
+                            ),
                     ),
                   ),
                   if (selected)
@@ -221,8 +273,8 @@ class _ServerRow extends StatelessWidget {
           ),
           Positioned(
             key: ValueKey('server-divider-$rowKey'),
-            left: AppSpacing.md,
-            right: AppSpacing.md,
+            left: AccountLinkReferenceMetrics.horizontalInset,
+            right: AccountLinkReferenceMetrics.horizontalInset,
             bottom: 0,
             child: const Divider(
               height: 1,

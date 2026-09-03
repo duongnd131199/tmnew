@@ -3,8 +3,19 @@ import 'package:trading_mobile/features/account_link/domain/account_link_models.
 const referenceServerBrokerDisplayName = 'Exness Technologies Ltd';
 const referenceServerBrokerCompanyName = 'Exness';
 
+const referenceServerBrokerFallback = MobileBroker(
+  id: 'yodo-demo',
+  name: referenceServerBrokerDisplayName,
+  companyName: referenceServerBrokerCompanyName,
+);
+
 bool usesReferenceServerPresentation(String brokerId) =>
     brokerId == 'yodo-demo';
+
+MobileBroker? referenceBrokerFallback(String brokerId) =>
+    usesReferenceServerPresentation(brokerId)
+    ? referenceServerBrokerFallback
+    : null;
 
 final class ReferenceBrokerPresentation {
   const ReferenceBrokerPresentation({
@@ -76,8 +87,8 @@ List<MobileBroker> referenceBrokerCatalog(Iterable<MobileBroker> brokers) {
 
   if (exness == null) return unique;
 
-  final ordered = <MobileBroker>[exness];
-  ordered.add(metaquotes ?? referenceMetaquotesBroker);
+  final ordered = <MobileBroker>[metaquotes ?? referenceMetaquotesBroker];
+  ordered.add(exness);
   for (final broker in unique) {
     if (identical(broker, exness) || identical(broker, metaquotes)) continue;
     if (ordered.any((item) => identical(item, broker))) continue;
@@ -111,14 +122,13 @@ bool _isMetaquotes(MobileBroker broker) {
 String _normalizedBrokerValue(String value) =>
     value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
-const referenceDefaultServerDisplayName = 'Exness-MT5Real20';
+const referenceDefaultServerDisplayName = 'Exness-MT5Trial5';
 const referenceDefaultAccessPoint = 'Access Point #9';
 
 const referenceServerDisplayNames = <String>[
   referenceDefaultServerDisplayName,
   'Exness-MT5Real17',
   'Exness-MT5Real32',
-  'Exness-MT5Trial5',
   'Exness-MT5Real2',
   'Exness-MT5Real11',
   'Exness-MT5Real38',
@@ -139,6 +149,9 @@ const referenceServerDisplayNames = <String>[
   'Exness-MT5Real31',
   'Exness-MT5Real39',
   'Exness-MT5Real24',
+  'Exness-MT5Real34',
+  'Exness-MT5Real20',
+  'Exness-MT5Real26',
 ];
 
 final class ReferenceServerOption {

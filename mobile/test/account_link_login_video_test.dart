@@ -68,7 +68,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Exness-MT5Real20'), findsOneWidget);
+      expect(find.text('Exness-MT5Trial5'), findsOneWidget);
       expect(find.text('YODO-Demo-01'), findsNothing);
     },
   );
@@ -133,7 +133,7 @@ void main() {
             find.byKey(const Key('existing-account-section-title')),
           )
           .color,
-      AppColors.groupedBackground,
+      AppColors.accountLinkBackground,
     );
     expect(
       tester

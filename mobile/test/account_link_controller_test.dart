@@ -240,7 +240,7 @@ void main() {
           brokerId: 'yodo-demo',
           brokerName: 'YODO Demo Markets',
           serverId: 'yodo-demo-01',
-          serverName: 'Exness-MT5Real15',
+          serverName: 'YODO-Demo-01',
           login: '100001',
           isActive: false,
         ),
@@ -254,7 +254,7 @@ void main() {
     harness.controller.selectServer(
       const MobileTradingServer(
         id: 'yodo-demo-01',
-        name: 'Exness-MT5Real15',
+        name: 'Exness-MT5Real26',
         brokerId: 'yodo-demo',
       ),
     );
@@ -267,7 +267,7 @@ void main() {
     );
     expect(
       presentationStore.values['account-1']?.serverName,
-      'Exness-MT5Real15',
+      'Exness-MT5Real26',
     );
   });
 

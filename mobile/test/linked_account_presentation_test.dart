@@ -50,7 +50,7 @@ void main() {
     final result = resolveLinkedAccountPresentation(account, null);
 
     expect(result.companyName, 'Exness Technologies Ltd');
-    expect(result.serverName, 'Exness-MT5Real20');
+    expect(result.serverName, 'Exness-MT5Trial5');
     expect(
       '${result.companyName} ${result.serverName}'.toLowerCase(),
       isNot(contains('yodo')),

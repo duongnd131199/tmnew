@@ -1,15 +1,19 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_radius.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/account_link/application/account_link_controller.dart';
 import 'package:trading_mobile/features/account_link/domain/account_link_models.dart';
+import 'package:trading_mobile/features/account_link/presentation/theme/account_link_reference_theme.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_visuals.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
+import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 
 class ExistingAccountLoginScreen extends ConsumerStatefulWidget {
   const ExistingAccountLoginScreen({
@@ -32,6 +36,8 @@ class _ExistingAccountLoginScreenState
     extends ConsumerState<ExistingAccountLoginScreen> {
   final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
+  _AccountLoginMode _loginMode = _AccountLoginMode.tradingAccount;
+  bool _savePassword = true;
   String? _serverError;
 
   @override
@@ -58,17 +64,25 @@ class _ExistingAccountLoginScreenState
     final referencePresentation = usesReferenceServerPresentation(
       widget.brokerId,
     );
+    final visibleBroker =
+        formState.selectedBroker ?? referenceBrokerFallback(widget.brokerId);
+    final visibleServerName =
+        formState.selectedServer?.name ??
+        (referencePresentation
+            ? referenceDefaultServerDisplayName
+            : 'Chọn máy chủ');
     _synchronize(_loginController, formState.login);
     _synchronize(_passwordController, formState.password);
 
     return Scaffold(
       key: const Key('existing-account-login-screen'),
+      backgroundColor: AppColors.accountLinkBackground,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [
             _BrokerHeader(
-              broker: formState.selectedBroker,
+              broker: visibleBroker,
               referencePresentation: referencePresentation,
             ),
             Expanded(
@@ -103,10 +117,14 @@ class _ExistingAccountLoginScreenState
                       text: 'Sử dụng tài khoản hiện có',
                       sectionKey: Key('existing-account-section-title'),
                     ),
+                    _AccountTypeRow(
+                      mode: _loginMode,
+                      onChanged: (mode) => setState(() => _loginMode = mode),
+                    ),
                     _ValueRow(
                       key: const Key('existing-account-server-row'),
                       label: 'Máy chủ',
-                      value: formState.selectedServer?.name ?? 'Chọn máy chủ',
+                      value: visibleServerName,
                       referencePresentation: referencePresentation,
                       onTap: !routeAuthorized
                           ? null
@@ -120,26 +138,34 @@ class _ExistingAccountLoginScreenState
                         onRetry: () => unawaited(_loadServers()),
                       ),
                     _InputRow(
-                      label: 'Đăng nhập',
+                      key: const Key('existing-account-login-row'),
+                      label: _loginMode == _AccountLoginMode.tradingAccount
+                          ? 'Đăng nhập'
+                          : 'Mã máy khách',
                       field: TextField(
                         key: const Key('existing-account-login-field'),
                         controller: _loginController,
-                        keyboardType: TextInputType.number,
+                        keyboardType:
+                            _loginMode == _AccountLoginMode.tradingAccount
+                            ? TextInputType.number
+                            : TextInputType.text,
                         textInputAction: TextInputAction.next,
                         autocorrect: false,
                         enableSuggestions: false,
                         textAlign: TextAlign.end,
-                        style: AppTypography.numberMedium.copyWith(
-                          color: AppColors.primary,
-                        ),
-                        decoration: const InputDecoration(
-                          hintText: 'Nhập login',
+                        style: AccountLinkReferenceTypography.rowValue,
+                        decoration: InputDecoration(
+                          hintText:
+                              _loginMode == _AccountLoginMode.tradingAccount
+                              ? 'Nhập login'
+                              : 'cl1234',
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           filled: false,
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
+                          hintStyle: AccountLinkReferenceTypography.rowHint,
                         ),
                         onChanged: ref
                             .read(accountLinkControllerProvider.notifier)
@@ -147,6 +173,7 @@ class _ExistingAccountLoginScreenState
                       ),
                     ),
                     _InputRow(
+                      key: const Key('existing-account-password-row'),
                       label: 'Mật khẩu',
                       field: TextField(
                         key: const Key('existing-account-password-field'),
@@ -156,9 +183,7 @@ class _ExistingAccountLoginScreenState
                         autocorrect: false,
                         enableSuggestions: false,
                         textAlign: TextAlign.end,
-                        style: AppTypography.bodyLarge.copyWith(
-                          color: AppColors.primary,
-                        ),
+                        style: AccountLinkReferenceTypography.rowValue,
                         decoration: const InputDecoration(
                           hintText: 'Nhập mật khẩu',
                           border: InputBorder.none,
@@ -167,6 +192,7 @@ class _ExistingAccountLoginScreenState
                           filled: false,
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
+                          hintStyle: AccountLinkReferenceTypography.rowHint,
                         ),
                         onChanged: ref
                             .read(accountLinkControllerProvider.notifier)
@@ -178,6 +204,11 @@ class _ExistingAccountLoginScreenState
                         },
                       ),
                     ),
+                    _SavePasswordRow(
+                      value: _savePassword,
+                      onChanged: (value) =>
+                          setState(() => _savePassword = value),
+                    ),
                     SizedBox(
                       height: 60,
                       child: Center(
@@ -188,10 +219,8 @@ class _ExistingAccountLoginScreenState
                           ),
                           child: Text(
                             'Quên mật khẩu',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textTertiary,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: AccountLinkReferenceTypography.rowValue
+                                .copyWith(color: AppColors.textTertiary),
                           ),
                         ),
                       ),
@@ -315,6 +344,8 @@ class _ExistingAccountLoginScreenState
   }
 }
 
+enum _AccountLoginMode { tradingAccount, clientId }
+
 class _BrokerHeader extends StatelessWidget {
   const _BrokerHeader({
     required this.broker,
@@ -328,13 +359,13 @@ class _BrokerHeader extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
     key: const Key('existing-account-header'),
     width: double.infinity,
-    height: 124,
+    height: AccountLinkReferenceMetrics.accountHeaderHeight,
     child: Stack(
       children: [
         Positioned(
-          left: AppSpacing.md,
-          right: AppSpacing.md,
-          top: 37,
+          left: AccountLinkReferenceMetrics.horizontalInset,
+          right: AccountLinkReferenceMetrics.horizontalInset,
+          top: AccountLinkReferenceMetrics.accountHeaderControlTop,
           height: 43,
           child: Row(
             children: [
@@ -342,13 +373,15 @@ class _BrokerHeader extends StatelessWidget {
                 action: AccountLinkToolbarAction.back,
                 onTap: () => Navigator.of(context).maybePop(),
               ),
-              const SizedBox(width: AppSpacing.md),
+              const SizedBox(
+                width: AccountLinkReferenceMetrics.accountHeaderBrokerGap,
+              ),
               if (broker case final value?)
                 AccountLinkBrokerMark(
                   broker: value,
                   displayAsExness: referencePresentation,
                 ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   referencePresentation
@@ -356,11 +389,12 @@ class _BrokerHeader extends StatelessWidget {
                       : broker?.name ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style:
-                      (referencePresentation
-                              ? AppTypography.referenceServerName
-                              : AppTypography.titleMedium)
-                          .copyWith(fontWeight: FontWeight.w700, height: 1),
+                  style: referencePresentation
+                      ? AccountLinkReferenceTypography.toolbarTitle
+                      : AppTypography.titleMedium.copyWith(
+                          fontWeight: FontWeight.w700,
+                          height: 1,
+                        ),
                 ),
               ),
             ],
@@ -380,17 +414,11 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: sectionKey,
-    height: 42,
+    height: AccountLinkReferenceMetrics.sectionHeight,
     alignment: Alignment.centerLeft,
     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-    color: AppColors.groupedBackground,
-    child: Text(
-      text,
-      style: AppTypography.titleMedium.copyWith(
-        color: AppColors.textSecondary,
-        fontWeight: FontWeight.w700,
-      ),
-    ),
+    color: AppColors.accountLinkBackground,
+    child: Text(text, style: AccountLinkReferenceTypography.sectionTitle),
   );
 }
 
@@ -412,10 +440,10 @@ class _RegistrationRow extends StatelessWidget {
     child: InkWell(
       onTap: onTap,
       child: Container(
-        constraints: const BoxConstraints(minHeight: 92),
+        height: AccountLinkReferenceMetrics.registrationRowHeight,
         margin: const EdgeInsets.only(left: AppSpacing.md),
         padding: const EdgeInsets.only(
-          top: AppSpacing.md,
+          top: AppSpacing.sm,
           right: AppSpacing.md,
           bottom: AppSpacing.sm,
         ),
@@ -433,26 +461,21 @@ class _RegistrationRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: AppTypography.titleMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AccountLinkReferenceTypography.registrationTitle,
                   ),
-                  const SizedBox(height: AppSpacing.xs),
+                  const SizedBox(height: AppSpacing.xxs),
                   Text(
                     description,
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
-                      height: 1.35,
-                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        AccountLinkReferenceTypography.registrationDescription,
                   ),
                 ],
               ),
             ),
             const SizedBox(width: AppSpacing.xs),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.textTertiary,
-            ),
+            const AccountChevronRight(),
           ],
         ),
       ),
@@ -490,18 +513,15 @@ class _ValueRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
-                style:
-                    (referencePresentation
-                            ? AppTypography.referenceServerName
-                            : AppTypography.titleMedium)
-                        .copyWith(color: AppColors.textSecondary),
+                style: referencePresentation
+                    ? AccountLinkReferenceTypography.rowValue
+                    : AppTypography.titleMedium.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
               ),
             ),
             const SizedBox(width: AppSpacing.xxs),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.textTertiary,
-            ),
+            const AccountChevronRight(),
           ],
         ),
       ),
@@ -509,8 +529,103 @@ class _ValueRow extends StatelessWidget {
   );
 }
 
+class _AccountTypeRow extends StatelessWidget {
+  const _AccountTypeRow({required this.mode, required this.onChanged});
+
+  final _AccountLoginMode mode;
+  final ValueChanged<_AccountLoginMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: AppColors.surface,
+    child: _RowFrame(
+      key: const Key('existing-account-type-row'),
+      child: Row(
+        children: [
+          const SizedBox(width: 90, child: Text('Loại', style: _rowLabelStyle)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Container(
+              height: AccountLinkReferenceMetrics.segmentHeight,
+              decoration: const BoxDecoration(
+                color: AppColors.accountLinkSegment,
+                borderRadius: AppRadius.pill,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 58,
+                    child: _AccountTypeSegment(
+                      segmentKey: const Key(
+                        'existing-account-trading-account-segment',
+                      ),
+                      label: 'Tài khoản giao dịch',
+                      selected: mode == _AccountLoginMode.tradingAccount,
+                      onTap: () => onChanged(_AccountLoginMode.tradingAccount),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 42,
+                    child: _AccountTypeSegment(
+                      segmentKey: const Key(
+                        'existing-account-client-id-segment',
+                      ),
+                      label: 'Mã máy khách',
+                      selected: mode == _AccountLoginMode.clientId,
+                      onTap: () => onChanged(_AccountLoginMode.clientId),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _AccountTypeSegment extends StatelessWidget {
+  const _AccountTypeSegment({
+    required this.segmentKey,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Key segmentKey;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    key: segmentKey,
+    color: selected ? AppColors.surface : AppColors.transparent,
+    shape: StadiumBorder(
+      side: selected
+          ? const BorderSide(color: AppColors.divider, width: .6)
+          : BorderSide.none,
+    ),
+    child: InkWell(
+      customBorder: const StadiumBorder(),
+      onTap: onTap,
+      child: Center(
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AccountLinkReferenceTypography.segmentLabel.copyWith(
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _InputRow extends StatelessWidget {
-  const _InputRow({required this.label, required this.field});
+  const _InputRow({required this.label, required this.field, super.key});
 
   final String label;
   final Widget field;
@@ -524,6 +639,38 @@ class _InputRow extends StatelessWidget {
           Text(label, style: _rowLabelStyle),
           const SizedBox(width: AppSpacing.md),
           Expanded(child: field),
+        ],
+      ),
+    ),
+  );
+}
+
+class _SavePasswordRow extends StatelessWidget {
+  const _SavePasswordRow({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: AppColors.surface,
+    child: _RowFrame(
+      key: const Key('existing-account-save-password-row'),
+      child: Row(
+        children: [
+          Text('Lưu mật khẩu', style: _rowLabelStyle),
+          const Spacer(),
+          Transform.scale(
+            scaleX: 1.1,
+            scaleY: 1.03,
+            child: CupertinoSwitch(
+              key: const Key('existing-account-save-password-switch'),
+              value: value,
+              activeTrackColor: AppColors.savePasswordEnabled,
+              inactiveTrackColor: AppColors.disabledSurface,
+              onChanged: onChanged,
+            ),
+          ),
         ],
       ),
     ),
@@ -566,15 +713,19 @@ class _ServerFailureRow extends StatelessWidget {
 }
 
 class _RowFrame extends StatelessWidget {
-  const _RowFrame({required this.child});
+  const _RowFrame({required this.child, super.key});
 
   final Widget child;
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 56,
-    margin: const EdgeInsets.only(left: AppSpacing.md),
-    padding: const EdgeInsets.only(right: AppSpacing.md),
+    height: AccountLinkReferenceMetrics.formRowHeight,
+    margin: const EdgeInsets.only(
+      left: AccountLinkReferenceMetrics.horizontalInset,
+    ),
+    padding: const EdgeInsets.only(
+      right: AccountLinkReferenceMetrics.horizontalInset,
+    ),
     decoration: const BoxDecoration(
       border: Border(bottom: BorderSide(color: AppColors.divider, width: .6)),
     ),
@@ -595,20 +746,20 @@ class _LoginAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: 76,
+    height: AccountLinkReferenceMetrics.loginActionHeight,
     child: Center(
       child: OutlinedButton(
         key: const Key('existing-account-login-button'),
         onPressed: enabled && !busy ? () => unawaited(onPressed()) : null,
         style: ButtonStyle(
-          minimumSize: const WidgetStatePropertyAll(Size(122, 48)),
-          padding: const WidgetStatePropertyAll(
-            EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-          ),
+          minimumSize: const WidgetStatePropertyAll(Size(106, 46)),
+          maximumSize: const WidgetStatePropertyAll(Size(106, 46)),
+          padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           shape: const WidgetStatePropertyAll(StadiumBorder()),
-          side: const WidgetStatePropertyAll(
-            BorderSide(color: AppColors.divider, width: .8),
-          ),
+          side: const WidgetStatePropertyAll(BorderSide.none),
+          elevation: const WidgetStatePropertyAll(4),
+          shadowColor: const WidgetStatePropertyAll(Color(0x18000000)),
           backgroundColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.disabled)
                 ? AppColors.surface.withValues(alpha: .55)
@@ -622,11 +773,11 @@ class _LoginAction extends StatelessWidget {
               )
             : Text(
                 'Đăng nhập',
-                style: AppTypography.titleMedium.copyWith(
+                style: AccountLinkReferenceTypography.rowLabel.copyWith(
                   color: enabled
                       ? AppColors.textPrimary
                       : AppColors.textTertiary,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
       ),
@@ -634,6 +785,4 @@ class _LoginAction extends StatelessWidget {
   );
 }
 
-final _rowLabelStyle = AppTypography.titleMedium.copyWith(
-  fontWeight: FontWeight.w600,
-);
+const _rowLabelStyle = AccountLinkReferenceTypography.rowLabel;

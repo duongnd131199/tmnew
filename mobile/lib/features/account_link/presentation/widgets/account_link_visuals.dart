@@ -70,7 +70,7 @@ class AccountLinkBrokerMark extends StatelessWidget {
               textScaler: TextScaler.noScaling,
               style: AppTypography.caption.copyWith(
                 color: AppColors.brokerMarkInk,
-                fontFamily: displayAsExness ? 'sans-serif' : null,
+                fontFamily: AppTypography.plainFamily,
                 fontSize: displayAsExness ? 7 : null,
                 fontWeight: FontWeight.w800,
                 height: 1,

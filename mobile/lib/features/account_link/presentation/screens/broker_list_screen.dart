@@ -12,6 +12,7 @@ import 'package:trading_mobile/features/account_link/domain/account_link_models.
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_toolbar.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_visuals.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
+import 'package:trading_mobile/features/account_link/presentation/theme/account_link_reference_theme.dart';
 
 class BrokerListScreen extends ConsumerStatefulWidget {
   const BrokerListScreen({
@@ -59,13 +60,22 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
   Widget build(BuildContext context) {
     final asyncState = ref.watch(accountLinkControllerProvider);
     final state = asyncState.value;
-    final brokers = _locallyFiltered(state?.brokers ?? const []);
+    final catalogBrokers = state?.brokers ?? const <MobileBroker>[];
+    final showsOptimisticBroker =
+        catalogBrokers.isEmpty &&
+        _authoritativeQuery == null &&
+        _query.trim().isEmpty;
+    final initialBrokers = showsOptimisticBroker
+        ? const <MobileBroker>[referenceServerBrokerFallback]
+        : catalogBrokers;
+    final brokers = _locallyFiltered(initialBrokers);
     final loading =
         asyncState.isLoading || state?.phase == AccountLinkPhase.loadingCatalog;
     final failed = state?.phase == AccountLinkPhase.failed;
 
     return Scaffold(
       key: const Key('broker-list-screen'),
+      backgroundColor: AppColors.surface,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         bottom: false,
@@ -106,13 +116,18 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
                   physics: const BouncingScrollPhysics(
                     parent: AlwaysScrollableScrollPhysics(),
                   ),
-                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  padding: EdgeInsets.zero,
                   itemCount: brokers.length,
                   itemBuilder: (context, index) {
                     final broker = brokers[index];
                     return _BrokerRow(
                       broker: broker,
-                      onTap: () => _handleBrokerTap(broker),
+                      onTap: () => _handleBrokerTap(
+                        broker,
+                        optimistic:
+                            showsOptimisticBroker &&
+                            identical(broker, referenceServerBrokerFallback),
+                      ),
                       onInfo: () => _showBrokerInfo(broker),
                     );
                   },
@@ -127,33 +142,56 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
                 AppSpacing.xl,
                 AppSpacing.md,
               ),
-              child: TextField(
-                key: const Key('broker-search-field'),
-                keyboardType: TextInputType.text,
-                textInputAction: TextInputAction.search,
-                autocorrect: false,
-                onChanged: _search,
-                decoration: InputDecoration(
-                  hintText: 'Vui lòng nhập tên công ty hoặc máy chủ',
-                  hintMaxLines: 1,
-                  prefixIcon: const Icon(
-                    Icons.search_rounded,
-                    color: AppColors.textPrimary,
-                  ),
-                  isDense: true,
-                  filled: true,
-                  fillColor: AppColors.surface,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
-                  ),
-                  border: OutlineInputBorder(
+              child: SizedBox(
+                height: AccountLinkReferenceMetrics.searchFieldHeight,
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    color: AppColors.surface,
                     borderRadius: AppRadius.pill,
-                    borderSide: const BorderSide(color: AppColors.divider),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x18000000),
+                        blurRadius: 24,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: AppRadius.pill,
-                    borderSide: const BorderSide(color: AppColors.divider),
+                  child: TextField(
+                    key: const Key('broker-search-field'),
+                    keyboardType: TextInputType.text,
+                    textInputAction: TextInputAction.search,
+                    autocorrect: false,
+                    onChanged: _search,
+                    style: AccountLinkReferenceTypography.searchHint.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'Vui lòng nhập tên công ty hoặc máy chủ',
+                      hintMaxLines: 1,
+                      hintStyle: AccountLinkReferenceTypography.searchHint,
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: AppColors.textPrimary,
+                        size: 20,
+                      ),
+                      prefixIconConstraints: BoxConstraints.tightFor(width: 40),
+                      isDense: true,
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      contentPadding: EdgeInsets.only(right: AppSpacing.md),
+                      border: OutlineInputBorder(
+                        borderRadius: AppRadius.pill,
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: AppRadius.pill,
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: AppRadius.pill,
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -232,8 +270,13 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
     context.push('/accounts/add/${Uri.encodeComponent(broker.id)}');
   }
 
-  void _handleBrokerTap(MobileBroker broker) {
+  void _handleBrokerTap(MobileBroker broker, {required bool optimistic}) {
     if (referenceBrokerSemanticId(broker) == 'metaquotes') return;
+    if (optimistic) {
+      if (widget.onBrokerSelected != null) return;
+      context.push('/accounts/add/${Uri.encodeComponent(broker.id)}');
+      return;
+    }
     _selectBroker(broker);
   }
 
@@ -279,10 +322,10 @@ class _BrokerRow extends StatelessWidget {
     final referencePresentation = presentation.displayAsExness;
     final semanticId = referenceBrokerSemanticId(broker);
     return SizedBox(
-      height: 72,
+      height: AccountLinkReferenceMetrics.brokerRowHeight,
       child: Row(
         children: [
-          const SizedBox(width: AppSpacing.md),
+          const SizedBox(width: AccountLinkReferenceMetrics.horizontalInset),
           _semanticKeyed(
             prefix: 'broker-mark',
             semanticId: semanticId,
@@ -292,9 +335,7 @@ class _BrokerRow extends StatelessWidget {
               displayAsExness: referencePresentation,
             ),
           ),
-          SizedBox(
-            width: referencePresentation ? AppSpacing.md : AppSpacing.sm,
-          ),
+          const SizedBox(width: AccountLinkReferenceMetrics.brokerMarkGap),
           Expanded(
             child: _semanticKeyed(
               prefix: 'broker-row',
@@ -315,14 +356,7 @@ class _BrokerRow extends StatelessWidget {
                           presentation.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style:
-                              (referencePresentation
-                                      ? AppTypography.referenceServerName
-                                      : AppTypography.titleMedium)
-                                  .copyWith(
-                                    color: AppColors.textPrimary,
-                                    height: 1.05,
-                                  ),
+                          style: AccountLinkReferenceTypography.brokerName,
                         ),
                         if (presentation.companyName case final company?) ...[
                           const SizedBox(height: AppSpacing.xs),
@@ -330,13 +364,7 @@ class _BrokerRow extends StatelessWidget {
                             company,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTypography.bodyLarge.copyWith(
-                              color: AppColors.textSecondary,
-                              fontFamily: referencePresentation
-                                  ? 'sans-serif'
-                                  : null,
-                              height: 1,
-                            ),
+                            style: AccountLinkReferenceTypography.brokerCompany,
                           ),
                         ],
                       ],
@@ -355,7 +383,7 @@ class _BrokerRow extends StatelessWidget {
               onTap: onInfo,
             ),
           ),
-          const SizedBox(width: AppSpacing.xs),
+          const SizedBox(width: 6),
         ],
       ),
     );

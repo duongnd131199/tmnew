@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 abstract final class AppColors {
   static const background = Color(0xFFFFFFFF);
+  static const accountLinkBackground = Color(0xFFF8F8F8);
+  static const accountLinkServerHeader = Color(0xFFF2F1F7);
+  static const accountLinkSegment = Color(0xFFEDEDED);
+  static const accountLinkHint = Color(0xFFC7C7CC);
   static const groupedBackground = Color(0xFFEEEDF5);
   static const surface = Color(0xFFFFFFFF);
   static const accountSelectedSurface = Color(0xFFF4F4F4);
