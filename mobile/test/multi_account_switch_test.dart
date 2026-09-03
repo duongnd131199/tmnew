@@ -331,7 +331,13 @@ void main() {
       expect(fixture.adapter.accountListCalls, 1);
       expect(find.text('Account A'), findsOneWidget);
       expect(find.text('Account B'), findsOneWidget);
-      expect(find.text('0.00 USD, Hedge'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('account-account-b')),
+          matching: find.text('0.00 USD, Hedge'),
+        ),
+        findsNothing,
+      );
       expect(find.text('USD, Hedge'), findsOneWidget);
 
       final activeRow = find.byKey(const ValueKey('account-account-a'));

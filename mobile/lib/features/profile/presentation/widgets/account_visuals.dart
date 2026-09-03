@@ -258,8 +258,8 @@ class _VantageLogoPainter extends CustomPainter {
     canvas.translate(15.5, 15.5);
     canvas.scale(.75);
     canvas.translate(-15.5, -15.5);
-    final white = Paint()..color = AppColors.textPrimary;
-    final red = Paint()..color = AppColors.negative;
+    final white = Paint()..color = AppColors.brokerVantageInk;
+    final red = Paint()..color = AppColors.brokerVantageAccent;
     canvas.drawPath(
       Path()
         ..moveTo(7, 7)

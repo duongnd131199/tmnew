@@ -82,7 +82,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('account-round-add-button')), findsOneWidget);
-      expect(find.byKey(const Key('account-broker-mark')), findsNWidgets(4));
+      expect(find.byKey(const Key('account-broker-mark')), findsNWidgets(5));
       expect(find.byKey(const Key('account-chevron-glyph')), findsOneWidget);
       expect(
         tester.getSize(find.byKey(const Key('account-round-back-button'))),

@@ -128,6 +128,45 @@ void main() {
     expect(mark.color, const Color(0xFFFFE500));
   });
 
+  testWidgets('Vantage broker mark uses the measured teal white and red logo', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: RepaintBoundary(
+              key: Key('vantage-reference-capture'),
+              child: AccountBrokerMark(brand: DemoBrokerBrand.vantage),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final captured = await _captureRgba(tester, 'vantage-reference-capture');
+    expect(captured.pixelAt(2, 2), const (4, 73, 83, 255));
+
+    var whitePixels = 0;
+    var accentPixels = 0;
+    for (var y = 0; y < captured.height; y++) {
+      for (var x = 0; x < captured.width; x++) {
+        final pixel = captured.pixelAt(x, y);
+        if (pixel.$1 >= 248 &&
+            pixel.$2 >= 248 &&
+            pixel.$3 >= 248 &&
+            pixel.$4 == 255) {
+          whitePixels++;
+        }
+        if (pixel == const (239, 77, 40, 255)) accentPixels++;
+      }
+    }
+
+    expect(whitePixels, inInclusiveRange(30, 80));
+    expect(accentPixels, greaterThanOrEqualTo(8));
+  });
+
   testWidgets(
     'MetaQuotes broker uses the reference raster instead of bank icon',
     (tester) async {
@@ -247,5 +286,38 @@ Future<({Rect bounds, int pixels})> _darkInkMetrics(
       (maxY + 1).toDouble(),
     ),
     pixels: pixels,
+  );
+}
+
+Future<
+  ({int width, int height, (int, int, int, int) Function(int x, int y) pixelAt})
+>
+_captureRgba(WidgetTester tester, String boundaryKey) async {
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(ValueKey(boundaryKey)),
+  );
+  final captured = await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1);
+    final bytes = await image.toByteData(format: ImageByteFormat.rawRgba);
+    final result = (width: image.width, height: image.height, bytes: bytes);
+    image.dispose();
+    return result;
+  });
+  if (captured == null || captured.bytes == null) {
+    throw StateError('Unable to read pixels for $boundaryKey');
+  }
+
+  return (
+    width: captured.width,
+    height: captured.height,
+    pixelAt: (int x, int y) {
+      final offset = (y * captured.width + x) * 4;
+      return (
+        captured.bytes!.getUint8(offset),
+        captured.bytes!.getUint8(offset + 1),
+        captured.bytes!.getUint8(offset + 2),
+        captured.bytes!.getUint8(offset + 3),
+      );
+    },
   );
 }

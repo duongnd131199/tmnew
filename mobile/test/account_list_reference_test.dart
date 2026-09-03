@@ -4,12 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/features/profile/presentation/screens/profile_screen.dart';
+import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
 import 'test_support/video_reference_fixtures.dart';
 
 void main() {
-  testWidgets('accounts screen keeps the established light surfaces', (
+  testWidgets('every account row keeps a white surface when selected', (
     tester,
   ) async {
     final container = await _pumpAccountsReference(tester);
@@ -36,7 +37,7 @@ void main() {
           )
           .first,
     );
-    expect(activeMaterial.color, const Color(0xFFF4F4F4));
+    expect(activeMaterial.color, const Color(0xFFFFFFFF));
     expect(inactiveMaterial.color, const Color(0xFFFFFFFF));
 
     for (final controlKey in const ['accounts-back', 'accounts-add']) {
@@ -53,6 +54,54 @@ void main() {
       expect(shape.side.color, const Color(0xFFD9D9DE));
       expect(shape.side.width, .6);
     }
+  });
+
+  testWidgets('fixed Delete account stays last and matches the reference', (
+    tester,
+  ) async {
+    final container = await _pumpAccountsReference(tester);
+    addTearDown(container.dispose);
+
+    const deleteAccountId = '28210230';
+    final deleteRow = find.byKey(const ValueKey('account-$deleteAccountId'));
+    final lastRealRow = find.byKey(ValueKey('account-${_masterAccount.id}'));
+
+    expect(deleteRow, findsOneWidget);
+    for (final copy in const [
+      'Delete',
+      '28210230 - VantageMarkets-Live 19',
+      '0.00 USD, Hedge',
+    ]) {
+      expect(
+        find.descendant(of: deleteRow, matching: find.text(copy)),
+        findsOneWidget,
+      );
+    }
+    expect(tester.getSize(deleteRow).height, 97);
+    expect(
+      tester.getTopLeft(deleteRow).dy,
+      greaterThan(tester.getTopLeft(lastRealRow).dy),
+    );
+
+    final brokerMark = tester.widget<AccountBrokerMark>(
+      find.descendant(of: deleteRow, matching: find.byType(AccountBrokerMark)),
+    );
+    expect(brokerMark.brand, DemoBrokerBrand.vantage);
+    expect(
+      tester
+          .widget<InkWell>(
+            find.descendant(of: deleteRow, matching: find.byType(InkWell)),
+          )
+          .onTap,
+      isNull,
+    );
+    expect(
+      find.descendant(
+        of: deleteRow,
+        matching: find.byType(AccountChevronRight),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('accounts copy uses the reference faces, sizes and weights', (
@@ -106,11 +155,14 @@ void main() {
       expect(text.style?.height, 1);
     }
 
+    final inactiveRow = find.byKey(ValueKey('account-${_masterAccount.id}'));
     for (final copy in const [
       '903189316 - Exness-MT5Real28',
       '0.00 USD, Hedge',
     ]) {
-      final text = tester.widget<Text>(find.text(copy));
+      final text = tester.widget<Text>(
+        find.descendant(of: inactiveRow, matching: find.text(copy)),
+      );
       expect(text.style?.color, const Color(0xFF3C3C43));
     }
   });

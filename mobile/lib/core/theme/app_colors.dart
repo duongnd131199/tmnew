@@ -62,7 +62,9 @@ abstract final class AppColors {
   static const brokerMetaquotesYellow = Color(0xFFFFD429);
   static const brokerMetaquotesBlue = Color(0xFF00A9E8);
   static const brokerYodo = Color(0xFFFFE500);
-  static const brokerVantage = Color(0xFF0B4347);
+  static const brokerVantage = Color(0xFF044953);
+  static const brokerVantageInk = Color(0xFFFFFFFF);
+  static const brokerVantageAccent = Color(0xFFEF4D28);
   static const brokerMarkInk = Color(0xFF171717);
   static const connectedIndicatorTop = Color(0xFF347EAA);
   static const connectedIndicatorBottom = Color(0xFF008FD0);

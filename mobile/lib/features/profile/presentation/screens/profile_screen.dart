@@ -9,6 +9,22 @@ import 'package:trading_mobile/features/profile/presentation/theme/account_list_
 import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
+const _fixedDeleteAccount = DemoAccountProfile(
+  id: '28210230',
+  name: 'Delete',
+  company: 'Vantage Markets',
+  server: 'VantageMarkets-Live 19',
+  accessPoint: 'Access Point #1',
+  balance: 0,
+  brand: DemoBrokerBrand.vantage,
+  historyDeposit: 0,
+  historyWithdrawal: 0,
+  historyProfit: 0,
+  historySwap: 0,
+  historyCommission: 0,
+  historyBalance: 0,
+);
+
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -77,22 +93,29 @@ class ProfileScreen extends ConsumerWidget {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.only(top: 9),
-                itemCount: ordered.length,
+                itemCount: ordered.length + 1,
                 itemBuilder: (context, index) {
-                  final account = ordered[index];
+                  final isFixedDeleteAccount = index == ordered.length;
+                  final account = isFixedDeleteAccount
+                      ? _fixedDeleteAccount
+                      : ordered[index];
                   final rowId = account.linkedAccountId ?? account.id;
-                  final isActive = rowId == activeId;
+                  final isActive = !isFixedDeleteAccount && rowId == activeId;
                   return _AccountRow(
                     key: ValueKey('account-$rowId'),
                     account: account,
-                    displayBalance: serverAccount != null && !isActive
+                    displayBalance: isFixedDeleteAccount
+                        ? account.balance
+                        : serverAccount != null && !isActive
                         ? null
                         : tradingController
                                   .stateForAccount(account.id)
                                   ?.balance ??
                               account.balance,
                     active: isActive,
-                    onTap: isActive
+                    onTap: isFixedDeleteAccount
+                        ? null
+                        : isActive
                         ? () => context.push('/account-detail')
                         : !serverMode
                         ? () {
@@ -159,7 +182,7 @@ class _AccountRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: active ? AppColors.accountSelectedSurface : AppColors.surface,
+    color: AppColors.surface,
     child: InkWell(
       onTap: onTap,
       child: SizedBox(
