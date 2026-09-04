@@ -28,6 +28,7 @@ void main() {
         child: const MaterialApp(
           home: DeviceGate(
             startupTimeout: Duration(milliseconds: 100),
+            enableDevelopmentTokenImport: true,
             child: Text('SERVER APP'),
           ),
         ),
@@ -57,6 +58,7 @@ void main() {
         child: const MaterialApp(
           home: DeviceGate(
             startupTimeout: Duration(milliseconds: 100),
+            enableDevelopmentTokenImport: true,
             child: Text('SERVER APP'),
           ),
         ),
@@ -76,7 +78,7 @@ void main() {
   });
 
   testWidgets(
-    'session revision rereads a deleted token without restarting the widget',
+    'session revision opens account login after last-account token deletion',
     (tester) async {
       final tokenStore = _MemoryTokenStore('device-token');
       final container = ProviderContainer(
@@ -108,7 +110,11 @@ void main() {
       container.read(deviceSessionRevisionProvider.notifier).advance();
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('account-login-required')), findsOneWidget);
+      expect(
+        find.byKey(const Key('existing-account-login-screen')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('broker-list-screen')), findsNothing);
       expect(find.text('SERVER APP'), findsNothing);
     },
   );
@@ -148,38 +154,43 @@ void main() {
   );
 
   testWidgets(
-    'release missing token opens the real account login flow instead of token import',
+    'missing token opens the reference Exness account login form by default',
     (tester) async {
-      var addAccountCalls = 0;
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             exV2EnabledProvider.overrideWithValue(true),
             deviceTokenStoreProvider.overrideWithValue(_MemoryTokenStore()),
           ],
-          child: MaterialApp(
-            home: DeviceGate(
-              enableDevelopmentTokenImport: false,
-              onAddAccount: () => addAccountCalls += 1,
-              child: const Text('SERVER APP'),
-            ),
-          ),
+          child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('account-login-required')), findsOneWidget);
+      expect(
+        find.byKey(const Key('existing-account-login-screen')),
+        findsOneWidget,
+      );
+      expect(find.text('Exness Technologies Ltd'), findsOneWidget);
+      expect(find.text('Exness-MT5Trial5'), findsOneWidget);
+      expect(
+        find.byKey(const Key('existing-account-login-field')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('existing-account-password-field')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('broker-list-screen')), findsNothing);
+      expect(
+        find.byKey(const Key('account-password-login-screen')),
+        findsNothing,
+      );
       expect(
         find.byKey(const Key('dev-device-token-import-screen')),
         findsNothing,
       );
-      expect(find.text('Đăng nhập'), findsOneWidget);
-
-      await tester.tap(find.text('Đăng nhập'));
-      await tester.pumpAndSettle();
-
-      expect(addAccountCalls, 1);
-      expect(find.text('SERVER APP'), findsOneWidget);
+      expect(find.text('SERVER APP'), findsNothing);
     },
   );
 
@@ -364,48 +375,10 @@ void main() {
     expect(find.text('SERVER APP'), findsNothing);
   });
 
-  testWidgets('rejected device token returns to token activation explicitly', (
-    tester,
-  ) async {
-    final store = _MemoryTokenStore('expired-token');
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          exV2EnabledProvider.overrideWithValue(true),
-          deviceTokenStoreProvider.overrideWithValue(store),
-          exV2AccountProvider.overrideWithBuild(
-            (ref, controller) async => throw const ExV2RequestFailure(
-              statusCode: 401,
-              code: 'INVALID_DEVICE_TOKEN',
-              message: 'Invalid device token',
-            ),
-          ),
-        ],
-        child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(
-      find.byKey(const Key('device-authentication-error')),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Đăng nhập lại'));
-    await tester.pumpAndSettle();
-
-    expect(await store.read(), isNull);
-    expect(
-      find.byKey(const Key('dev-device-token-import-screen')),
-      findsOneWidget,
-    );
-    expect(find.text('SERVER APP'), findsNothing);
-  });
-
   testWidgets(
-    'release rejected token deletes it and continues to real account login',
+    'development mode rejected token returns to token activation explicitly',
     (tester) async {
       final store = _MemoryTokenStore('expired-token');
-      var addAccountCalls = 0;
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -419,11 +392,10 @@ void main() {
               ),
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: DeviceGate(
-              enableDevelopmentTokenImport: false,
-              onAddAccount: () => addAccountCalls += 1,
-              child: const Text('SERVER APP'),
+              enableDevelopmentTokenImport: true,
+              child: Text('SERVER APP'),
             ),
           ),
         ),
@@ -438,17 +410,67 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(await store.read(), isNull);
-      expect(find.byKey(const Key('account-login-required')), findsOneWidget);
+      expect(
+        find.byKey(const Key('dev-device-token-import-screen')),
+        findsOneWidget,
+      );
+      expect(find.text('SERVER APP'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'release rejected token deletes it and opens account password login',
+    (tester) async {
+      final store = _MemoryTokenStore('expired-token');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            exV2EnabledProvider.overrideWithValue(true),
+            deviceTokenStoreProvider.overrideWithValue(store),
+            exV2AccountProvider.overrideWithBuild(
+              (ref, controller) async => throw const ExV2RequestFailure(
+                statusCode: 401,
+                code: 'INVALID_DEVICE_TOKEN',
+                message: 'Invalid device token',
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            home: DeviceGate(
+              enableDevelopmentTokenImport: false,
+              child: Text('SERVER APP'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('device-authentication-error')),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Đăng nhập lại'));
+      await tester.pumpAndSettle();
+
+      expect(await store.read(), isNull);
+      expect(
+        find.byKey(const Key('existing-account-login-screen')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('existing-account-login-field')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('existing-account-password-field')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('broker-list-screen')), findsNothing);
       expect(
         find.byKey(const Key('dev-device-token-import-screen')),
         findsNothing,
       );
-
-      await tester.tap(find.text('Đăng nhập'));
-      await tester.pumpAndSettle();
-
-      expect(addAccountCalls, 1);
-      expect(find.text('SERVER APP'), findsOneWidget);
+      expect(find.text('SERVER APP'), findsNothing);
     },
   );
 

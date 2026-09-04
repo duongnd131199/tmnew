@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trading_mobile/app/router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_theme.dart';
+import 'package:trading_mobile/features/account_link/presentation/screens/existing_account_login_screen.dart';
 import 'package:trading_mobile/features/account_sessions/application/account_removal_service.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
@@ -17,7 +17,7 @@ class DeviceGate extends ConsumerStatefulWidget {
     required this.child,
     this.onAddAccount,
     this.startupTimeout = const Duration(seconds: 20),
-    this.enableDevelopmentTokenImport = kDebugMode,
+    this.enableDevelopmentTokenImport = false,
     super.key,
   });
 
@@ -145,12 +145,29 @@ class _DeviceGateState extends ConsumerState<DeviceGate> {
               onActivated: _completeTokenActivation,
             ),
           )
-        : _AccountBootstrapAccountless(
-            key: const Key('account-login-required'),
-            message: 'Hãy đăng nhập tài khoản giao dịch trên thiết bị này.',
-            buttonLabel: 'Đăng nhập',
-            onAddAccount: _openAddAccount,
+        : MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light,
+            home: ExistingAccountLoginScreen(
+              brokerId: ref.read(exV2LoginConfigProvider).brokerId,
+              initialAuthentication: true,
+              onAuthenticated: _completeAccountAuthentication,
+            ),
           );
+  }
+
+  void _completeAccountAuthentication() {
+    if (!mounted) return;
+    setState(() {
+      _activated = true;
+      _accountlessUnlocked = false;
+    });
+    if (ref.read(exV2AccountProvider).isLoading) {
+      _armBootstrapTimeout();
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) appRouter.go('/trade');
+    });
   }
 
   void _completeTokenActivation() {

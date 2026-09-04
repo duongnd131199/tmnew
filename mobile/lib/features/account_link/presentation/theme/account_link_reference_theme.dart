@@ -89,6 +89,14 @@ abstract final class AccountLinkReferenceTypography {
     height: 1,
   );
 
+  static const inputValue = TextStyle(
+    color: AppColors.primary,
+    fontFamily: _family,
+    fontSize: 16.5,
+    fontWeight: FontWeight.w500,
+    height: 1,
+  );
+
   static const rowHint = TextStyle(
     color: AppColors.accountLinkHint,
     fontFamily: _family,

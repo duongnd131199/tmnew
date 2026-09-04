@@ -140,7 +140,12 @@ Future<void> _pumpGate(
           (ref, controller) async => account,
         ),
       ],
-      child: const MaterialApp(home: DeviceGate(child: Text('SERVER APP'))),
+      child: const MaterialApp(
+        home: DeviceGate(
+          enableDevelopmentTokenImport: true,
+          child: Text('SERVER APP'),
+        ),
+      ),
     ),
   );
   await tester.pumpAndSettle();

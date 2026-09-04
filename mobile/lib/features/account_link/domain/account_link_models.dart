@@ -78,6 +78,7 @@ final class LinkedTradingAccount {
     required this.isActive,
     this.displayName,
     this.currency,
+    this.balance = 0,
     this.status,
   });
 
@@ -94,6 +95,7 @@ final class LinkedTradingAccount {
       isActive: _requiredBool(json, 'isActive'),
       displayName: _optionalString(json, 'displayName'),
       currency: _optionalString(json, 'currency'),
+      balance: _optionalDouble(json, 'balance') ?? 0,
       status: _optionalString(json, 'status'),
     );
   }
@@ -107,6 +109,7 @@ final class LinkedTradingAccount {
   final bool isActive;
   final String? displayName;
   final String? currency;
+  final double balance;
   final String? status;
 
   AccountLinkJson toJson() => {
@@ -119,6 +122,7 @@ final class LinkedTradingAccount {
     'isActive': isActive,
     'displayName': ?displayName,
     'currency': ?currency,
+    'balance': balance,
     'status': ?status,
   };
 }
@@ -199,6 +203,11 @@ String _requiredString(AccountLinkJson json, String key) {
 String? _optionalString(AccountLinkJson json, String key) {
   final value = json[key];
   return value is String && value.trim().isNotEmpty ? value : null;
+}
+
+double? _optionalDouble(AccountLinkJson json, String key) {
+  final value = json[key];
+  return value is num ? value.toDouble() : null;
 }
 
 bool _requiredBool(AccountLinkJson json, String key) {

@@ -334,11 +334,11 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('account-account-b')),
-          matching: find.text('0.00 USD, Hedge'),
+          matching: find.text('200.00 USD, Hedge'),
         ),
-        findsNothing,
+        findsOneWidget,
       );
-      expect(find.text('USD, Hedge'), findsOneWidget);
+      expect(find.text('USD, Hedge'), findsNothing);
 
       final activeRow = find.byKey(const ValueKey('account-account-a'));
       final inactiveRow = find.byKey(const ValueKey('account-account-b'));
@@ -886,6 +886,7 @@ const _linkedA = <String, Object?>{
   'isActive': true,
   'displayName': 'Account A',
   'currency': 'USD',
+  'balance': 100,
   'status': 'active',
 };
 
@@ -899,6 +900,7 @@ const _linkedB = <String, Object?>{
   'isActive': false,
   'displayName': 'Account B',
   'currency': 'USD',
+  'balance': 200,
   'status': 'active',
 };
 

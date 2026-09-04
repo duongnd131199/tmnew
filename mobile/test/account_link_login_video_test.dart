@@ -55,6 +55,36 @@ void main() {
   });
 
   testWidgets(
+    'entered login and password values render blue with medium weight',
+    (tester) async {
+      await _openForm(tester, repository: _LoginRepository());
+
+      await tester.enterText(
+        find.byKey(const Key('existing-account-login-field')),
+        '124685005',
+      );
+      await tester.enterText(
+        find.byKey(const Key('existing-account-password-field')),
+        'secret-password',
+      );
+      await tester.pump();
+
+      const referenceValueColor = Color(0xFF007AFF);
+      final loginField = tester.widget<TextField>(
+        find.byKey(const Key('existing-account-login-field')),
+      );
+      final passwordField = tester.widget<TextField>(
+        find.byKey(const Key('existing-account-password-field')),
+      );
+
+      expect(loginField.style?.color, referenceValueColor);
+      expect(passwordField.style?.color, referenceValueColor);
+      expect(loginField.style?.fontWeight, FontWeight.w500);
+      expect(passwordField.style?.fontWeight, FontWeight.w500);
+    },
+  );
+
+  testWidgets(
     'reference remembered route keeps the Exness server presentation',
     (tester) async {
       await _openForm(

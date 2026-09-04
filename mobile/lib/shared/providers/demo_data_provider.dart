@@ -824,7 +824,7 @@ DemoAccountProfile _mapLinkedAccount(
     company: presentation.companyName,
     server: presentation.serverName,
     accessPoint: '',
-    balance: 0,
+    balance: account.balance,
     brand: brand,
     currency: account.currency ?? 'USD',
     historyDeposit: 0,

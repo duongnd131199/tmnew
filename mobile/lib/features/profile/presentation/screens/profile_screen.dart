@@ -104,14 +104,11 @@ class ProfileScreen extends ConsumerWidget {
                   return _AccountRow(
                     key: ValueKey('account-$rowId'),
                     account: account,
-                    displayBalance: isFixedDeleteAccount
-                        ? account.balance
-                        : serverAccount != null && !isActive
-                        ? null
-                        : tradingController
-                                  .stateForAccount(account.id)
-                                  ?.balance ??
-                              account.balance,
+                    displayBalance:
+                        tradingController
+                            .stateForAccount(account.id)
+                            ?.balance ??
+                        account.balance,
                     active: isActive,
                     onTap: isFixedDeleteAccount
                         ? null
@@ -176,7 +173,7 @@ class _AccountRow extends StatelessWidget {
   });
 
   final DemoAccountProfile account;
-  final double? displayBalance;
+  final double displayBalance;
   final bool active;
   final VoidCallback? onTap;
 
@@ -226,10 +223,8 @@ class _AccountRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    displayBalance == null
-                        ? '${account.currency}, ${account.mode}'
-                        : '${_formatAccountBalance(displayBalance!)} '
-                              '${account.currency}, ${account.mode}',
+                    '${_formatAccountBalance(displayBalance)} '
+                    '${account.currency}, ${account.mode}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: active

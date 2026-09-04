@@ -13,6 +13,7 @@ import 'package:trading_mobile/features/account_link/domain/account_link_models.
 import 'package:trading_mobile/features/account_link/presentation/theme/account_link_reference_theme.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/account_link_visuals.dart';
 import 'package:trading_mobile/features/account_link/presentation/widgets/reference_server_catalog.dart';
+import 'package:trading_mobile/features/account_login/application/account_password_login_controller.dart';
 import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 
 class ExistingAccountLoginScreen extends ConsumerStatefulWidget {
@@ -20,12 +21,16 @@ class ExistingAccountLoginScreen extends ConsumerStatefulWidget {
     required this.brokerId,
     this.initialLogin,
     this.initialServerId,
+    this.initialAuthentication = false,
+    this.onAuthenticated,
     super.key,
-  });
+  }) : assert(!initialAuthentication || onAuthenticated != null);
 
   final String brokerId;
   final String? initialLogin;
   final String? initialServerId;
+  final bool initialAuthentication;
+  final VoidCallback? onAuthenticated;
 
   @override
   ConsumerState<ExistingAccountLoginScreen> createState() =>
@@ -59,20 +64,39 @@ class _ExistingAccountLoginScreenState
   Widget build(BuildContext context) {
     final asyncState = ref.watch(accountLinkControllerProvider);
     final state = asyncState.value ?? const AccountLinkState();
-    final routeAuthorized = state.selectedBroker?.id == widget.brokerId;
+    final authenticationState = widget.initialAuthentication
+        ? ref.watch(accountPasswordLoginControllerProvider)
+        : const AccountPasswordLoginState();
+    final routeAuthorized =
+        widget.initialAuthentication ||
+        state.selectedBroker?.id == widget.brokerId;
     final formState = routeAuthorized ? state : const AccountLinkState();
     final referencePresentation = usesReferenceServerPresentation(
       widget.brokerId,
     );
     final visibleBroker =
-        formState.selectedBroker ?? referenceBrokerFallback(widget.brokerId);
+        (widget.initialAuthentication ? null : formState.selectedBroker) ??
+        referenceBrokerFallback(widget.brokerId);
     final visibleServerName =
-        formState.selectedServer?.name ??
+        (widget.initialAuthentication
+            ? null
+            : formState.selectedServer?.name) ??
         (referencePresentation
             ? referenceDefaultServerDisplayName
             : 'Chọn máy chủ');
-    _synchronize(_loginController, formState.login);
-    _synchronize(_passwordController, formState.password);
+    if (!widget.initialAuthentication) {
+      _synchronize(_loginController, formState.login);
+      _synchronize(_passwordController, formState.password);
+    }
+    final canSubmit = widget.initialAuthentication
+        ? _AccountLoginMode.tradingAccount == _loginMode &&
+              RegExp(r'^\d+$').hasMatch(_loginController.text.trim()) &&
+              _passwordController.text.isNotEmpty
+        : formState.canSubmit;
+    final busy = widget.initialAuthentication
+        ? authenticationState.phase == AccountPasswordLoginPhase.submitting
+        : state.phase == AccountLinkPhase.submitting ||
+              state.phase == AccountLinkPhase.activating;
 
     return Scaffold(
       key: const Key('existing-account-login-screen'),
@@ -126,7 +150,7 @@ class _ExistingAccountLoginScreenState
                       label: 'Máy chủ',
                       value: visibleServerName,
                       referencePresentation: referencePresentation,
-                      onTap: !routeAuthorized
+                      onTap: !routeAuthorized || widget.initialAuthentication
                           ? null
                           : () => context.push(
                               '/accounts/add/${Uri.encodeComponent(widget.brokerId)}/servers',
@@ -153,7 +177,7 @@ class _ExistingAccountLoginScreenState
                         autocorrect: false,
                         enableSuggestions: false,
                         textAlign: TextAlign.end,
-                        style: AccountLinkReferenceTypography.rowValue,
+                        style: AccountLinkReferenceTypography.inputValue,
                         decoration: InputDecoration(
                           hintText:
                               _loginMode == _AccountLoginMode.tradingAccount
@@ -167,9 +191,11 @@ class _ExistingAccountLoginScreenState
                           contentPadding: EdgeInsets.zero,
                           hintStyle: AccountLinkReferenceTypography.rowHint,
                         ),
-                        onChanged: ref
-                            .read(accountLinkControllerProvider.notifier)
-                            .updateLogin,
+                        onChanged: widget.initialAuthentication
+                            ? (_) => setState(() {})
+                            : ref
+                                  .read(accountLinkControllerProvider.notifier)
+                                  .updateLogin,
                       ),
                     ),
                     _InputRow(
@@ -183,7 +209,7 @@ class _ExistingAccountLoginScreenState
                         autocorrect: false,
                         enableSuggestions: false,
                         textAlign: TextAlign.end,
-                        style: AccountLinkReferenceTypography.rowValue,
+                        style: AccountLinkReferenceTypography.inputValue,
                         decoration: const InputDecoration(
                           hintText: 'Nhập mật khẩu',
                           border: InputBorder.none,
@@ -194,11 +220,13 @@ class _ExistingAccountLoginScreenState
                           contentPadding: EdgeInsets.zero,
                           hintStyle: AccountLinkReferenceTypography.rowHint,
                         ),
-                        onChanged: ref
-                            .read(accountLinkControllerProvider.notifier)
-                            .updatePassword,
+                        onChanged: widget.initialAuthentication
+                            ? (_) => setState(() {})
+                            : ref
+                                  .read(accountLinkControllerProvider.notifier)
+                                  .updatePassword,
                         onSubmitted: (_) {
-                          if (routeAuthorized && formState.canSubmit) {
+                          if (routeAuthorized && canSubmit) {
                             unawaited(_submit());
                           }
                         },
@@ -230,10 +258,8 @@ class _ExistingAccountLoginScreenState
               ),
             ),
             _LoginAction(
-              enabled: routeAuthorized && formState.canSubmit,
-              busy:
-                  state.phase == AccountLinkPhase.submitting ||
-                  state.phase == AccountLinkPhase.activating,
+              enabled: routeAuthorized && canSubmit,
+              busy: busy,
               onPressed: _submit,
             ),
           ],
@@ -243,6 +269,14 @@ class _ExistingAccountLoginScreenState
   }
 
   Future<void> _prepare() async {
+    if (widget.initialAuthentication) {
+      final initialLogin = widget.initialLogin?.trim();
+      if (initialLogin != null && initialLogin.isNotEmpty) {
+        _loginController.text = initialLogin;
+        if (mounted) setState(() {});
+      }
+      return;
+    }
     final controller = ref.read(accountLinkControllerProvider.notifier);
     var state = await ref.read(accountLinkControllerProvider.future);
     if (!mounted) return;
@@ -314,6 +348,30 @@ class _ExistingAccountLoginScreenState
   }
 
   Future<void> _submit() async {
+    if (widget.initialAuthentication) {
+      FocusScope.of(context).unfocus();
+      final accepted = await ref
+          .read(accountPasswordLoginControllerProvider.notifier)
+          .submit(
+            login: _loginController.text,
+            password: _passwordController.text,
+          );
+      if (!mounted) return;
+      final current = ref.read(accountPasswordLoginControllerProvider);
+      if (accepted) {
+        _passwordController.clear();
+        widget.onAuthenticated?.call();
+        return;
+      }
+      if (current.errorCode == 'invalid_credentials') {
+        _passwordController.clear();
+      }
+      if (current.errorMessage case final message?) {
+        _showFeedback(message);
+      }
+      setState(() {});
+      return;
+    }
     final state = ref.read(accountLinkControllerProvider).value;
     if (state?.selectedBroker?.id != widget.brokerId) return;
     FocusScope.of(context).unfocus();
