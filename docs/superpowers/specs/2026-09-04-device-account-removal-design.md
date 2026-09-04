@@ -36,8 +36,9 @@ tính năng như một thao tác xóa hoặc revoke phía máy chủ.
 - Không thêm thao tác vuốt hoặc nhấn giữ trong danh sách tài khoản.
 - Người dùng chọn tài khoản để làm nó thành tài khoản hoạt động, mở chi tiết
   tài khoản, cuộn xuống và bấm **Xóa tài khoản**.
-- Dòng account trình bày cố định có tên `Delete` ở cuối danh sách được loại bỏ;
-  danh sách chỉ chứa tài khoản thật chưa bị gỡ trên thiết bị.
+- Dòng account trình bày cố định có tên `Delete` luôn được giữ ở cuối danh
+  sách và không phản hồi thao tác chạm. Đây không phải tài khoản từ API.
+- Các hàng tài khoản thật đã bị gỡ khỏi thiết bị không còn xuất hiện.
 
 ### Xác nhận
 
@@ -218,7 +219,7 @@ kiểm tra dialog và điều hướng mà không gọi mạng.
 - nút Xóa gọi đúng một lần và chặn double tap;
 - kết quả switched đóng detail về account list;
 - failure giữ màn hình và hiện safe SnackBar;
-- danh sách không còn dòng `Delete` cố định.
+- dòng `Delete` cố định luôn ở cuối danh sách và không có hành động chạm.
 
 ### Verification
 

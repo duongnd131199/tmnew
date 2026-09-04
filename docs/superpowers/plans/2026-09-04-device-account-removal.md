@@ -17,7 +17,7 @@
 - Do not store or log passwords, device tokens, bootstrap payloads, or financial data in the removed-account store.
 - Preserve server-authoritative `GET /mobile/accounts` ordering and `PUT /mobile/accounts/{accountId}/activate` semantics.
 - Enter removal only through **Xóa tài khoản** in account detail; do not add swipe or long-press deletion.
-- Preserve unrelated dirty-worktree changes; the existing white account-row styling remains intact while the fixed fake `Delete` row is removed.
+- Preserve unrelated dirty-worktree changes; the existing white account-row styling and fixed passive `Delete` row remain intact.
 - Every production behavior starts with a failing test and a verified RED result.
 
 ---
@@ -337,7 +337,7 @@ Run: `cd mobile && flutter test test/account_removal_service_test.dart test/devi
 
 Expected: all workflow tests pass.
 
-### Task 4: Wire the account-detail confirmation UI and remove the fake row
+### Task 4: Wire the account-detail confirmation UI and preserve the fixed row
 
 **Files:**
 - Modify: `mobile/lib/features/profile/presentation/screens/account_detail_screen.dart`
@@ -348,7 +348,7 @@ Expected: all workflow tests pass.
 
 **Interfaces:**
 - Consumes: `accountRemovalServiceProvider` and `AccountRemovalResult`.
-- Produces: confirmation dialog, loading/double-submit guard, switched navigation, safe failure feedback, and a real-account-only list.
+- Produces: confirmation dialog, loading/double-submit guard, switched navigation, safe failure feedback, filtered real accounts, and the fixed passive `Delete` row.
 
 - [ ] **Step 1: Write failing widget tests**
 
@@ -362,32 +362,33 @@ expect(find.text('Xóa'), findsOneWidget);
 
 Use an overridden fake `AccountRemovalService` to prove `Hủy` makes zero calls, two quick taps on the confirmed action make one call, `switched` pops the detail route, and a thrown `StateError` keeps the screen visible with `Không thể xóa tài khoản khỏi thiết bị. Thử lại.`.
 
-Replace the fixed-row test with a real-list test asserting no `account-28210230`, no `Delete` text, and exactly the supplied real account rows.
+Keep the fixed-row test asserting `account-28210230` stays last, matches the Vantage reference, has no chevron, and has no tap action.
 
 - [ ] **Step 2: Run widget tests and verify RED**
 
 Run: `cd mobile && flutter test test/account_detail_screen_test.dart test/account_list_reference_test.dart`
 
-Expected: the delete row does nothing and the fixed `Delete` account is still rendered.
+Expected: the delete row in account detail does nothing; the fixed passive `Delete` account remains rendered.
 
 - [ ] **Step 3: Implement the UI**
 
 Connect `account-delete-row` to a private async confirmation method. Use `AlertDialog`, `TextButton`, `AppColors.destructive`, and existing theme typography; keep `barrierDismissible: true`. After confirmation, set a local `_removalInFlight` flag before awaiting the service. On `switched`, call `context.pop()`; on `signedOut`, allow `DeviceGate` to replace the app. On error, show a SnackBar using the EX V2 safe message when available and the literal generic message otherwise.
 
-Remove `_fixedDeleteAccount`, change the list `itemCount` back to `ordered.length`, and render `ordered[index]` directly. Keep the user-owned `AppColors.surface` row background change.
+Keep `_fixedDeleteAccount`, render it after all real accounts, and leave its `onTap` null. Keep the user-owned `AppColors.surface` row background change.
 
 Replace the fixed-row documentation with:
 
 ```markdown
 ## States
 
-- Empty: không hiển thị hàng tài khoản nào.
-- Success: chỉ hiển thị tài khoản thật chưa bị gỡ trên thiết bị.
+- Empty: chỉ hiển thị khối `Delete` mặc định.
+- Success: hiển thị tài khoản thật chưa bị gỡ, sau đó là khối `Delete` mặc định.
 
 ## Interactions
 
 - Chạm tài khoản active mở chi tiết; dòng **Xóa tài khoản** trong chi tiết mở xác nhận gỡ khỏi thiết bị.
 - Sau khi gỡ, account không còn trong list; nếu còn account khác app tự chuyển sang account đầu tiên.
+- Khối `Delete` mặc định luôn ở cuối và không có hành động chạm.
 ```
 
 - [ ] **Step 4: Run widget tests and verify GREEN**
@@ -438,4 +439,4 @@ Use an available Android emulator without clearing application data. Verify A/B 
 
 - [ ] **Step 5: Review scope and hand off**
 
-Run: `git diff --name-only` and inspect every changed file. Confirm there is no server delete call, secret, fixed fake `Delete` row, or unrelated source edit. Do not commit user-owned pre-existing changes unless the user explicitly requests a combined commit.
+Run: `git diff --name-only` and inspect every changed file. Confirm there is no server delete call, secret, or unrelated source edit; the fixed passive `Delete` row must remain. Do not commit user-owned pre-existing changes unless the user explicitly requests a combined commit.
