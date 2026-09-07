@@ -35,6 +35,7 @@ Future<ProviderScope> createBootstrapScope({
       marketApiConfigProvider.overrideWithValue(MarketApiConfig.production),
       exV2EnabledProvider.overrideWithValue(true),
       exV2RealtimeEnabledProvider.overrideWithValue(true),
+      exV2FastAccountSummarySyncProvider.overrideWithValue(true),
       chartViewSessionStoreProvider.overrideWithValue(chartViewSessionStore),
       chartViewSessionSeedProvider.overrideWithValue(chartViewSession),
     ],

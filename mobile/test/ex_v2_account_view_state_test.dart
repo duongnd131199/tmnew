@@ -19,7 +19,59 @@ void main() {
     expect(state.deals.single.entry, 'in');
   });
 
-  test('live quote updates display profit equity and free margin', () {
+  test('bootstrap maps authoritative valuation into its matching position', () {
+    final state = ExV2AccountViewState.fromBootstrap(
+      ExV2Bootstrap.fromJson(
+        _bootstrapFor(
+          profit: 35.79,
+          positions: [_position(symbol: 'BTCUSD', entryPrice: 79768.46)],
+          positionValuations: const [
+            <String, Object?>{
+              'positionId': 'position-1',
+              'symbol': 'BTCUSD',
+              'currentPrice': 79911.64,
+              'floatingProfit': 35.79,
+            },
+          ],
+        ),
+      ),
+    );
+
+    expect(state.positions.single.currentPrice, 79911.64);
+    expect(state.positions.single.profit, 35.79);
+    expect(state.liveValuationPositionIds, {'position-1'});
+    expect(state.hasLiveValuation, isTrue);
+  });
+
+  test('public quote cannot overwrite an authoritative position valuation', () {
+    final state = ExV2AccountViewState.fromBootstrap(
+      ExV2Bootstrap.fromJson(
+        _bootstrapFor(
+          profit: 35.79,
+          positions: [_position(symbol: 'BTCUSD', entryPrice: 79768.46)],
+          positionValuations: const [
+            <String, Object?>{
+              'positionId': 'position-1',
+              'symbol': 'BTCUSD',
+              'currentPrice': 79911.64,
+              'floatingProfit': 35.79,
+            },
+          ],
+        ),
+      ),
+    );
+
+    final updated = state.withMarketPrice(
+      symbol: 'BTCUSD',
+      bid: 80000,
+      ask: 80001,
+    );
+
+    expect(updated.positions.single.currentPrice, 79911.64);
+    expect(updated.positions.single.profit, 35.79);
+  });
+
+  test('public quote updates price without calculating position profit', () {
     final state = ExV2AccountViewState.fromBootstrap(
       ExV2Bootstrap.fromJson(_bootstrap),
     );
@@ -31,14 +83,17 @@ void main() {
     );
 
     expect(updated.positions.single.currentPrice, 3302);
-    expect(updated.positions.single.profit, closeTo(15, 0.0001));
+    expect(updated.positions.single.profit, 0);
+    expect(updated.liveValuationPositionIds, isEmpty);
     expect(updated.balance, 5000);
-    expect(updated.profit, closeTo(15, 0.0001));
-    expect(updated.equity, closeTo(5015, 0.0001));
-    expect(updated.freeMargin, closeTo(5015, 0.0001));
+    expect(updated.profit, 0);
+    expect(updated.equity, 5000);
+    expect(updated.margin, 0);
+    expect(updated.freeMargin, 5000);
+    expect(updated.marginLevel, 0);
   });
 
-  test('aggregate live valuation waits for every open position symbol', () {
+  test('public quotes never become authoritative position valuations', () {
     final state = ExV2AccountViewState.fromBootstrap(
       ExV2Bootstrap.fromJson(<String, Object?>{
         ..._bootstrap,
@@ -85,10 +140,10 @@ void main() {
       ask: 60011,
     );
 
-    expect(allSymbols.hasLiveValuation, isTrue);
-    expect(allSymbols.profit, closeTo(25, 0.0001));
-    expect(allSymbols.equity, closeTo(5025, 0.0001));
-    expect(allSymbols.freeMargin, closeTo(5025, 0.0001));
+    expect(allSymbols.hasLiveValuation, isFalse);
+    expect(allSymbols.profit, 75);
+    expect(allSymbols.equity, 5075);
+    expect(allSymbols.freeMargin, 5075);
   });
 
   test('refresh preserves prices only for positions with a live valuation', () {
@@ -105,9 +160,17 @@ void main() {
               volume: 0.01,
             ),
           ],
+          positionValuations: const [
+            <String, Object?>{
+              'positionId': 'position-1',
+              'symbol': 'XAUUSD+',
+              'currentPrice': 3302,
+              'floatingProfit': 15,
+            },
+          ],
         ),
       ),
-    ).withMarketPrice(symbol: 'XAUUSD+', bid: 3302, ask: 3302.2);
+    );
     final refreshed = ExV2AccountViewState.fromBootstrap(
       ExV2Bootstrap.fromJson(
         _bootstrapFor(
@@ -137,8 +200,21 @@ void main() {
 
   test('refresh does not reuse valuation readiness for a changed identity', () {
     final initial = ExV2AccountViewState.fromBootstrap(
-      ExV2Bootstrap.fromJson(_bootstrap),
-    ).withMarketPrice(symbol: 'XAUUSD+', bid: 3302, ask: 3302.2);
+      ExV2Bootstrap.fromJson(
+        _bootstrapFor(
+          profit: 15,
+          positions: [_position()],
+          positionValuations: const [
+            <String, Object?>{
+              'positionId': 'position-1',
+              'symbol': 'XAUUSD+',
+              'currentPrice': 3302,
+              'floatingProfit': 15,
+            },
+          ],
+        ),
+      ),
+    );
     final refreshed = ExV2AccountViewState.fromBootstrap(
       ExV2Bootstrap.fromJson(
         _bootstrapFor(
@@ -161,8 +237,21 @@ void main() {
     'refresh never carries valuation across accounts with overlapping ids',
     () {
       final initial = ExV2AccountViewState.fromBootstrap(
-        ExV2Bootstrap.fromJson(_bootstrap),
-      ).withMarketPrice(symbol: 'XAUUSD+', bid: 3302, ask: 3302.2);
+        ExV2Bootstrap.fromJson(
+          _bootstrapFor(
+            profit: 15,
+            positions: [_position()],
+            positionValuations: const [
+              <String, Object?>{
+                'positionId': 'position-1',
+                'symbol': 'XAUUSD+',
+                'currentPrice': 3302,
+                'floatingProfit': 15,
+              },
+            ],
+          ),
+        ),
+      );
       final refreshed = ExV2AccountViewState.fromBootstrap(
         ExV2Bootstrap.fromJson(
           _bootstrapFor(
@@ -179,12 +268,52 @@ void main() {
       expect(refreshed.profit, 10);
     },
   );
+
+  test('a newer authoritative valuation replaces a preserved older one', () {
+    final initial = ExV2AccountViewState.fromBootstrap(
+      ExV2Bootstrap.fromJson(
+        _bootstrapFor(
+          profit: 15,
+          positions: [_position()],
+          positionValuations: const [
+            <String, Object?>{
+              'positionId': 'position-1',
+              'symbol': 'XAUUSD+',
+              'currentPrice': 3302,
+              'floatingProfit': 15,
+            },
+          ],
+        ),
+      ),
+    );
+    final refreshed = ExV2AccountViewState.fromBootstrap(
+      ExV2Bootstrap.fromJson(
+        _bootstrapFor(
+          profit: 25,
+          positions: [_position()],
+          positionValuations: const [
+            <String, Object?>{
+              'positionId': 'position-1',
+              'symbol': 'XAUUSD+',
+              'currentPrice': 3303,
+              'floatingProfit': 25,
+            },
+          ],
+        ),
+      ),
+    ).preserveLiveValuationFrom(initial);
+
+    expect(refreshed.positions.single.currentPrice, 3303);
+    expect(refreshed.positions.single.profit, 25);
+    expect(refreshed.liveValuationPositionIds, {'position-1'});
+  });
 }
 
 Map<String, Object?> _bootstrapFor({
   String accountId = 'account-1',
   required double profit,
   required List<Map<String, Object?>> positions,
+  List<Map<String, Object?>>? positionValuations,
 }) => <String, Object?>{
   ..._bootstrap,
   'activeAccount': <String, Object?>{
@@ -197,6 +326,7 @@ Map<String, Object?> _bootstrapFor({
     'profit': profit,
     'equity': 5000 + profit,
     'freeMargin': 5000 + profit,
+    'positionValuations': ?positionValuations,
   },
   'positions': positions,
 };

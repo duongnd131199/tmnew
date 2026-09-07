@@ -51,6 +51,7 @@ abstract final class ExV2AccountProfileMapper {
 
   static DemoAccountProfile map(ExV2AccountViewState state) {
     final account = state.bootstrap.account;
+    final authoritativeBalance = state.bootstrap.summary.balance;
     final historySummary = state.displayHistorySummary;
     final presentation = metadata(
       state.settings,
@@ -63,7 +64,7 @@ abstract final class ExV2AccountProfileMapper {
       company: presentation.companyName,
       server: presentation.tradingServer,
       accessPoint: presentation.accessPoint,
-      balance: state.balance,
+      balance: authoritativeBalance,
       brand: presentation.brand,
       currency: account.currency,
       mode: presentation.accountMode,
@@ -73,7 +74,7 @@ abstract final class ExV2AccountProfileMapper {
       historyProfit: historySummary.realizedProfit,
       historySwap: historySummary.swap,
       historyCommission: historySummary.commission,
-      historyBalance: state.balance,
+      historyBalance: authoritativeBalance,
       isDemo: true,
     );
   }

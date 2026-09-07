@@ -10,6 +10,10 @@ abstract final class TabReferenceMetrics {
   static const devicePixelRatio = 1.5;
   static const topSafeInset = 24.0;
 
+  // Video 3 was captured at 384 logical pixels. Trade uses this width as its
+  // own visual canvas so wider iPhones preserve the recorded proportions.
+  static const tradeViewportWidth = 384.0;
+
   static const bottomNavigationHeight = 79.0;
   static const bottomNavigationFadeHeight = 103.0;
   static const bottomNavigationLeftInset = 18.6666666667;

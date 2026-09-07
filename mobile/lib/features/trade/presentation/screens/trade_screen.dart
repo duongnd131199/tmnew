@@ -10,16 +10,17 @@ import 'package:trading_mobile/core/theme/reference_typography_profile.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
+import 'package:trading_mobile/features/chart/application/chart_timeframe_session.dart';
 import 'package:trading_mobile/features/chart/presentation/navigation/chart_navigation.dart';
 import 'package:trading_mobile/features/trade/presentation/trade_formatters.dart';
+import 'package:trading_mobile/features/trade/presentation/widgets/position_actions_dialog.dart';
 import 'package:trading_mobile/features/trade/presentation/widgets/position_bulk_actions_dialog.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
 import 'package:trading_mobile/shared/widgets/mt_tab_header_fade.dart';
+import 'package:trading_mobile/shared/widgets/mt5_toolbar_icons.dart';
 import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
-
-enum _PositionMenuResult { bulk }
 
 String _formatTradeNumber(double value, {int fractionDigits = 2}) {
   final parts = value.abs().toStringAsFixed(fractionDigits).split('.');
@@ -64,11 +65,18 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
   Widget build(BuildContext context) {
     final positions = ref.watch(demoPositionsProvider);
     final pendingOrders = ref.watch(demoPendingOrdersProvider);
+    final hasActiveOrders = positions.isNotEmpty || pendingOrders.isNotEmpty;
     final account = ref.watch(demoAccountProvider);
     final marketSymbols = ref.watch(marketSymbolsProvider);
-    final defaultSymbol = marketSymbols.isEmpty
-        ? 'XAUUSD+'
-        : marketSymbols.first;
+    final activeChartSymbol = ref.watch(
+      chartTimeframeSessionProvider.select((session) => session.activeSymbol),
+    );
+    final defaultSymbol = switch (activeChartSymbol?.trim()) {
+      final symbol? when symbol.isNotEmpty => symbol,
+      _ when positions.isNotEmpty => positions.first.symbol,
+      _ when marketSymbols.isNotEmpty => marketSymbols.first,
+      _ => 'XAUUSD+',
+    };
     final safeTop = MediaQuery.paddingOf(context).top;
     final headerExtent = safeTop + TabReferenceMetrics.tradeHeaderHeight;
     final dark = Theme.of(context).brightness == Brightness.dark;
@@ -163,7 +171,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                                   label: 'Von:',
                                   value: _formatAccount(account.equity),
                                 ),
-                                if (positions.isNotEmpty)
+                                if (hasActiveOrders)
                                   _AccountMetric(
                                     label: 'Tien ky quy:',
                                     value: _formatAccount(account.margin),
@@ -172,7 +180,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                                   label: 'Ky quy du:',
                                   value: _formatAccount(account.freeMargin),
                                 ),
-                                if (positions.isNotEmpty)
+                                if (hasActiveOrders)
                                   _AccountMetric(
                                     label: 'Muc ky quy (%):',
                                     value: _formatAccount(account.marginLevel),
@@ -508,7 +516,8 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
     return switch (scope) {
       PositionBulkActionScope.all => controller.closeMatchingPositions(),
       PositionBulkActionScope.profitable => controller.closeMatchingPositions(
-        profitableOnly: true,
+        profitableOnly: selected.profit >= 0,
+        losingOnly: selected.profit < 0,
       ),
       PositionBulkActionScope.sameSide => controller.closeMatchingPositions(
         side: selected.side,
@@ -521,6 +530,9 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
           symbol: selected.symbol,
           side: selected.side,
         ),
+      PositionBulkActionScope.closeBySymbol => controller.closeBySymbol(
+        selected.symbol,
+      ),
     };
   }
 
@@ -538,121 +550,48 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
               item.side != position.side,
         )
         .toList(growable: false);
-    final result = await showModalBottomSheet<_PositionMenuResult>(
+    final action = await showDialog<PositionAction>(
       context: context,
-      useRootNavigator: true,
-      backgroundColor: AppColors.sheetSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      barrierColor: AppColors.dimBarrier,
+      builder: (_) => PositionActionsDialog(
+        position: position,
+        canCloseBy: oppositePositions.isNotEmpty,
       ),
-      builder: (sheetContext) => SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: Text(
-                  '${displayTradingSymbol(position.symbol)} '
-                  '${position.side.toLowerCase()} '
-                  '${formatTradeVolume(position.volume)}',
-                ),
-                subtitle: Text(
-                  '${formatTradePrice(position.symbol, position.openPrice)} → '
-                  '${formatTradePrice(position.symbol, position.currentPrice)}',
-                ),
-                trailing: Text(
-                  _formatTradeNumber(position.profit),
-                  style: TextStyle(
-                    color: position.profit >= 0
-                        ? AppColors.primary
-                        : AppColors.negative,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
-              _SheetAction(
-                label: 'Đóng trạng thái',
-                color: AppColors.negative,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.push(
-                    '/order?symbol=${Uri.encodeQueryComponent(position.symbol)}'
-                    '&positionId=${position.id}',
-                  );
-                },
-              ),
-              if (oppositePositions.isNotEmpty)
-                _SheetAction(
-                  label: 'Đóng bởi',
-                  color: AppColors.negative,
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    Future<void>.delayed(Duration.zero, () {
-                      if (!context.mounted) return;
-                      _showCloseByChooser(
-                        context,
-                        ref,
-                        position,
-                        oppositePositions,
-                      );
-                    });
-                  },
-                ),
-              _SheetAction(
-                label: 'Sửa trạng thái',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.push('/position/${position.id}');
-                },
-              ),
-              _SheetAction(
-                label: 'Giao dịch',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.push(
-                    '/order?symbol=${Uri.encodeQueryComponent(position.symbol)}',
-                  );
-                },
-              ),
-              _SheetAction(
-                label: 'Depth of Market',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.push(
-                    '/section?title=${Uri.encodeComponent('Depth of Market ${position.symbol}')}',
-                  );
-                },
-              ),
-              _SheetAction(
-                label: 'Biểu đồ',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.go(chartLocationForSymbol(position.symbol));
-                },
-              ),
-              _SheetAction(
-                label: 'Hoạt động hàng loạt...',
-                onTap: () =>
-                    Navigator.pop(sheetContext, _PositionMenuResult.bulk),
-              ),
-              _SheetAction(
-                label: 'Hủy',
-                color: AppColors.textPrimary,
-                onTap: () => Navigator.pop(sheetContext),
-              ),
-              const SizedBox(height: 8),
-            ],
+    );
+    if (!context.mounted || action == null) return;
+    switch (action) {
+      case PositionAction.close:
+        context.push(
+          '/order?symbol=${Uri.encodeQueryComponent(position.symbol)}'
+          '&positionId=${position.id}',
+        );
+      case PositionAction.closeBy:
+        _showCloseByChooser(context, ref, position, oppositePositions);
+      case PositionAction.modify:
+        context.push('/position/${position.id}');
+      case PositionAction.trade:
+        context.push(
+          '/order?symbol=${Uri.encodeQueryComponent(position.symbol)}',
+        );
+      case PositionAction.depthOfMarket:
+        context.push(
+          '/section?title=${Uri.encodeComponent('Depth of Market ${position.symbol}')}',
+        );
+      case PositionAction.chart:
+        context.go(chartLocationForSymbol(position.symbol));
+      case PositionAction.bulk:
+        final scope = await showDialog<PositionBulkActionScope>(
+          context: context,
+          builder: (_) => PositionBulkActionsDialog(
+            position: position,
+            canCloseBy: oppositePositions.isNotEmpty,
           ),
-        ),
-      ),
-    );
-    if (!context.mounted || result != _PositionMenuResult.bulk) return;
-    final scope = await showDialog<PositionBulkActionScope>(
-      context: context,
-      builder: (_) => PositionBulkActionsDialog(position: position),
-    );
-    if (!context.mounted || scope == null) return;
-    _executePositionBulkAction(ref, position, scope);
+        );
+        if (!context.mounted || scope == null) return;
+        _executePositionBulkAction(ref, position, scope);
+      case PositionAction.cancel:
+        return;
+    }
   }
 
   static void _showCloseByChooser(
@@ -914,12 +853,12 @@ class _TradeReferenceWidthViewport extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      if (constraints.maxWidth <= TabReferenceMetrics.viewportWidth) {
+      if (constraints.maxWidth <= TabReferenceMetrics.tradeViewportWidth) {
         return child;
       }
 
       final referenceScale =
-          constraints.maxWidth / TabReferenceMetrics.viewportWidth;
+          constraints.maxWidth / TabReferenceMetrics.tradeViewportWidth;
       final referenceHeight = constraints.maxHeight / referenceScale;
       final mediaQuery = MediaQuery.of(context);
 
@@ -928,11 +867,14 @@ class _TradeReferenceWidthViewport extends StatelessWidget {
           alignment: Alignment.topLeft,
           fit: BoxFit.fill,
           child: SizedBox(
-            width: TabReferenceMetrics.viewportWidth,
+            width: TabReferenceMetrics.tradeViewportWidth,
             height: referenceHeight,
             child: MediaQuery(
               data: mediaQuery.copyWith(
-                size: Size(TabReferenceMetrics.viewportWidth, referenceHeight),
+                size: Size(
+                  TabReferenceMetrics.tradeViewportWidth,
+                  referenceHeight,
+                ),
               ),
               child: child,
             ),
@@ -982,7 +924,7 @@ class _TradeHeader extends StatelessWidget {
               semanticLabel: 'Số dư',
               onTap: onAccount,
               child: CustomPaint(
-                key: Key('trade-wallet-glyph'),
+                key: const Key('trade-wallet-glyph'),
                 size: const Size(24, 18),
                 painter: _TradeWalletIconPainter(
                   color: dark
@@ -1305,7 +1247,7 @@ class _PositionRow extends StatefulWidget {
 }
 
 class _PositionRowState extends State<_PositionRow> {
-  static const _revealExtent = 151.0;
+  static const _revealExtent = 168.0;
   static const _snapFraction = .42;
   static const _flingVelocity = 650.0;
   static const _minimumFlingDistance = 28.0;
@@ -1428,10 +1370,10 @@ class _PositionRowState extends State<_PositionRow> {
         child: Stack(
           children: [
             Positioned(
-              top: 5.3,
-              right: 3,
-              height: 44,
-              width: 145,
+              top: 3,
+              right: 5,
+              height: 46,
+              width: 154,
               child: ExcludeSemantics(
                 excluding: !revealed,
                 child: IgnorePointer(
@@ -1441,7 +1383,7 @@ class _PositionRowState extends State<_PositionRow> {
                     child: Row(
                       children: [
                         SizedBox(
-                          width: 45,
+                          width: 46,
                           child: _InlineAction(
                             key: ValueKey('trade-menu-${position.id}'),
                             icon: const Icon(
@@ -1453,31 +1395,31 @@ class _PositionRowState extends State<_PositionRow> {
                             onTap: widget.onMore,
                           ),
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 8),
                         SizedBox(
-                          width: 45,
+                          width: 46,
                           child: _InlineAction(
                             key: ValueKey('trade-modify-${position.id}'),
-                            icon: const Icon(
-                              CupertinoIcons.pencil,
+                            icon: const MtToolbarIcon(
+                              MtToolbarIconKind.edit,
                               color: AppColors.tradeSwipeActionGlyph,
-                              size: 22,
+                              size: 17,
                             ),
-                            color: AppColors.primary,
+                            color: AppColors.tradeSwipeModify,
                             onTap: widget.onModify,
                           ),
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 8),
                         SizedBox(
-                          width: 45,
+                          width: 46,
                           child: _InlineAction(
                             key: ValueKey('trade-close-${position.id}'),
                             icon: const Icon(
-                              CupertinoIcons.xmark,
+                              CupertinoIcons.check_mark_circled,
                               color: AppColors.tradeSwipeActionGlyph,
-                              size: 23,
+                              size: 20,
                             ),
-                            color: AppColors.negative,
+                            color: AppColors.tradeSwipeClose,
                             onTap: widget.onClose,
                           ),
                         ),

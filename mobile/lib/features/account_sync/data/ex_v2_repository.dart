@@ -37,6 +37,9 @@ final class ExV2Repository {
   Future<ExV2Bootstrap> bootstrap() async =>
       ExV2Bootstrap.fromJson(await _client.getJson('/mobile/bootstrap'));
 
+  Future<ExV2AccountSummary> accountSummary() async =>
+      ExV2AccountSummary.fromJson(await _client.getJson('/account/summary'));
+
   Future<List<ExV2Order>> orders() async => _maps(
     await _client.getList('/orders'),
   ).map(ExV2Order.fromJson).toList(growable: false);

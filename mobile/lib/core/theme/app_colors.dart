@@ -25,6 +25,9 @@ abstract final class AppColors {
   static const historyPositiveText = Color(0xFF006FE6);
   static const historyOrderStatus = Color(0xFF294476);
   static const historySegmentSelected = Color(0xFFEDEDED);
+  static const historySortHeaderSurface = Color(0xFFF6F6F6);
+  static const historySortHeading = Color(0xFF737373);
+  static const historySortDivider = Color(0xFFDFDFE2);
   static const primaryMuted = Color(0xFFDCEBFF);
   static const positive = Color(0xFF007AFF);
   static const negative = Color(0xFFE42D30);
@@ -32,6 +35,7 @@ abstract final class AppColors {
   static const orderTicketSurface = Color(0xFFF1F1F1);
   static const orderTicketControlSurface = Color(0xFFFFFFFF);
   static const orderTicketQuote = Color(0xFF007FFF);
+  static const orderTicketPlaceholder = Color(0xFFC7C7C7);
   static const orderTicketSell = Color(0xFFDD5E4F);
   static const orderTicketBuy = Color(0xFF4A92F4);
   static const tradeHeaderCurrency = Color(0xFF0074FF);
@@ -40,6 +44,7 @@ abstract final class AppColors {
   static const tradingNegativeText = tradeNegative;
   static const tradingPrimaryText = textPrimary;
   static const tradingSecondaryText = Color(0xFF201F21);
+  static const tradePositionSecondaryText = Color(0xFF3C3C43);
   static const tradeSectionSurface = Color(0xFFF8F8F8);
   static const tradeDarkBackground = Color(0xFF000000);
   static const tradeDarkSectionSurface = Color(0xFF080808);
@@ -53,7 +58,10 @@ abstract final class AppColors {
   static const tradeWalletIcon = Color(0xFF737373);
   static const tradeEmptyIllustration = Color(0xFFF4F4F6);
   static const tradeSwipeMenu = Color(0xFF929FB2);
+  static const tradeSwipeModify = Color(0xFF3F4BA1);
+  static const tradeSwipeClose = Color(0xFFEB8305);
   static const tradeSwipeActionGlyph = Color(0xFFFFFFFF);
+  static const positionActionSurface = Color(0xFFD5D5D5);
   static const warning = Color(0xFFFF9F0A);
   static const savePasswordEnabled = Color(0xFF30D158);
   static const settingsRowSecondary = Color(0xFF8E8E8E);

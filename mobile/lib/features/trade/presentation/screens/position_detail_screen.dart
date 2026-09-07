@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
+import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
+import 'package:trading_mobile/features/order/presentation/order_failure_message.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/widgets/order_ticket_quote_text.dart';
 
 class PositionDetailScreen extends ConsumerStatefulWidget {
   const PositionDetailScreen({required this.positionId, super.key});
@@ -22,6 +26,124 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
   double? stopLoss;
   double? takeProfit;
   bool initialized = false;
+  bool showActionMenu = false;
+  bool submittingProtection = false;
+
+  void _selectAction(DemoPosition position, String action) {
+    if (action == 'Sửa trạng thái') {
+      setState(() => showActionMenu = false);
+      return;
+    }
+    if (action == 'Đóng bởi') {
+      setState(() => showActionMenu = false);
+      _showCloseByPositions(position);
+      return;
+    }
+    context.push(
+      '/order?symbol=${Uri.encodeQueryComponent(position.symbol)}'
+      '&type=${Uri.encodeQueryComponent(action)}',
+    );
+  }
+
+  void _showCloseByPositions(DemoPosition source) {
+    final candidates = ref
+        .read(demoPositionsProvider)
+        .where(
+          (position) =>
+              position.id != source.id &&
+              position.symbol == source.symbol &&
+              position.side != source.side,
+        )
+        .toList(growable: false);
+    if (candidates.isEmpty) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.sheetSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Đóng bởi',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+            ),
+            for (final candidate in candidates)
+              ListTile(
+                key: ValueKey('position-detail-close-by-${candidate.id}'),
+                title: Text(
+                  '#${displayTradingTicketId(candidate.id)} '
+                  '${candidate.side.toLowerCase()} '
+                  '${_formatVolume(candidate.volume)} '
+                  '${displayTradingSymbol(candidate.symbol)}',
+                ),
+                onTap: () {
+                  ref
+                      .read(demoTradingProvider.notifier)
+                      .closeByPositions(source.id, candidate.id);
+                  Navigator.pop(sheetContext);
+                  if (mounted) context.pop();
+                },
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(sheetContext),
+              child: const Text('Hủy'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitProtection(DemoPosition position) async {
+    if (submittingProtection) return;
+    setState(() => submittingProtection = true);
+    try {
+      if (ref.read(exV2EnabledProvider)) {
+        await ref
+            .read(exV2AccountProvider.notifier)
+            .updatePositionProtection(
+              positionId: position.id,
+              stopLoss: stopLoss,
+              takeProfit: takeProfit,
+              clearStopLoss: stopLoss == null,
+              clearTakeProfit: takeProfit == null,
+            );
+      } else {
+        final modified = ref
+            .read(demoTradingProvider.notifier)
+            .modifyPosition(
+              position.id,
+              stopLoss: stopLoss,
+              takeProfit: takeProfit,
+              clearStopLoss: stopLoss == null,
+              clearTakeProfit: takeProfit == null,
+            );
+        if (!modified) throw StateError('Position is not open');
+      }
+      if (mounted) context.pop();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => submittingProtection = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              orderFailureMessage(
+                error,
+                fallback: 'Không thể sửa Cắt lỗ/Chốt lời',
+              ),
+            ),
+          ),
+        );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,17 +200,21 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                 : .13);
     final changed =
         stopLoss != position.stopLoss || takeProfit != position.takeProfit;
+    final referenceTopInset = MediaQuery.paddingOf(
+      context,
+    ).top.clamp(0.0, 24.0);
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
+      backgroundColor: AppColors.orderTicketSurface,
+      body: Padding(
+        padding: EdgeInsets.only(top: referenceTopInset),
         child: Column(
           children: [
             SizedBox(
-              height: 76,
+              height: 80,
               child: Stack(
                 children: [
                   Positioned(
-                    left: 18,
+                    left: 17.3333333333,
                     top: 29,
                     child: _BackButton(onTap: () => context.pop()),
                   ),
@@ -98,15 +224,25 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                     top: 34,
                     child: Column(
                       children: [
-                        Text(
-                          '${displayTradingSymbol(position.symbol)}⌄',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            height: 1,
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              displayTradingSymbol(position.symbol),
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                height: 1,
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            const Icon(
+                              CupertinoIcons.chevron_down,
+                              color: AppColors.textPrimary,
+                              size: 10,
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -114,7 +250,8 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: AppColors.textSecondary,
-                            fontSize: 10.5,
+                            fontFamily: 'sans-serif',
+                            fontSize: 11.5,
                             height: 1,
                           ),
                         ),
@@ -124,140 +261,222 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                 ],
               ),
             ),
-            SizedBox(
-              height: 40,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Row(
-                  children: [
-                    Text(
-                      '#${displayTradingTicketId(position.id)} '
-                      '${position.side.toLowerCase()} '
-                      '${_formatVolume(position.volume)} '
-                      '${displayTradingSymbol(position.symbol)}',
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(
-                      CupertinoIcons.chevron_down,
-                      color: AppColors.textPrimary,
-                      size: 18,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            _ProtectionRow(
-              label: 'Cắt lỗ',
-              value: stopLoss,
-              digits: priceDigits,
-              onDecrease: () => setState(
-                () =>
-                    stopLoss = (stopLoss ?? position.currentPrice) - priceStep,
-              ),
-              onIncrease: () => setState(
-                () =>
-                    stopLoss = (stopLoss ?? position.currentPrice) + priceStep,
-              ),
-              onClear: () => setState(() => stopLoss = null),
-            ),
-            _ProtectionRow(
-              label: 'Chốt lời',
-              value: takeProfit,
-              digits: priceDigits,
-              onDecrease: () => setState(
-                () => takeProfit =
-                    (takeProfit ?? position.currentPrice) - priceStep,
-              ),
-              onIncrease: () => setState(
-                () => takeProfit =
-                    (takeProfit ?? position.currentPrice) + priceStep,
-              ),
-              onClear: () => setState(() => takeProfit = null),
-            ),
-            SizedBox(
-              height: 55,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      bid.toStringAsFixed(priceDigits),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.negative,
-                        fontSize: 25,
-                        fontWeight: FontWeight.w500,
-                        fontFeatures: [FontFeature.tabularFigures()],
+            if (showActionMenu)
+              _PositionActionMenu(
+                onSelect: (action) => _selectAction(position, action),
+              )
+            else ...[
+              Material(
+                color: AppColors.surface,
+                child: InkWell(
+                  key: const Key('position-action-field'),
+                  onTap: () => setState(() => showActionMenu = true),
+                  child: SizedBox(
+                    height: 41,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '#${displayTradingTicketId(position.id)} '
+                              '${position.side.toLowerCase()} '
+                              '${_formatVolume(position.volume)} '
+                              '${displayTradingSymbol(position.symbol)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontFamily: 'sans-serif',
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            CupertinoIcons.chevron_down,
+                            color: AppColors.textPrimary,
+                            size: 14,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  Expanded(
-                    child: Text(
-                      ask.toStringAsFixed(priceDigits),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.negative,
-                        fontSize: 25,
-                        fontWeight: FontWeight.w500,
-                        fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+              _ProtectionRow(
+                label: 'Cat lo',
+                value: stopLoss,
+                digits: priceDigits,
+                onDecrease: () => setState(
+                  () => stopLoss =
+                      (stopLoss ?? position.currentPrice) - priceStep,
+                ),
+                onIncrease: () => setState(
+                  () => stopLoss =
+                      (stopLoss ?? position.currentPrice) + priceStep,
+                ),
+                onClear: () => setState(() => stopLoss = null),
+              ),
+              _ProtectionRow(
+                label: 'Chot loi',
+                value: takeProfit,
+                digits: priceDigits,
+                onDecrease: () => setState(
+                  () => takeProfit =
+                      (takeProfit ?? position.currentPrice) - priceStep,
+                ),
+                onIncrease: () => setState(
+                  () => takeProfit =
+                      (takeProfit ?? position.currentPrice) + priceStep,
+                ),
+                onClear: () => setState(() => takeProfit = null),
+              ),
+              ColoredBox(
+                key: const Key('position-detail-quote-strip'),
+                color: AppColors.orderTicketSurface,
+                child: SizedBox(
+                  height: 55,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OrderTicketQuoteText(
+                          formattedPrice: bid.toStringAsFixed(priceDigits),
+                          color: AppColors.tradeNegative,
+                        ),
+                      ),
+                      Expanded(
+                        child: OrderTicketQuoteText(
+                          formattedPrice: ask.toStringAsFixed(priceDigits),
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 39,
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.surfaceSelected,
+                    foregroundColor: AppColors.textPrimary,
+                    shape: const RoundedRectangleBorder(),
+                    padding: EdgeInsets.zero,
+                  ),
+                  onPressed: changed && !submittingProtection
+                      ? () => _submitProtection(position)
+                      : null,
+                  child: const Text(
+                    'Chinh sua',
+                    style: TextStyle(
+                      fontFamily: 'sans-serif',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ),
+              const Expanded(
+                child: ColoredBox(
+                  key: Key('position-detail-lower-surface'),
+                  color: AppColors.orderTicketSurface,
+                  child: SizedBox.expand(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(14, 17, 14, 0),
+                        child: Text(
+                          'Chot Loi/ Cat Lo phai duoc dat it nhat 0 điểm so voi gia thi\n'
+                          'truong. Qua trinh Chot Loi/ Cat Lo se duoc thuc hien boi\n'
+                          'broker.',
+                          textAlign: TextAlign.center,
+                          maxLines: 3,
+                          softWrap: false,
+                          overflow: TextOverflow.clip,
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontFamily: AppTypography.condensedFamily,
+                            fontSize: 13.2,
+                            height: 1.2,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: 38,
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.surfaceSelected,
-                  foregroundColor: AppColors.textPrimary,
-                  shape: const RoundedRectangleBorder(),
-                  padding: EdgeInsets.zero,
-                ),
-                onPressed: changed
-                    ? () {
-                        ref
-                            .read(demoTradingProvider.notifier)
-                            .modifyPosition(
-                              position.id,
-                              stopLoss: stopLoss,
-                              takeProfit: takeProfit,
-                              clearStopLoss: stopLoss == null,
-                              clearTakeProfit: takeProfit == null,
-                            );
-                        context.pop();
-                      }
-                    : null,
-                child: const Text(
-                  'Chỉnh sửa',
-                  style: TextStyle(fontSize: 13.5),
                 ),
               ),
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(14, 12, 14, 0),
-              child: Text(
-                'Chốt Lời/ Cắt Lỗ phải được đặt ít nhất 0 điểm so với giá '
-                'thị trường. Quá trình Chốt Lời/ Cắt Lỗ sẽ được thực hiện '
-                'bởi broker.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11.5,
-                  height: 1.2,
-                ),
-              ),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+class _PositionActionMenu extends StatelessWidget {
+  const _PositionActionMenu({required this.onSelect});
+
+  final ValueChanged<String> onSelect;
+
+  static const _actions = <(String, Color, bool)>[
+    ('Vao lenh thi truong', AppColors.textPrimary, false),
+    ('Buy Limit', AppColors.primary, false),
+    ('Sell Limit', AppColors.tradeNegative, false),
+    ('Buy Stop', AppColors.primary, false),
+    ('Sell Stop', AppColors.tradeNegative, false),
+    ('Buy Stop Limit', AppColors.primary, false),
+    ('Sell Stop Limit', AppColors.tradeNegative, false),
+    ('Sửa trạng thái', AppColors.textPrimary, true),
+    ('Đóng bởi', AppColors.textPrimary, false),
+  ];
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    key: const Key('position-action-menu'),
+    color: AppColors.surface,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (label, color, selected) in _actions)
+          Material(
+            color: AppColors.surface,
+            child: InkWell(
+              key: ValueKey(
+                'position-action-option-${label.toLowerCase().replaceAll(' ', '-')}',
+              ),
+              onTap: () => onSelect(label),
+              child: SizedBox(
+                height: 42,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 9),
+                  child: Row(
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: color,
+                          fontFamily: 'sans-serif',
+                          fontSize: 15,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (selected)
+                        const Icon(
+                          CupertinoIcons.check_mark,
+                          color: AppColors.primary,
+                          size: 23,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
 }
 
 class _BackButton extends StatelessWidget {
@@ -304,60 +523,80 @@ class _ProtectionRow extends StatelessWidget {
   final VoidCallback onClear;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 36,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13.5,
-            ),
-          ),
-          const Spacer(),
-          InkWell(
-            onTap: onDecrease,
-            child: const SizedBox(
-              width: 32,
-              height: 36,
-              child: Center(
-                child: Text('−', style: TextStyle(color: AppColors.primary)),
+  Widget build(BuildContext context) => ColoredBox(
+    color: AppColors.orderTicketControlSurface,
+    child: SizedBox(
+      height: 38,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 8, right: 2),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontFamily: 'sans-serif',
+                fontSize: 14.5,
               ),
             ),
-          ),
-          GestureDetector(
-            onLongPress: onClear,
-            child: SizedBox(
-              width: 105,
-              child: Text(
-                value?.toStringAsFixed(digits) ?? 'không cài đặt',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: value == null
-                      ? AppColors.textTertiary
-                      : AppColors.textPrimary,
-                  fontSize: 12.5,
+            const Spacer(),
+            InkWell(
+              onTap: onDecrease,
+              child: const SizedBox(
+                width: 30,
+                height: 38,
+                child: Center(
+                  child: Text(
+                    '−',
+                    style: TextStyle(
+                      color: AppColors.orderTicketQuote,
+                      fontFamily: 'sans-serif',
+                      fontSize: 21,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-          InkWell(
-            onTap: onIncrease,
-            child: const SizedBox(
-              width: 32,
-              height: 36,
-              child: Center(
-                child: Text(
-                  '+',
-                  style: TextStyle(color: AppColors.primary, fontSize: 23),
+            GestureDetector(
+              onLongPress: onClear,
+              child: SizedBox(
+                width: 154,
+                child: Transform.translate(
+                  offset: const Offset(-1.3333333333, 0),
+                  child: Text(
+                    value?.toStringAsFixed(digits) ?? 'khong cai dat',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: value == null
+                          ? AppColors.orderTicketPlaceholder
+                          : AppColors.textPrimary,
+                      fontFamily: 'sans-serif',
+                      fontSize: 14.5,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+            InkWell(
+              onTap: onIncrease,
+              child: const SizedBox(
+                width: 30,
+                height: 38,
+                child: Center(
+                  child: Text(
+                    '+',
+                    style: TextStyle(
+                      color: AppColors.orderTicketQuote,
+                      fontFamily: 'sans-serif',
+                      fontSize: 25,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -374,7 +613,7 @@ String _formatVolume(double volume) =>
 
 String _symbolDescription(String symbol) => switch (symbol) {
   'XAUUSD' || 'XAUUSD+' => 'Gold vs US Dollar',
-  'BTCUSD' => 'Bitcoin',
+  'BTCUSD' => 'Bitcoin vs US Dollar Tether',
   'AUDNOK' => 'Australian Dollar vs Norwegian Krone',
   _ => symbol,
 };

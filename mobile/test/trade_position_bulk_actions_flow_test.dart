@@ -77,6 +77,26 @@ DemoTradingState _bulkFlowSeed(String accountId) => const DemoTradingState(
   deals: [],
 );
 
+DemoTradingState _pendingMarginSeed(String accountId) => const DemoTradingState(
+  balance: 1000,
+  positions: [],
+  pendingOrders: [
+    DemoPendingOrder(
+      id: 'pending-margin-order',
+      symbol: 'XAUUSD',
+      side: 'BUY',
+      type: 'Buy Limit',
+      volume: .1,
+      price: 4500,
+      createdAt: '2026.09.04 10:00:00',
+    ),
+  ],
+  deals: [],
+);
+
+DemoTradingState _emptyMarginSeed(String accountId) =>
+    const DemoTradingState(balance: 1000, positions: [], deals: []);
+
 ProviderContainer _createContainer() => ProviderContainer(
   overrides: [
     demoTradingSeedProvider.overrideWithValue(_bulkFlowSeed),
@@ -119,6 +139,65 @@ Future<void> _openContextualBulkDialog(WidgetTester tester) async {
 
 void main() {
   setUpAll(loadMt5TestFonts);
+
+  testWidgets(
+    'pending-order margin displays margin and its defined margin level',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          demoTradingSeedProvider.overrideWithValue(_pendingMarginSeed),
+          demoMarginCalculatorProvider.overrideWithValue((_, _) => 100),
+          demoQuoteProvider.overrideWith(
+            (ref, symbol) => const Stream<DemoQuote>.empty(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await _pumpTrade(tester, container);
+
+      expect(
+        find.byKey(const ValueKey('trade-metric-label-Tien ky quy:')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('trade-metric-label-Muc ky quy (%):')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('trade-metric-value-Ky quy du:')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('empty account hides margin and margin level metrics', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        demoTradingSeedProvider.overrideWithValue(_emptyMarginSeed),
+        demoMarginCalculatorProvider.overrideWithValue((_, _) => 0),
+        demoQuoteProvider.overrideWith(
+          (ref, symbol) => const Stream<DemoQuote>.empty(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+
+    expect(
+      find.byKey(const ValueKey('trade-metric-label-Tien ky quy:')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('trade-metric-label-Muc ky quy (%):')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('trade-metric-value-Ky quy du:')),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('trade renders the measured reference foreground colors', (
     tester,
@@ -382,7 +461,7 @@ void main() {
     );
   });
 
-  testWidgets('trade position price range uses the reference black text', (
+  testWidgets('trade position price range uses the video secondary ink', (
     tester,
   ) async {
     final container = _createContainer();
@@ -410,7 +489,7 @@ void main() {
       findsOneWidget,
     );
     final priceStyle = tester.widget<MtPriceRangeText>(priceRange).style;
-    expect(priceStyle.color, const Color(0xFF201F21));
+    expect(priceStyle.color, AppColors.tradePositionSecondaryText);
     expect(
       priceStyle.fontFamily,
       AppTypography.tradePositionSecondary.fontFamily,
@@ -533,7 +612,9 @@ void main() {
     );
   });
 
-  for (final scope in PositionBulkActionScope.values) {
+  for (final scope in PositionBulkActionScope.values.where(
+    (scope) => scope != PositionBulkActionScope.closeBySymbol,
+  )) {
     testWidgets(
       'contextual bulk ${scope.name} closes only its position scope',
       (tester) async {

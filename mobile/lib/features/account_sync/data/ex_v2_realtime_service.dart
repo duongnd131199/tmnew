@@ -44,6 +44,7 @@ final class ExV2RealtimeService {
     'WithdrawalUpdated',
     'TransferUpdated',
     'PerformanceUpdated',
+    'AccountSummaryUpdated',
     'AccountSnapshotInvalidated',
     'ActiveAccountChanged',
   ];
@@ -64,6 +65,16 @@ final class ExV2RealtimeService {
       await connection.start();
     }
     await connection.invoke('Subscribe');
+  }
+
+  Future<void> refreshAccountSummary() async {
+    final connection = _connection;
+    if (_disposed ||
+        connection == null ||
+        connection.state != HubConnectionState.connected) {
+      return;
+    }
+    await connection.invoke('RefreshAccountSummary');
   }
 
   HubConnection _buildConnection() {
@@ -87,9 +98,25 @@ final class ExV2RealtimeService {
       connection.on(name, (arguments) => _handle(name, arguments));
     }
     connection.onreconnected(({connectionId}) {
-      unawaited(start());
+      unawaited(_resubscribeAfterReconnect());
     });
     return connection;
+  }
+
+  Future<void> _resubscribeAfterReconnect() async {
+    try {
+      await start();
+    } catch (_) {
+      // The REST resync below remains authoritative even if hub subscription
+      // needs the SignalR client's next reconnect attempt.
+    }
+    if (_disposed) return;
+    _events.add(
+      const ExV2RealtimeEvent(
+        name: 'RealtimeReconnected',
+        data: <String, dynamic>{},
+      ),
+    );
   }
 
   void _handle(String name, List<Object?>? arguments) {
@@ -97,15 +124,18 @@ final class ExV2RealtimeService {
     final first = arguments.first;
     if (first is! Map) return;
     final data = first.cast<String, dynamic>();
+    final eventIdValue = data['eventId'];
+    final correlationIdValue = data['correlationId'];
     final versionValue = data['version'];
+    final accountIdValue = data['accountId'];
     _events.add(
       ExV2RealtimeEvent(
         name: name,
         data: data,
-        eventId: data['eventId']?.toString(),
-        correlationId: data['correlationId']?.toString(),
-        version: versionValue is num ? versionValue.toInt() : null,
-        accountId: data['accountId']?.toString(),
+        eventId: eventIdValue is String ? eventIdValue : null,
+        correlationId: correlationIdValue is String ? correlationIdValue : null,
+        version: versionValue is int ? versionValue : null,
+        accountId: accountIdValue is String ? accountIdValue : null,
       ),
     );
   }

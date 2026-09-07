@@ -15,8 +15,28 @@ void main() {
       contains('<key>keychain-access-groups</key>'),
     );
     expect(
+      debugEntitlements.readAsStringSync(),
+      contains(
+        '<string>48V5PYQU8X.com.tradingdemo.tradingMobile</string>',
+      ),
+    );
+    expect(
+      debugEntitlements.readAsStringSync(),
+      contains('<key>application-identifier</key>'),
+    );
+    expect(
+      debugEntitlements.readAsStringSync(),
+      contains('<key>com.apple.developer.team-identifier</key>'),
+    );
+    expect(
       releaseEntitlements.readAsStringSync(),
       contains('<key>keychain-access-groups</key>'),
+    );
+    expect(
+      releaseEntitlements.readAsStringSync(),
+      contains(
+        '<string>\$(AppIdentifierPrefix)\$(PRODUCT_BUNDLE_IDENTIFIER)</string>',
+      ),
     );
 
     final projectContents = project.readAsStringSync();

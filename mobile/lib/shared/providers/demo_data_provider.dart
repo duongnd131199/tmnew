@@ -1338,6 +1338,59 @@ class DemoTradingController extends Notifier<DemoTradingState> {
     return true;
   }
 
+  int closeBySymbol(String symbol) {
+    final buys = state.positions
+        .where(
+          (position) =>
+              position.symbol == symbol &&
+              position.side.toUpperCase() == 'BUY' &&
+              position.volume > 0,
+        )
+        .toList(growable: false);
+    final sells = state.positions
+        .where(
+          (position) =>
+              position.symbol == symbol &&
+              position.side.toUpperCase() == 'SELL' &&
+              position.volume > 0,
+        )
+        .toList(growable: false);
+    final remaining = <String, double>{
+      for (final position in [...buys, ...sells]) position.id: position.volume,
+    };
+    final pairs = <(String, String)>[];
+    var buyIndex = 0;
+    var sellIndex = 0;
+    while (buyIndex < buys.length && sellIndex < sells.length) {
+      final buy = buys[buyIndex];
+      final sell = sells[sellIndex];
+      final buyVolume = remaining[buy.id]!;
+      final sellVolume = remaining[sell.id]!;
+      final matchedVolume = buyVolume < sellVolume ? buyVolume : sellVolume;
+      if (matchedVolume <= 0) break;
+      pairs.add((buy.id, sell.id));
+      remaining[buy.id] = buyVolume - matchedVolume;
+      remaining[sell.id] = sellVolume - matchedVolume;
+      if (remaining[buy.id]! <= .00000001) buyIndex++;
+      if (remaining[sell.id]! <= .00000001) sellIndex++;
+    }
+    if (pairs.isEmpty) return 0;
+
+    if (ref.read(exV2EnabledProvider)) {
+      final controller = ref.read(exV2AccountProvider.notifier);
+      _submitServer(() async {
+        for (final (buyId, sellId) in pairs) {
+          await controller.closeBy(buyId, sellId);
+        }
+      }());
+      return pairs.length;
+    }
+    for (final (buyId, sellId) in pairs) {
+      closeByPositions(buyId, sellId);
+    }
+    return pairs.length;
+  }
+
   int closeMatchingPositions({
     bool profitableOnly = false,
     bool losingOnly = false,
@@ -1636,13 +1689,14 @@ final demoAccountProvider = Provider<DemoAccountSnapshot>((ref) {
     exV2AccountProvider.select((asyncState) {
       final state = asyncState.value;
       if (state == null) return null;
+      final summary = state.bootstrap.summary;
       return (
-        balance: state.balance,
-        equity: state.equity,
-        margin: state.margin,
-        freeMargin: state.freeMargin,
-        marginLevel: state.marginLevel,
-        profit: state.profit,
+        balance: summary.balance,
+        equity: summary.equity,
+        margin: summary.margin,
+        freeMargin: summary.freeMargin,
+        marginLevel: summary.marginLevel,
+        profit: summary.profit,
       );
     }),
   );

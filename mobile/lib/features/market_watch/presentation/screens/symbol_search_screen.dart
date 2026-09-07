@@ -261,7 +261,7 @@ class _SymbolSearchScreenState extends ConsumerState<SymbolSearchScreen> {
                 ),
               ),
               Text(
-                displayTradingSymbol(quote.symbol),
+                displayMarketWatchSymbol(quote.symbol),
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 18,
@@ -504,7 +504,7 @@ class _SymbolResultRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  displayTradingSymbol(quote.symbol),
+                  displayMarketWatchSymbol(quote.symbol),
                   style: const TextStyle(
                     color: AppColors.primary,
                     fontSize: 13.7,

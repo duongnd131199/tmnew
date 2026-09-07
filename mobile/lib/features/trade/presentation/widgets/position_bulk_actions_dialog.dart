@@ -14,12 +14,18 @@ enum PositionBulkActionScope {
   sameSide,
   sameSymbol,
   sameSymbolAndSide,
+  closeBySymbol,
 }
 
 class PositionBulkActionsDialog extends StatelessWidget {
-  const PositionBulkActionsDialog({required this.position, super.key});
+  const PositionBulkActionsDialog({
+    required this.position,
+    this.canCloseBy = false,
+    super.key,
+  });
 
   final DemoPosition position;
+  final bool canCloseBy;
 
   String get _sideLabel {
     final normalized = position.side.trim().toLowerCase();
@@ -37,7 +43,9 @@ class PositionBulkActionsDialog extends StatelessWidget {
     (PositionBulkActionScope.all, 'Đóng Tất Cả Lệnh Có Trạng Thái'),
     (
       PositionBulkActionScope.profitable,
-      'Đóng Các Lệnh Có Trạng Thái Đang Có Lời',
+      position.profit < 0
+          ? 'Đóng Các Lệnh Có Trạng Thái Đang Lỗ'
+          : 'Đóng Các Lệnh Có Trạng Thái Đang Có Lời',
     ),
     (PositionBulkActionScope.sameSide, 'Đóng $_sideLabel Lệnh có trạng thái'),
     (
@@ -49,6 +57,11 @@ class PositionBulkActionsDialog extends StatelessWidget {
       'Đóng ${displayTradingSymbol(position.symbol)} '
           '$_sideLabel Lệnh có trạng thái',
     ),
+    if (canCloseBy)
+      (
+        PositionBulkActionScope.closeBySymbol,
+        'Đóng bởi ${displayTradingSymbol(position.symbol)}',
+      ),
   ];
 
   @override

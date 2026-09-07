@@ -189,7 +189,7 @@ class _MarketWatchScreenState extends ConsumerState<MarketWatchScreen> {
                   Transform.translate(
                     offset: const Offset(0, .6666666667),
                     child: Text(
-                      '${displayTradingSymbol(quote.symbol)}: ${quote.name}',
+                      '${displayMarketWatchSymbol(quote.symbol)}: ${quote.name}',
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.visible,
@@ -1454,7 +1454,8 @@ class _QuotePrice extends StatelessWidget {
   }
 }
 
-String _marketWatchDisplaySymbol(String symbol) => displayTradingSymbol(symbol);
+String _marketWatchDisplaySymbol(String symbol) =>
+    displayMarketWatchSymbol(symbol);
 
 TypographyVariantId _quoteTypographyVariant(String symbol) =>
     switch (_marketWatchDisplaySymbol(symbol).toUpperCase()) {

@@ -322,7 +322,7 @@ void main() {
   );
 
   testWidgets(
-    'empty trade wallet button is hittable and balance dialog cancels cleanly',
+    'empty trade metrics open the balance dialog and cancel cleanly',
     (tester) async {
       useVideoViewport(tester);
       final container = createVideoReferenceContainer(
@@ -344,11 +344,11 @@ void main() {
       await tester.pump();
 
       expect(container.read(demoPositionsProvider), isEmpty);
-      final walletButton = find.byKey(const Key('trade-balance-button'));
-      expect(walletButton, findsOneWidget);
-      expect(tester.getSize(walletButton), const Size.square(42.6666666667));
+      expect(find.byKey(const Key('trade-balance-button')), findsNothing);
+      final accountMetrics = find.byKey(const Key('trade-account-metrics'));
+      expect(accountMetrics, findsOneWidget);
 
-      await tester.tap(walletButton);
+      await tester.tap(accountMetrics);
       await tester.pumpAndSettle();
       expect(find.byType(Dialog), findsOneWidget);
       expect(find.text('Tien nap'), findsOneWidget);
@@ -363,38 +363,39 @@ void main() {
     },
   );
 
-  testWidgets('populated trade keeps the video wallet button visible', (
-    tester,
-  ) async {
-    useVideoViewport(tester);
-    final container = createVideoReferenceContainer(
-      overrides: [
-        demoQuoteProvider.overrideWith(
-          (ref, symbol) => const Stream<DemoQuote>.empty(),
+  testWidgets(
+    'populated trade omits the header wallet and keeps metrics live',
+    (tester) async {
+      useVideoViewport(tester);
+      final container = createVideoReferenceContainer(
+        overrides: [
+          demoQuoteProvider.overrideWith(
+            (ref, symbol) => const Stream<DemoQuote>.empty(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: TradeScreen()),
         ),
-      ],
-    );
-    addTearDown(container.dispose);
+      );
+      await tester.pump();
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: TradeScreen()),
-      ),
-    );
-    await tester.pump();
+      expect(container.read(demoPositionsProvider), isNotEmpty);
+      expect(find.byKey(const Key('trade-balance-button')), findsNothing);
+      final accountMetrics = find.byKey(const Key('trade-account-metrics'));
+      expect(accountMetrics, findsOneWidget);
 
-    expect(container.read(demoPositionsProvider), isNotEmpty);
-    final walletButton = find.byKey(const Key('trade-balance-button'));
-    expect(walletButton, findsOneWidget);
-    expect(tester.getSize(walletButton), const Size.square(42.6666666667));
-
-    await tester.tap(walletButton);
-    await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsOneWidget);
-    expect(find.text('Tien nap'), findsOneWidget);
-    expect(find.text('Tien rut'), findsOneWidget);
-  });
+      await tester.tap(accountMetrics);
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsOneWidget);
+      expect(find.text('Tien nap'), findsOneWidget);
+      expect(find.text('Tien rut'), findsOneWidget);
+    },
+  );
 
   testWidgets('XAU details action closes back to the Gia market tab', (
     tester,

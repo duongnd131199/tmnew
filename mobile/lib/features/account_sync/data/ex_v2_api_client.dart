@@ -147,6 +147,8 @@ final class ExV2ApiClient {
     final correlationId = metadata?.correlationId ?? uuidV4();
     final headers = <String, dynamic>{
       ...extraHeaders,
+      'Accept': Headers.jsonContentType,
+      if (metadata != null) 'Content-Type': Headers.jsonContentType,
       if (requiresDeviceToken) 'X-Device-Token': token,
       'X-Correlation-Id': correlationId,
       if (metadata != null) 'Idempotency-Key': metadata.idempotencyKey,

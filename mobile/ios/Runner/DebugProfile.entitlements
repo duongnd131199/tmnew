@@ -2,7 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>application-identifier</key>
+	<string>48V5PYQU8X.com.tradingdemo.tradingMobile</string>
+	<key>com.apple.developer.team-identifier</key>
+	<string>48V5PYQU8X</string>
 	<key>keychain-access-groups</key>
-	<array/>
+	<array>
+		<string>48V5PYQU8X.com.tradingdemo.tradingMobile</string>
+	</array>
 </dict>
 </plist>

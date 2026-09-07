@@ -241,12 +241,14 @@ final class _ImmutableCandleRange extends ListBase<MarketCandle>
 
 class _ChartScreenState extends ConsumerState<ChartScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  static const double _defaultOneClickVolume = 79;
+
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late String timeframe;
   bool crosshairEnabled = false;
   bool showTimeframes = false;
   bool showOneClickTrading = false;
-  double volume = 0.25;
+  double volume = _defaultOneClickVolume;
   double? pendingStopLoss;
   double? pendingTakeProfit;
   Offset? crosshairPosition;
@@ -362,7 +364,6 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
         if (next == _viewport || !mounted) return;
         setState(() => _viewport = next);
       });
-    volume = _initialChartVolume();
     _volumeController = TextEditingController(
       text: _formatOneClickVolume(volume),
     );
@@ -399,24 +400,6 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
 
   bool _sameSymbol(String left, String right) =>
       _normaliseSymbol(left) == _normaliseSymbol(right);
-
-  double _initialChartVolume() {
-    for (final position in ref.read(demoPositionsProvider)) {
-      if (_sameSymbol(position.symbol, widget.symbol) &&
-          position.volume.isFinite &&
-          position.volume > 0) {
-        return position.volume.clamp(.01, 100000.0);
-      }
-    }
-    for (final order in ref.read(demoPendingOrdersProvider)) {
-      if (_sameSymbol(order.symbol, widget.symbol) &&
-          order.volume.isFinite &&
-          order.volume > 0) {
-        return order.volume.clamp(.01, 100000.0);
-      }
-    }
-    return volume;
-  }
 
   void _rememberChartView({ChartViewport? viewport}) {
     _chartViewSessionController.remember(
@@ -3210,6 +3193,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
               volume: volume,
               stopLoss: pendingStopLoss,
               takeProfit: pendingTakeProfit,
+              reconcileInBackground: true,
             );
         if (!mounted) return false;
         unawaited(ref.read(orderSuccessSoundPlayerProvider).play());

@@ -3,14 +3,46 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/account_sync/data/device_token_store.dart';
 import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
+import 'package:trading_mobile/features/history/presentation/screens/history_screen.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/widgets/app_shell.dart';
 
 void main() {
+  test(
+    'trade account and position values remain server-authoritative on quotes',
+    () async {
+      final adapter = _TradingAdapter(initialMargin: 100)..created = true;
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+
+      container
+          .read(exV2AccountProvider.notifier)
+          .updateMarketPrice(symbol: 'XAUUSD+', bid: 4380, ask: 4381);
+
+      final position = container
+          .read(exV2AccountProvider)
+          .requireValue!
+          .positions
+          .single;
+      expect(position.currentPrice, 4380.0);
+      expect(position.profit, 0);
+      final displayed = container.read(demoAccountProvider);
+      expect(displayed.balance, 5000);
+      expect(displayed.equity, 5000);
+      expect(displayed.profit, 0);
+      expect(displayed.margin, 100);
+      expect(displayed.freeMargin, 4900);
+      expect(displayed.marginLevel, 5000);
+    },
+  );
+
   test('create order waits for server and refreshes the position', () async {
     final adapter = _TradingAdapter();
     final container = _container(adapter);
@@ -37,6 +69,128 @@ void main() {
       'server-position-1',
     );
   });
+
+  test('create order sends the canonical uppercase side', () async {
+    final adapter = _TradingAdapter();
+    final container = _container(adapter);
+    addTearDown(container.dispose);
+    await container.read(exV2AccountProvider.future);
+
+    await container
+        .read(exV2AccountProvider.notifier)
+        .createOrder(symbol: 'BTCUSD', side: 'buy', volume: 0.25);
+
+    expect(adapter.lastOrderData?['side'], 'BUY');
+  });
+
+  test(
+    'reconciled create returns only after the authoritative position is visible',
+    () async {
+      final adapter = _TradingAdapter();
+      final container = _container(adapter);
+      addTearDown(() {
+        final gate = adapter.bootstrapGate;
+        if (gate != null && !gate.isCompleted) gate.complete();
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+      adapter.bootstrapGate = Completer<void>();
+      var completed = false;
+
+      final creating = container
+          .read(exV2AccountProvider.notifier)
+          .createOrder(
+            symbol: 'BTCUSD',
+            side: 'buy',
+            volume: 0.25,
+            reconcileBeforeReturning: true,
+          )
+          .whenComplete(() => completed = true);
+      for (
+        var attempt = 0;
+        attempt < 100 && adapter.orderPosts == 0;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+
+      expect(completed, isFalse);
+      expect(container.read(exV2AccountProvider).value?.positions, isEmpty);
+
+      adapter.bootstrapGate!.complete();
+      await creating;
+
+      expect(
+        container.read(exV2AccountProvider).value?.positions.single.id,
+        'server-position-1',
+      );
+    },
+  );
+
+  test(
+    'reconciled create retries GET until its linked position is visible',
+    () async {
+      final adapter = _TradingAdapter(staleBootstrapReadsAfterCreate: 1);
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await container.read(exV2AccountProvider.future);
+      final initialBootstrapReads = adapter.bootstrapReads;
+
+      await container
+          .read(exV2AccountProvider.notifier)
+          .createOrder(
+            symbol: 'BTCUSD',
+            side: 'buy',
+            volume: 0.25,
+            reconcileBeforeReturning: true,
+          );
+
+      expect(adapter.orderPosts, 1);
+      expect(adapter.bootstrapReads, initialBootstrapReads + 2);
+      expect(
+        container.read(exV2AccountProvider).value?.positions.single.id,
+        'server-position-1',
+      );
+    },
+  );
+
+  test(
+    'reconciled create does not wait for unrelated history hydration',
+    () async {
+      final adapter = _TradingAdapter();
+      final container = _container(adapter);
+      addTearDown(() {
+        final gate = adapter.postOrderHydrationGate;
+        if (gate != null && !gate.isCompleted) gate.complete();
+        container.dispose();
+      });
+      await container.read(exV2AccountProvider.future);
+      adapter.postOrderHydrationGate = Completer<void>();
+      adapter.postOrderHydrationStarted = Completer<void>();
+      var completed = false;
+
+      final creating = container
+          .read(exV2AccountProvider.notifier)
+          .createOrder(
+            symbol: 'BTCUSD',
+            side: 'buy',
+            volume: 0.25,
+            reconcileBeforeReturning: true,
+          )
+          .whenComplete(() => completed = true);
+      await adapter.postOrderHydrationStarted!.future;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        container.read(exV2AccountProvider).value?.positions.single.id,
+        'server-position-1',
+      );
+      expect(completed, isTrue);
+
+      adapter.postOrderHydrationGate!.complete();
+      await creating;
+    },
+  );
 
   test('create order exposes a sending row before HTTP completes', () async {
     final adapter = _TradingAdapter()..orderGate = Completer<void>();
@@ -244,29 +398,26 @@ void main() {
     },
   );
 
-  test(
-    'full close sends exact remaining volume and refreshes it away',
-    () async {
-      final adapter = _TradingAdapter()..created = true;
-      final container = _container(adapter);
-      addTearDown(container.dispose);
-      final before = await container.read(exV2AccountProvider.future);
-      expect(before?.positions.single.id, 'server-position-1');
-      adapter.onClosedHistoryRead = () {
-        unawaited(container.read(exV2AccountProvider.notifier).refresh());
-      };
+  test('full close sends null volume and refreshes it away', () async {
+    final adapter = _TradingAdapter()..created = true;
+    final container = _container(adapter);
+    addTearDown(container.dispose);
+    final before = await container.read(exV2AccountProvider.future);
+    expect(before?.positions.single.id, 'server-position-1');
+    adapter.onClosedHistoryRead = () {
+      unawaited(container.read(exV2AccountProvider.notifier).refresh());
+    };
 
-      final closeDeal = await container
-          .read(exV2AccountProvider.notifier)
-          .closePosition('server-position-1');
+    final closeDeal = await container
+        .read(exV2AccountProvider.notifier)
+        .closePosition('server-position-1');
 
-      expect(adapter.closePosts, 1);
-      expect(adapter.lastCloseData?['volume'], 0.01);
-      expect(closeDeal?.positionId, 'server-position-1');
-      expect(closeDeal?.price, 4365.28);
-      expect(container.read(exV2AccountProvider).value?.positions, isEmpty);
-    },
-  );
+    expect(adapter.closePosts, 1);
+    expect(adapter.lastCloseData?['volume'], isNull);
+    expect(closeDeal?.positionId, 'server-position-1');
+    expect(closeDeal?.price, 4365.28);
+    expect(container.read(exV2AccountProvider).value?.positions, isEmpty);
+  });
 
   test(
     'full close caps requested volume at the remaining position volume',
@@ -281,7 +432,7 @@ void main() {
           .closePosition('server-position-1', volume: 1);
 
       expect(adapter.closePosts, 1);
-      expect(adapter.lastCloseData?['volume'], 0.01);
+      expect(adapter.lastCloseData?['volume'], isNull);
       expect(container.read(exV2AccountProvider).value?.positions, isEmpty);
     },
   );
@@ -609,7 +760,7 @@ void main() {
   );
 
   test(
-    'close preserves live profit for positions left open during history sync',
+    'legacy close summary never fabricates a missing position valuation',
     () async {
       final historyGate = Completer<void>();
       final historyStarted = Completer<void>();
@@ -627,10 +778,7 @@ void main() {
       container
           .read(exV2AccountProvider.notifier)
           .updateMarketPrice(symbol: 'XAUUSD+', bid: 4380, ask: 4381);
-      expect(
-        container.read(exV2AccountProvider).value!.profit,
-        closeTo(3.52, 0.000001),
-      );
+      expect(container.read(exV2AccountProvider).value!.profit, 0);
 
       final closing = container
           .read(exV2AccountProvider.notifier)
@@ -638,11 +786,11 @@ void main() {
       await historyStarted.future;
 
       final accountState = container.read(exV2AccountProvider).value!;
-      expect(accountState.hasLiveValuation, isTrue);
+      expect(accountState.hasLiveValuation, isFalse);
       expect(accountState.positions.single.id, 'server-position-2');
-      expect(accountState.positions.single.currentPrice, 4381);
-      expect(accountState.positions.single.profit, closeTo(-2.76, 0.000001));
-      expect(accountState.profit, closeTo(-2.76, 0.000001));
+      expect(accountState.positions.single.currentPrice, 4374.1);
+      expect(accountState.positions.single.profit, 0);
+      expect(accountState.profit, 0);
 
       historyGate.complete();
       await closing;
@@ -650,7 +798,7 @@ void main() {
   );
 
   test(
-    'partial close revalues remaining volume without a zero profit frame',
+    'legacy partial-close summary never invents a remaining valuation',
     () async {
       final historyGate = Completer<void>();
       final historyStarted = Completer<void>();
@@ -679,8 +827,8 @@ void main() {
           .positions
           .single;
       expect(position.volume, closeTo(0.006, 0.000001));
-      expect(position.currentPrice, 4380);
-      expect(position.profit, closeTo(3.768, 0.000001));
+      expect(position.currentPrice, 4380.0);
+      expect(position.profit, 0);
 
       historyGate.complete();
       await closing;
@@ -959,7 +1107,7 @@ void main() {
   });
 
   test(
-    'close immediately estimates trade totals before canonical sync arrives',
+    'close keeps the last server totals until canonical sync arrives',
     () async {
       final adapter = _TradingAdapter(returnCloseSync: true, initialMargin: 100)
         ..created = true
@@ -980,11 +1128,11 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       final pending = container.read(demoAccountProvider);
-      expect(pending.balance, closeTo(5006.28, 0.000001));
-      expect(pending.equity, closeTo(5006.28, 0.000001));
-      expect(pending.margin, 0);
-      expect(pending.freeMargin, closeTo(5006.28, 0.000001));
-      expect(pending.marginLevel, 0);
+      expect(pending.balance, 5000);
+      expect(pending.equity, 5000);
+      expect(pending.margin, 100);
+      expect(pending.freeMargin, 4900);
+      expect(pending.marginLevel, 5000);
       expect(pending.profit, 0);
 
       adapter.closeGate!.complete();
@@ -999,119 +1147,58 @@ void main() {
   );
 
   test(
-    'equity exactly zero triggers automatic close and displays zero',
+    'local quote keeps the account snapshot without triggering client stop out',
     () async {
       final adapter = _TradingAdapter()..created = true;
-      adapter.closeGate = Completer<void>();
       final container = _container(adapter);
-      addTearDown(() {
-        if (!adapter.closeGate!.isCompleted) adapter.closeGate!.complete();
-        container.dispose();
-      });
+      addTearDown(container.dispose);
       await container.read(exV2AccountProvider.future);
 
       container
           .read(exV2AccountProvider.notifier)
           .updateMarketPrice(symbol: 'XAUUSD+', bid: -626.28, ask: -626);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      for (
-        var attempt = 0;
-        attempt < 100 && adapter.closePosts == 0;
-        attempt++
-      ) {
-        await Future<void>.delayed(const Duration(milliseconds: 1));
-      }
-
-      final triggered = container.read(exV2AccountProvider).value!;
-      expect(adapter.closePosts, 1);
-      expect(adapter.lastCloseData?['volume'], closeTo(0.01, 0.000001));
-      expect(triggered.positions, isEmpty);
-      expect(triggered.balance, 0);
-      expect(triggered.equity, 0);
-
-      adapter.closeGate!.complete();
+      final state = container.read(exV2AccountProvider).requireValue!;
+      final displayed = container.read(demoAccountProvider);
+      expect(adapter.closePosts, 0);
+      expect(state.positions.single.id, 'server-position-1');
+      expect(state.bootstrap.summary.balance, 5000);
+      expect(state.bootstrap.summary.equity, 5000);
+      expect(displayed.balance, 5000);
+      expect(displayed.equity, 5000);
+      expect(displayed.profit, 0);
+      expect(displayed.margin, 0);
+      expect(displayed.freeMargin, 5000);
+      expect(displayed.marginLevel, 0);
     },
   );
 
   test(
-    'automatic stop out closes every open position once and displays zero',
+    'local losses keep the account snapshot and never trigger stop out',
     () async {
       final adapter = _TradingAdapter(contextualBulkFixture: true);
-      adapter.bulkCloseGates.addAll(
-        List<Completer<void>>.generate(4, (_) => Completer<void>()),
-      );
       final container = _container(adapter);
-      addTearDown(() {
-        for (final gate in adapter.bulkCloseGates) {
-          if (!gate.isCompleted) gate.complete();
-        }
-        container.dispose();
-      });
+      addTearDown(container.dispose);
       await container.read(exV2AccountProvider.future);
 
       final controller = container.read(exV2AccountProvider.notifier);
       controller.updateMarketPrice(symbol: 'XAUUSD+', bid: 0, ask: 0);
-      expect(adapter.closePosts, 0);
       controller.updateMarketPrice(symbol: 'EURUSD', bid: 0, ask: 0);
-
-      for (
-        var attempt = 0;
-        attempt < 100 && adapter.closePosts == 0;
-        attempt++
-      ) {
-        await Future<void>.delayed(const Duration(milliseconds: 1));
-      }
-
-      final triggered = container.read(exV2AccountProvider).value!;
-      expect(adapter.closePosts, 1);
-      expect(triggered.positions, isEmpty);
-      expect(triggered.balance, 0);
-      expect(triggered.equity, 0);
-
-      controller.updateMarketPrice(symbol: 'XAUUSD+', bid: -1, ask: -1);
       await Future<void>.delayed(const Duration(milliseconds: 10));
-      expect(adapter.closePosts, 1);
 
-      for (var index = 0; index < adapter.bulkCloseGates.length; index++) {
-        adapter.bulkCloseGates[index].complete();
-        for (
-          var attempt = 0;
-          attempt < 100 && index < 3 && adapter.closePosts < index + 2;
-          attempt++
-        ) {
-          await Future<void>.delayed(const Duration(milliseconds: 1));
-        }
-      }
-      for (
-        var attempt = 0;
-        attempt < 200 &&
-            container
-                .read(exV2AccountProvider)
-                .value!
-                .pendingOperationIds
-                .isNotEmpty;
-        attempt++
-      ) {
-        await Future<void>.delayed(const Duration(milliseconds: 1));
-      }
-
-      final settled = container.read(exV2AccountProvider).value!;
-      expect(settled.positions, isEmpty);
-      expect(settled.balance, 0);
-      expect(settled.equity, 0);
-      expect(adapter.closePosts, 4);
-      expect(adapter.closePositionIds.toSet(), {
-        'x-buy-win',
-        'x-buy-loss',
-        'x-sell-win',
-        'e-buy-win',
-      });
-      expect(adapter.closePositionVolumes, {
-        'x-buy-win': 1.0,
-        'x-buy-loss': 2.0,
-        'x-sell-win': 0.5,
-        'e-buy-win': 0.1,
-      });
+      final state = container.read(exV2AccountProvider).requireValue!;
+      final displayed = container.read(demoAccountProvider);
+      expect(adapter.closePosts, 0);
+      expect(state.positions, hasLength(4));
+      expect(state.bootstrap.summary.balance, 5306.525);
+      expect(state.bootstrap.summary.equity, 5306.525);
+      expect(displayed.balance, 5306.525);
+      expect(displayed.equity, 5306.525);
+      expect(displayed.profit, 0);
+      expect(displayed.margin, 0);
+      expect(displayed.freeMargin, 5306.525);
+      expect(displayed.marginLevel, 0);
     },
   );
 
@@ -1199,9 +1286,9 @@ void main() {
       expect(adapter.closePositionIds.toSet(), hasLength(3));
       expect(adapter.closePositionIds, isNot(contains('e-buy-win')));
       expect(adapter.closePositionVolumes, {
-        'x-buy-win': 1.0,
-        'x-buy-loss': 2.0,
-        'x-sell-win': 0.5,
+        'x-buy-win': null,
+        'x-buy-loss': null,
+        'x-sell-win': null,
       });
       expect(adapter.closePosts, 3);
       expect(adapter.maxConcurrentBulkClosePosts, 1);
@@ -1293,116 +1380,93 @@ void main() {
     },
   );
 
-  test(
-    'bulk close keeps one optimistic account snapshot until the group settles',
-    () async {
-      final adapter = _TradingAdapter(
-        contextualBulkFixture: true,
-        returnCloseSync: true,
-        initialMargin: 360,
-        incrementalBulkHistorySummary: true,
-      );
-      adapter.bulkCloseGates.addAll(
-        List<Completer<void>>.generate(3, (_) => Completer<void>()),
-      );
-      final container = _container(adapter);
-      addTearDown(() {
-        for (final gate in adapter.bulkCloseGates) {
-          if (!gate.isCompleted) gate.complete();
-        }
-        container.dispose();
-      });
-      await container.read(exV2AccountProvider.future);
-      final controller = container.read(exV2AccountProvider.notifier);
-      controller.updateMarketPrice(symbol: 'XAUUSD+', bid: 4625, ask: 4625.2);
-      controller.updateMarketPrice(symbol: 'EURUSD', bid: 1.2, ask: 1.21);
-
-      final closing = controller.closePositions([
-        'x-buy-win',
-        'x-buy-loss',
-        'x-sell-win',
-      ]);
-      for (
-        var attempt = 0;
-        attempt < 100 && adapter.closePosts < 1;
-        attempt++
-      ) {
-        await Future<void>.delayed(const Duration(milliseconds: 1));
+  test('bulk close displays only authoritative account snapshots', () async {
+    final adapter = _TradingAdapter(
+      contextualBulkFixture: true,
+      returnCloseSync: true,
+      initialMargin: 360,
+      incrementalBulkHistorySummary: true,
+    );
+    adapter.bulkCloseGates.addAll(
+      List<Completer<void>>.generate(3, (_) => Completer<void>()),
+    );
+    final container = _container(adapter);
+    addTearDown(() {
+      for (final gate in adapter.bulkCloseGates) {
+        if (!gate.isCompleted) gate.complete();
       }
-      final optimistic = container.read(demoAccountProvider);
-      final optimisticHistory = container.read(activeDemoAccountProvider);
-      expect(optimistic.balance, closeTo(5668.525, 0.000001));
-      expect(optimistic.profit, closeTo(1, 0.000001));
-      expect(optimistic.equity, closeTo(5669.525, 0.000001));
-      expect(optimistic.margin, closeTo(10, 0.000001));
-      expect(optimistic.freeMargin, closeTo(5659.525, 0.000001));
-      expect(optimistic.marginLevel, closeTo(56695.25, 0.000001));
-      expect(optimisticHistory.historyProfit, closeTo(362, 0.000001));
-      expect(optimisticHistory.historyBalance, closeTo(5668.525, 0.000001));
+      container.dispose();
+    });
+    await container.read(exV2AccountProvider.future);
+    final controller = container.read(exV2AccountProvider.notifier);
+    controller.updateMarketPrice(symbol: 'XAUUSD+', bid: 4625, ask: 4625.2);
+    controller.updateMarketPrice(symbol: 'EURUSD', bid: 1.2, ask: 1.21);
 
-      adapter.bulkCloseGates[0].complete();
-      for (
-        var attempt = 0;
-        attempt < 100 && adapter.closePosts < 2;
-        attempt++
-      ) {
-        await Future<void>.delayed(const Duration(milliseconds: 1));
-      }
-      final afterFirstCommit = container.read(demoAccountProvider);
-      expect(afterFirstCommit.balance, optimistic.balance);
-      expect(afterFirstCommit.profit, optimistic.profit);
-      expect(afterFirstCommit.equity, optimistic.equity);
-      expect(afterFirstCommit.margin, optimistic.margin);
-      expect(afterFirstCommit.freeMargin, optimistic.freeMargin);
-      expect(afterFirstCommit.marginLevel, optimistic.marginLevel);
-      final historyAfterFirstCommit = container.read(activeDemoAccountProvider);
-      expect(
-        historyAfterFirstCommit.historyProfit,
-        optimisticHistory.historyProfit,
-      );
-      expect(
-        historyAfterFirstCommit.historyBalance,
-        optimisticHistory.historyBalance,
-      );
+    final closing = controller.closePositions([
+      'x-buy-win',
+      'x-buy-loss',
+      'x-sell-win',
+    ]);
+    for (var attempt = 0; attempt < 100 && adapter.closePosts < 1; attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    final initialSummary = container.read(demoAccountProvider);
+    final optimisticHistory = container.read(activeDemoAccountProvider);
+    expect(initialSummary.balance, closeTo(5306.525, 0.000001));
+    expect(initialSummary.profit, 0);
+    expect(initialSummary.equity, closeTo(5306.525, 0.000001));
+    expect(initialSummary.margin, 360);
+    expect(initialSummary.freeMargin, closeTo(4946.525, 0.000001));
+    expect(initialSummary.marginLevel, closeTo(1474.0347222222, 0.000001));
+    expect(optimisticHistory.historyProfit, 0);
+    expect(optimisticHistory.historyBalance, closeTo(5306.525, 0.000001));
 
-      adapter.bulkCloseGates[1].complete();
-      for (
-        var attempt = 0;
-        attempt < 100 && adapter.closePosts < 3;
-        attempt++
-      ) {
-        await Future<void>.delayed(const Duration(milliseconds: 1));
-      }
-      final afterSecondCommit = container.read(demoAccountProvider);
-      expect(afterSecondCommit.balance, optimistic.balance);
-      expect(afterSecondCommit.profit, optimistic.profit);
-      expect(afterSecondCommit.equity, optimistic.equity);
-      expect(afterSecondCommit.margin, optimistic.margin);
-      expect(afterSecondCommit.freeMargin, optimistic.freeMargin);
-      expect(afterSecondCommit.marginLevel, optimistic.marginLevel);
-      final historyAfterSecondCommit = container.read(
-        activeDemoAccountProvider,
-      );
-      expect(
-        historyAfterSecondCommit.historyProfit,
-        optimisticHistory.historyProfit,
-      );
-      expect(
-        historyAfterSecondCommit.historyBalance,
-        optimisticHistory.historyBalance,
-      );
+    adapter.bulkCloseGates[0].complete();
+    for (var attempt = 0; attempt < 100 && adapter.closePosts < 2; attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    final afterFirstCommit = container.read(demoAccountProvider);
+    expect(afterFirstCommit.balance, 5000);
+    expect(afterFirstCommit.profit, 0);
+    expect(afterFirstCommit.equity, 5000);
+    expect(afterFirstCommit.margin, 0);
+    expect(afterFirstCommit.freeMargin, 5000);
+    expect(afterFirstCommit.marginLevel, 0);
+    final historyAfterFirstCommit = container.read(activeDemoAccountProvider);
+    expect(
+      historyAfterFirstCommit.historyProfit,
+      optimisticHistory.historyProfit,
+    );
+    expect(historyAfterFirstCommit.historyBalance, 5000);
 
-      adapter.bulkCloseGates[2].complete();
-      await closing;
-      final committed = container.read(demoAccountProvider);
-      expect(committed.balance, 5000);
-      expect(committed.profit, closeTo(1, 0.000001));
-      expect(committed.equity, closeTo(5001, 0.000001));
-      final committedHistory = container.read(activeDemoAccountProvider);
-      expect(committedHistory.historyProfit, 300);
-      expect(committedHistory.historyBalance, 5000);
-    },
-  );
+    adapter.bulkCloseGates[1].complete();
+    for (var attempt = 0; attempt < 100 && adapter.closePosts < 3; attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    final afterSecondCommit = container.read(demoAccountProvider);
+    expect(afterSecondCommit.balance, 5000);
+    expect(afterSecondCommit.profit, 0);
+    expect(afterSecondCommit.equity, 5000);
+    expect(afterSecondCommit.margin, 0);
+    expect(afterSecondCommit.freeMargin, 5000);
+    expect(afterSecondCommit.marginLevel, 0);
+    final historyAfterSecondCommit = container.read(activeDemoAccountProvider);
+    expect(
+      historyAfterSecondCommit.historyProfit,
+      optimisticHistory.historyProfit,
+    );
+    expect(historyAfterSecondCommit.historyBalance, 5000);
+
+    adapter.bulkCloseGates[2].complete();
+    await closing;
+    final committed = container.read(demoAccountProvider);
+    expect(committed.balance, 5000);
+    expect(committed.profit, 0);
+    expect(committed.equity, 5000);
+    final committedHistory = container.read(activeDemoAccountProvider);
+    expect(committedHistory.historyProfit, 300);
+    expect(committedHistory.historyBalance, 5000);
+  });
 
   test('close sync cannot erase the hydrated deposit total', () async {
     final adapter = _TradingAdapter(
@@ -1887,7 +1951,7 @@ void main() {
   });
 
   test(
-    'close-by immediately estimates trade totals before canonical sync arrives',
+    'close-by keeps the last server totals until canonical sync arrives',
     () async {
       final adapter = _TradingAdapter(returnCloseSync: true, initialMargin: 100)
         ..created = true
@@ -1911,20 +1975,20 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       final pending = container.read(demoAccountProvider);
-      expect(pending.balance, closeTo(4999.752, 0.000001));
-      expect(pending.equity, closeTo(5003.52, 0.000001));
-      expect(pending.margin, closeTo(42.857142857, 0.000001));
-      expect(pending.freeMargin, closeTo(4960.662857143, 0.000001));
-      expect(pending.marginLevel, closeTo(11674.88, 0.000001));
-      expect(pending.profit, closeTo(3.768, 0.000001));
+      expect(pending.balance, 5000);
+      expect(pending.equity, 5000);
+      expect(pending.margin, 100);
+      expect(pending.freeMargin, 4900);
+      expect(pending.marginLevel, 5000);
+      expect(pending.profit, 0);
 
       adapter.closeByGate!.complete();
       await closing;
 
       final committed = container.read(demoAccountProvider);
       expect(committed.balance, 5000);
-      expect(committed.equity, closeTo(5003.768, 0.000001));
-      expect(committed.profit, closeTo(3.768, 0.000001));
+      expect(committed.equity, 5000);
+      expect(committed.profit, 0);
     },
   );
 
@@ -2074,6 +2138,48 @@ void main() {
     expect(adapter.lastOrderData?['requestedPrice'], 1000);
   });
 
+  testWidgets(
+    'opening History refreshes a closed position that reached the server after the cached snapshot',
+    (tester) async {
+      final adapter = _TradingAdapter();
+      final container = _container(adapter);
+      addTearDown(container.dispose);
+      await tester.runAsync(() => container.read(exV2AccountProvider.future));
+
+      expect(container.read(demoHistoryPositionsProvider), isEmpty);
+
+      // The close is already authoritative on the server, but the retained
+      // History branch still has the snapshot from before that close.
+      adapter
+        ..closeCommitted = true
+        ..remainingVolume = 0;
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: AppTabScope(index: 3, child: HistoryScreen()),
+          ),
+        ),
+      );
+      for (
+        var attempt = 0;
+        attempt < 100 && container.read(demoHistoryPositionsProvider).isEmpty;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      final history = container.read(demoHistoryPositionsProvider);
+      expect(history, hasLength(1));
+      expect(history.single.id.toLowerCase(), 'server-position-1');
+      expect(
+        find.byKey(ValueKey('history-position-${history.single.id}')),
+        findsOneWidget,
+      );
+    },
+  );
+
   test('cancel removes a pending order before HTTP completes', () async {
     final adapter = _TradingAdapter()..pending = true;
     adapter.cancelGate = Completer<void>();
@@ -2151,6 +2257,7 @@ final class _TradingAdapter implements HttpClientAdapter {
     this.omitClosedDeal = false,
     this.stalePositionOnClose = false,
     this.failBootstrapAfterAcceptedOrder = false,
+    this.staleBootstrapReadsAfterCreate = 0,
     this.delayedClosedHistory = false,
     this.staleBootstrapReadsAfterClose = 0,
     this.failFirstPostCloseBootstrap = false,
@@ -2180,6 +2287,7 @@ final class _TradingAdapter implements HttpClientAdapter {
   final bool omitClosedDeal;
   final bool stalePositionOnClose;
   final bool failBootstrapAfterAcceptedOrder;
+  final int staleBootstrapReadsAfterCreate;
   final bool delayedClosedHistory;
   final int staleBootstrapReadsAfterClose;
   final bool failFirstPostCloseBootstrap;
@@ -2212,6 +2320,7 @@ final class _TradingAdapter implements HttpClientAdapter {
   int closedHistoryDealReads = 0;
   int closedHistoryPositionReads = 0;
   int postCloseBootstrapReads = 0;
+  int postCreateBootstrapReads = 0;
   int preCloseHistoryDealReads = 0;
   int postCloseHistorySummaryReads = 0;
   Map<String, dynamic>? lastOrderData;
@@ -2238,6 +2347,8 @@ final class _TradingAdapter implements HttpClientAdapter {
   Completer<void>? postCloseHistoryStarted;
   Completer<void>? protectionGate;
   Completer<void>? bootstrapGate;
+  Completer<void>? postOrderHydrationGate;
+  Completer<void>? postOrderHydrationStarted;
   Completer<void>? contextualBulkFinalBootstrapGate;
   Completer<void>? contextualBulkFinalHistoryStarted;
   Completer<void>? initialContextualHistoryGate;
@@ -2460,6 +2571,7 @@ final class _TradingAdapter implements HttpClientAdapter {
           'message': 'Bootstrap unavailable',
         }, statusCode: 503);
       }
+      if (created) postCreateBootstrapReads++;
       if (remainingVolume < 0.01) {
         postCloseBootstrapReads++;
         if (failFirstPostCloseBootstrap && postCloseBootstrapReads == 1) {
@@ -2477,10 +2589,12 @@ final class _TradingAdapter implements HttpClientAdapter {
       final staleAfterClose =
           closeCommitted &&
           postCloseBootstrapReads <= staleBootstrapReadsAfterClose;
-      return _json(
-        _bootstrap(
+      final staleAfterCreate =
+          created && postCreateBootstrapReads <= staleBootstrapReadsAfterCreate;
+      return _json({
+        ..._bootstrap(
           version: ++bootstrapVersion,
-          withPosition: staleAfterClose || created,
+          withPosition: staleAfterClose || (created && !staleAfterCreate),
           withPending: pending,
           remainingVolume: staleAfterClose ? 0.01 : remainingVolume,
           withOppositePosition: oppositeCreated,
@@ -2492,7 +2606,10 @@ final class _TradingAdapter implements HttpClientAdapter {
               : null,
           marginOverride: initialMargin,
         ),
-      );
+        'recentDeals': created && !staleAfterCreate
+            ? [_createdOrderDeal]
+            : <Object?>[],
+      });
     }
     if (contextualBulkFixture && path.endsWith('/history/summary')) {
       if (bulkCommittedPositionIds.length == 3 &&
@@ -2571,6 +2688,12 @@ final class _TradingAdapter implements HttpClientAdapter {
       });
     }
     if (path.endsWith('/history/deals')) {
+      if (created && postOrderHydrationGate != null) {
+        if (!(postOrderHydrationStarted?.isCompleted ?? true)) {
+          postOrderHydrationStarted!.complete();
+        }
+        await postOrderHydrationGate!.future;
+      }
       final hasCloseExecution = remainingVolume < 0.01;
       if (!hasCloseExecution) preCloseHistoryDealReads++;
       if (hasCloseExecution) closedHistoryDealReads++;
@@ -3278,6 +3401,19 @@ final _bootstrapPosition = <String, Object?>{
   'realizedProfit': 0,
   'status': 'open',
   'createdAt': '2026-08-13T14:00:00Z',
+};
+
+final _createdOrderDeal = <String, Object?>{
+  'id': 'server-entry-deal-1',
+  'orderId': 'server-order-1',
+  'positionId': 'server-position-1',
+  'type': 'in',
+  'symbol': 'XAUUSD+',
+  'side': 'BUY',
+  'volume': 0.01,
+  'price': 4373.72,
+  'profit': 0,
+  'createdAtUtc': '2026-08-13T14:00:00Z',
 };
 
 final _contextualBulkPositions = <Map<String, Object?>>[

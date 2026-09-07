@@ -271,7 +271,7 @@ void main() {
             .widget<Text>(_textWithKeyPrefix('trade-position-secondary-').first)
             .style
             ?.color,
-        AppColors.tradingSecondaryText,
+        AppColors.tradePositionSecondaryText,
       );
       expect(
         tester

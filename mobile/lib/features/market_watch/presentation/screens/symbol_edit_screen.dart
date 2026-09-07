@@ -152,7 +152,7 @@ class _SymbolEditScreenState extends ConsumerState<SymbolEditScreen> {
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              displayTradingSymbol(symbol),
+                              displayMarketWatchSymbol(symbol),
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 14,

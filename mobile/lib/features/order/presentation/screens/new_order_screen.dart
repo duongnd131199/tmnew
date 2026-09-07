@@ -7,22 +7,22 @@ import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
-import 'package:trading_mobile/features/chart/presentation/navigation/chart_navigation.dart';
 import 'package:trading_mobile/features/order/presentation/order_failure_message.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
-import 'package:trading_mobile/shared/widgets/app_shell.dart';
+import 'package:trading_mobile/shared/widgets/order_ticket_quote_text.dart';
 
-const _marketOrderType = 'Vào lệnh thị trường';
+const _marketOrderType = 'Vao lenh thi truong';
 const _orderTypes = <String>[
   _marketOrderType,
   'Buy Limit',
   'Sell Limit',
   'Buy Stop',
   'Sell Stop',
+  'Buy Stop Limit',
+  'Sell Stop Limit',
 ];
 const _fillPolicies = <String>['Fill or Kill', 'Immediate or Cancel', 'Return'];
-
 String _normalizeSide(String side) {
   return side.toLowerCase() == 'sell' ? 'SELL' : 'BUY';
 }
@@ -44,7 +44,7 @@ double _defaultPendingPriceForForm({
   required double ask,
   required double step,
 }) {
-  final isAbove = type == 'Sell Limit' || type == 'Buy Stop';
+  final isAbove = type.startsWith('Sell Limit') || type.startsWith('Buy Stop');
   return isAbove ? ask + step * 10 : bid - step * 10;
 }
 
@@ -59,6 +59,7 @@ class NewOrderScreen extends ConsumerStatefulWidget {
   const NewOrderScreen({
     required this.symbol,
     this.initialSide = 'buy',
+    this.initialOrderType = _marketOrderType,
     this.closePositionId,
     this.tradeAddReferenceLayout = false,
     super.key,
@@ -66,6 +67,7 @@ class NewOrderScreen extends ConsumerStatefulWidget {
 
   final String symbol;
   final String initialSide;
+  final String initialOrderType;
   final String? closePositionId;
   final bool tradeAddReferenceLayout;
 
@@ -74,7 +76,7 @@ class NewOrderScreen extends ConsumerStatefulWidget {
 }
 
 class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
-  double volume = 0.25;
+  double volume = 0.01;
   double? stopLoss;
   double? takeProfit;
   double? pendingPrice;
@@ -89,13 +91,23 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
   String? completedOrderType;
   bool completedByClosing = false;
   bool completedPendingOrder = false;
+  double? _lastBid;
+  double? _lastAsk;
+  Color _bidColor = AppColors.tradeNegative;
+  Color _askColor = AppColors.primary;
 
   @override
   void initState() {
     super.initState();
     selectedSide = _normalizeSide(widget.initialSide);
+    orderType = _orderTypes.contains(widget.initialOrderType)
+        ? widget.initialOrderType
+        : _marketOrderType;
+    if (orderType != _marketOrderType) {
+      selectedSide = orderType.startsWith('Buy') ? 'BUY' : 'SELL';
+    }
     if (widget.tradeAddReferenceLayout && widget.closePositionId == null) {
-      volume = 1;
+      volume = widget.symbol.trim().toUpperCase().startsWith('XAU') ? 1 : .01;
     }
     final closePositionId = widget.closePositionId;
     if (closePositionId != null) {
@@ -103,8 +115,21 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
           .read(demoPositionsProvider)
           .where((item) => item.id == closePositionId)
           .firstOrNull;
-      if (position != null) volume = position.volume;
+      if (position != null) {
+        volume = position.volume < .01 ? position.volume : .01;
+      }
     }
+  }
+
+  void _trackQuoteDirections(double bid, double ask) {
+    if (_lastBid case final previous? when previous != bid) {
+      _bidColor = bid > previous ? AppColors.primary : AppColors.tradeNegative;
+    }
+    if (_lastAsk case final previous? when previous != ask) {
+      _askColor = ask > previous ? AppColors.primary : AppColors.tradeNegative;
+    }
+    _lastBid = bid;
+    _lastAsk = ask;
   }
 
   @override
@@ -123,8 +148,17 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
     return value.toStringAsFixed(5);
   }
 
-  Future<void> _submit(String side, double price) async {
+  Future<void> _returnToTradeAfterCompletion() async {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+    router.go('/trade');
+  }
+
+  Future<void> _submit(String side, DemoQuote quote) async {
     if (submitting) return;
+    final price = side == 'BUY' ? quote.ask : quote.bid;
     setState(() {
       submitting = true;
       selectedSide = side;
@@ -139,6 +173,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
               volume: volume,
               stopLoss: stopLoss,
               takeProfit: takeProfit,
+              reconcileBeforeReturning: true,
             );
         if (!mounted) return;
         setState(() {
@@ -150,6 +185,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
           completedOrderType = _marketOrderType;
           completedPendingOrder = order.status.toLowerCase() != 'filled';
         });
+        await _returnToTradeAfterCompletion();
         return;
       }
       await Future<void>.delayed(const Duration(milliseconds: 700));
@@ -173,20 +209,21 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
         completedOrderType = _marketOrderType;
         completedPendingOrder = false;
       });
+      await _returnToTradeAfterCompletion();
     } catch (error) {
       if (!mounted) return;
       setState(() => submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            orderFailureMessage(error, fallback: 'Không thể đặt lệnh'),
+            orderFailureMessage(error, fallback: 'Khong the dat lenh'),
           ),
         ),
       );
     }
   }
 
-  Future<void> _submitPendingOrder() async {
+  Future<void> _submitPendingOrder(DemoQuote quote) async {
     final price = pendingPrice;
     if (submitting || price == null || orderType == _marketOrderType) return;
     final side = orderType.startsWith('Buy') ? 'BUY' : 'SELL';
@@ -207,6 +244,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
               requestedPrice: price,
               stopLoss: stopLoss,
               takeProfit: takeProfit,
+              reconcileBeforeReturning: true,
             );
         if (!mounted) return;
         setState(() {
@@ -218,6 +256,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
           completedOrderType = orderType;
           completedPendingOrder = order.status.toLowerCase() != 'filled';
         });
+        await _returnToTradeAfterCompletion();
         return;
       }
       await Future<void>.delayed(const Duration(milliseconds: 700));
@@ -241,13 +280,14 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
         completedOrderType = orderType;
         completedPendingOrder = true;
       });
+      await _returnToTradeAfterCompletion();
     } catch (error) {
       if (!mounted) return;
       setState(() => submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            orderFailureMessage(error, fallback: 'Không thể đặt lệnh chờ'),
+            orderFailureMessage(error, fallback: 'Khong the dat lenh cho'),
           ),
         ),
       );
@@ -294,12 +334,17 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
         completedOrderType = 'Close';
         completedPendingOrder = false;
       });
-    } catch (_) {
+      await _returnToTradeAfterCompletion();
+    } catch (error) {
       if (!mounted) return;
       setState(() => submitting = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Không thể đóng vị thế')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            orderFailureMessage(error, fallback: 'Khong the dong vi the'),
+          ),
+        ),
+      );
     }
   }
 
@@ -309,7 +354,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _ChoiceSheet(
-        title: 'Loại lệnh',
+        title: 'Loai lenh',
         selected: orderType,
         options: _orderTypes,
         optionKeyPrefix: 'order-type-option',
@@ -358,7 +403,8 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
 
   double _defaultPendingPrice(String type, DemoQuote quote) {
     final step = _priceStepForSymbol(widget.symbol, quote.bid) * 10;
-    final isAbove = type == 'Sell Limit' || type == 'Buy Stop';
+    final isAbove =
+        type.startsWith('Sell Limit') || type.startsWith('Buy Stop');
     final value = isAbove ? quote.ask + step : quote.bid - step;
     return double.parse(_format(value));
   }
@@ -369,6 +415,10 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
         .watch(demoQuotesProvider)
         .firstWhere((quote) => quote.symbol == widget.symbol);
     final quote = ref.watch(demoQuoteProvider(widget.symbol)).value ?? initial;
+    _trackQuoteDirections(quote.bid, quote.ask);
+    if (orderType != _marketOrderType && pendingPrice == null) {
+      pendingPrice = _defaultPendingPrice(orderType, quote);
+    }
     final closePosition = widget.closePositionId == null
         ? null
         : ref
@@ -389,6 +439,8 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
             maxVolume: maxVolume,
             bid: quote.bid,
             ask: quote.ask,
+            bidColor: _bidColor,
+            askColor: _askColor,
             submitting: submitting,
             selectedSide: selectedSide,
             orderType: orderType,
@@ -403,18 +455,15 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
             takeProfit: takeProfit,
             onStopLossChanged: (value) => setState(() => stopLoss = value),
             onTakeProfitChanged: (value) => setState(() => takeProfit = value),
-            onSell: closePosition == null
-                ? () => _submit('SELL', quote.bid)
-                : () => _closePosition(closePosition),
-            onBuy: closePosition == null
-                ? () => _submit('BUY', quote.ask)
-                : () => _closePosition(closePosition),
+            onSell: () => _submit('SELL', quote),
+            onBuy: () => _submit('BUY', quote),
             pendingPrice: pendingPrice,
             onPendingPriceChanged: (value) =>
                 setState(() => pendingPrice = value),
-            onPlacePendingOrder: _submitPendingOrder,
+            onPlacePendingOrder: () => _submitPendingOrder(quote),
             closePosition: closePosition,
             referenceLayout: widget.tradeAddReferenceLayout,
+            referencePresentation: true,
             onClosePosition: closePosition == null
                 ? null
                 : () => _closePosition(closePosition),
@@ -429,69 +478,34 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
             orderId: completedOrderId!,
             orderType: completedOrderType ?? _marketOrderType,
             pendingOrder: completedPendingOrder,
-            fillPolicy: fillPolicy,
             closedPosition: completedByClosing,
+            referenceLayout: true,
             onBack: () => context.go('/trade'),
             format: _format,
           );
-    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
-    final destinations = [
-      '/market',
-      chartLocationForSymbol(widget.symbol),
-      '/trade',
-      '/history',
-      '/settings',
-    ];
-    if (widget.tradeAddReferenceLayout) {
-      return AnnotatedRegion<SystemUiOverlayStyle>(
-        value: const SystemUiOverlayStyle(
-          statusBarColor: AppColors.orderTicketSurface,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
-          systemNavigationBarColor: AppColors.orderTicketSurface,
-          systemNavigationBarIconBrightness: Brightness.dark,
-        ),
-        child: Scaffold(
-          backgroundColor: AppColors.orderTicketSurface,
-          body: SafeArea(
-            bottom: false,
-            child: SizedBox.expand(
-              key: const Key('trade-add-order-ticket'),
-              child: orderContent,
-            ),
-          ),
-        ),
-      );
-    }
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
-        bottom: false,
-        child: Row(
-          children: [
-            const SizedBox(width: 34),
-            Expanded(
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  color: AppColors.surfaceElevated,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(29),
-                    bottomLeft: Radius.circular(29),
-                  ),
-                ),
-                child: orderContent,
-              ),
-            ),
-          ],
+    final referenceTopInset = MediaQuery.paddingOf(
+      context,
+    ).top.clamp(0.0, 24.0);
+    final ticketKey = widget.tradeAddReferenceLayout
+        ? const Key('trade-add-order-ticket')
+        : widget.closePositionId != null
+        ? const Key('position-close-order-ticket')
+        : const Key('regular-order-ticket');
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: AppColors.orderTicketSurface,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: AppColors.orderTicketSurface,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: AppColors.orderTicketSurface,
+        body: Padding(
+          padding: EdgeInsets.only(top: referenceTopInset),
+          child: SizedBox.expand(key: ticketKey, child: orderContent),
         ),
       ),
-      bottomNavigationBar: keyboardVisible
-          ? null
-          : MtBottomNavigationBar(
-              selectedIndex: 2,
-              selectedColor: AppColors.negative,
-              onTap: (index) => context.go(destinations[index]),
-            ),
     );
   }
 }
@@ -504,6 +518,8 @@ class _OrderForm extends StatelessWidget {
     required this.maxVolume,
     required this.bid,
     required this.ask,
+    required this.bidColor,
+    required this.askColor,
     required this.submitting,
     required this.selectedSide,
     required this.orderType,
@@ -524,6 +540,7 @@ class _OrderForm extends StatelessWidget {
     required this.onPlacePendingOrder,
     required this.closePosition,
     required this.referenceLayout,
+    required this.referencePresentation,
     required this.onClosePosition,
     required this.format,
   });
@@ -534,6 +551,8 @@ class _OrderForm extends StatelessWidget {
   final double maxVolume;
   final double bid;
   final double ask;
+  final Color bidColor;
+  final Color askColor;
   final bool submitting;
   final String selectedSide;
   final String orderType;
@@ -554,6 +573,7 @@ class _OrderForm extends StatelessWidget {
   final VoidCallback onPlacePendingOrder;
   final DemoPosition? closePosition;
   final bool referenceLayout;
+  final bool referencePresentation;
   final VoidCallback? onClosePosition;
   final String Function(double value) format;
 
@@ -561,40 +581,41 @@ class _OrderForm extends StatelessWidget {
   Widget build(BuildContext context) {
     final protectionStep = _priceStepForSymbol(symbol, bid);
     final pendingOrder = orderType != _marketOrderType;
+    final usesReferencePresentation = referencePresentation;
     return Column(
       children: [
         _OrderHeader(
           symbol: symbol,
           symbolName: symbolName,
           onBack: onBack,
-          referenceLayout: referenceLayout,
+          referenceLayout: usesReferencePresentation,
         ),
         _OptionRow(
           key: const Key('order-type-field'),
           label: orderType,
           onTap: onOrderTypeTap,
-          referenceLayout: referenceLayout,
-          height: referenceLayout ? 41 : 40,
+          referenceLayout: usesReferencePresentation,
+          height: usesReferencePresentation ? 41 : 40,
         ),
         ColoredBox(
-          color: referenceLayout
+          color: usesReferencePresentation
               ? AppColors.orderTicketControlSurface
               : Colors.transparent,
           child: SizedBox(
-            height: referenceLayout ? 44 : 46,
+            height: usesReferencePresentation ? 44 : 46,
             child: Row(
               children: [
                 _StepButton(
                   label: referenceLayout ? '-5' : '-0.5',
                   onTap: () =>
                       onVolumeChanged(volume - (referenceLayout ? 5 : .5)),
-                  referenceLayout: referenceLayout,
+                  referenceLayout: usesReferencePresentation,
                 ),
                 _StepButton(
                   label: referenceLayout ? '-1' : '-0.1',
                   onTap: () =>
                       onVolumeChanged(volume - (referenceLayout ? 1 : .1)),
-                  referenceLayout: referenceLayout,
+                  referenceLayout: usesReferencePresentation,
                 ),
                 Expanded(
                   child: InkWell(
@@ -606,8 +627,10 @@ class _OrderForm extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: AppColors.textPrimary,
-                          fontFamily: referenceLayout ? 'sans-serif' : null,
-                          fontSize: referenceLayout ? 14.5 : 14,
+                          fontFamily: usesReferencePresentation
+                              ? 'sans-serif'
+                              : null,
+                          fontSize: usesReferencePresentation ? 14.5 : 14,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
@@ -618,13 +641,13 @@ class _OrderForm extends StatelessWidget {
                   label: referenceLayout ? '+1' : '+0.1',
                   onTap: () =>
                       onVolumeChanged(volume + (referenceLayout ? 1 : .1)),
-                  referenceLayout: referenceLayout,
+                  referenceLayout: usesReferencePresentation,
                 ),
                 _StepButton(
                   label: referenceLayout ? '+5' : '+0.5',
                   onTap: () =>
                       onVolumeChanged(volume + (referenceLayout ? 5 : .5)),
-                  referenceLayout: referenceLayout,
+                  referenceLayout: usesReferencePresentation,
                 ),
               ],
             ),
@@ -632,7 +655,7 @@ class _OrderForm extends StatelessWidget {
         ),
         if (pendingOrder)
           _ProtectionRow(
-            label: 'Giá',
+            label: 'Gia',
             value: pendingPrice,
             format: format,
             decreaseKey: const Key('order-pending-price-decrease'),
@@ -653,10 +676,10 @@ class _OrderForm extends StatelessWidget {
                 step: protectionStep,
               ),
             ),
-            referenceLayout: referenceLayout,
+            referenceLayout: usesReferencePresentation,
           ),
         _ProtectionRow(
-          label: 'Cắt lỗ',
+          label: 'Cat lo',
           value: stopLoss,
           format: format,
           decreaseKey: const Key('order-sl-decrease'),
@@ -667,10 +690,10 @@ class _OrderForm extends StatelessWidget {
           onIncrease: () =>
               onStopLossChanged((stopLoss ?? bid) + protectionStep),
           onClear: () => onStopLossChanged(null),
-          referenceLayout: referenceLayout,
+          referenceLayout: usesReferencePresentation,
         ),
         _ProtectionRow(
-          label: 'Chốt lời',
+          label: 'Chot loi',
           value: takeProfit,
           format: format,
           decreaseKey: const Key('order-tp-decrease'),
@@ -681,56 +704,46 @@ class _OrderForm extends StatelessWidget {
           onIncrease: () =>
               onTakeProfitChanged((takeProfit ?? ask) + protectionStep),
           onClear: () => onTakeProfitChanged(null),
-          referenceLayout: referenceLayout,
+          referenceLayout: usesReferencePresentation,
         ),
         _OptionRow(
           key: const Key('order-fill-policy-field'),
           label: 'Fill Policy',
           value: fillPolicy,
           onTap: onFillPolicyTap,
-          referenceLayout: referenceLayout,
-          height: referenceLayout ? 38 : 40,
+          referenceLayout: usesReferencePresentation,
+          height: usesReferencePresentation ? 38 : 40,
         ),
         SizedBox(
           key: const Key('order-quote-strip'),
-          height: referenceLayout ? 55 : 49,
+          height: usesReferencePresentation ? 55 : 49,
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  format(bid),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: referenceLayout
-                        ? AppColors.orderTicketQuote
-                        : AppColors.negative,
-                    fontSize: referenceLayout ? 26.5 : 25,
-                    fontWeight: FontWeight.w500,
-                    height: 1,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                child: OrderTicketQuoteText(
+                  formattedPrice: format(bid),
+                  color: closePosition != null
+                      ? AppColors.textPrimary
+                      : referenceLayout
+                      ? AppColors.orderTicketQuote
+                      : bidColor,
                 ),
               ),
               Expanded(
-                child: Text(
-                  format(ask),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: referenceLayout
-                        ? AppColors.orderTicketQuote
-                        : AppColors.negative,
-                    fontSize: referenceLayout ? 26.5 : 25,
-                    fontWeight: FontWeight.w500,
-                    height: 1,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                child: OrderTicketQuoteText(
+                  formattedPrice: format(ask),
+                  color: closePosition != null
+                      ? AppColors.textPrimary
+                      : referenceLayout
+                      ? AppColors.orderTicketQuote
+                      : askColor,
                 ),
               ),
             ],
           ),
         ),
         SizedBox(
-          height: referenceLayout ? 39 : 40,
+          height: usesReferencePresentation ? 39 : 40,
           child: pendingOrder
               ? _PendingOrderButton(
                   type: orderType,
@@ -748,67 +761,51 @@ class _OrderForm extends StatelessWidget {
                       child: _MarketOrderButton(
                         side: 'SELL',
                         label: 'Sell by Market',
-                        color: referenceLayout
+                        color: usesReferencePresentation
                             ? AppColors.orderTicketSell
                             : const Color(0xFFC8212B),
                         selected: selectedSide == 'SELL',
                         onTap: submitting ? null : onSell,
-                        referenceLayout: referenceLayout,
+                        referenceLayout: usesReferencePresentation,
                       ),
                     ),
                     Expanded(
                       child: _MarketOrderButton(
                         side: 'BUY',
                         label: 'Buy by Market',
-                        color: referenceLayout
+                        color: usesReferencePresentation
                             ? AppColors.orderTicketBuy
                             : const Color(0xFF156AC8),
                         selected: selectedSide == 'BUY',
                         onTap: submitting ? null : onBuy,
-                        referenceLayout: referenceLayout,
+                        referenceLayout: usesReferencePresentation,
                       ),
                     ),
                   ],
                 ),
         ),
         if (closePosition case final position?)
-          Material(
-            color: const Color(0xFFD77A00),
-            child: InkWell(
-              key: const Key('order-close-position'),
-              onTap: submitting ? null : onClosePosition,
-              child: Container(
-                width: double.infinity,
-                constraints: const BoxConstraints(minHeight: 38),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                alignment: Alignment.center,
-                child: Text(
-                  'Đóng #${displayTradingTicketId(position.id)} '
-                  '${position.side.toLowerCase()} '
-                  '${position.volume.toStringAsFixed(2)} ở Thị Trường với mức '
-                  '${position.profit < 0 ? 'Lỗ' : 'Lợi nhuận'} '
-                  '${position.profit.toStringAsFixed(2)}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12.5,
-                    height: 1.1,
-                  ),
-                ),
-              ),
-            ),
+          _PositionCloseBanner(
+            position: position,
+            volume: volume,
+            onTap: submitting ? null : onClosePosition,
           ),
         Padding(
           key: const Key('order-market-warning'),
-          padding: EdgeInsets.fromLTRB(12, referenceLayout ? 17 : 10, 12, 0),
+          padding: EdgeInsets.fromLTRB(
+            12,
+            usesReferencePresentation ? 17 : 10,
+            12,
+            0,
+          ),
           child: Text(
             'Chú ý !!! Giao dịch được thực thi ở các điều kiện thị trường, '
             'có thể có sự khác biệt về giá so với giá yêu cầu.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.textSecondary,
-              fontFamily: referenceLayout ? 'sans-serif' : null,
-              fontSize: referenceLayout ? 13.2 : 11.5,
+              fontFamily: usesReferencePresentation ? 'sans-serif' : null,
+              fontSize: usesReferencePresentation ? 13.2 : 11.5,
               height: 1.2,
             ),
           ),
@@ -816,6 +813,48 @@ class _OrderForm extends StatelessWidget {
       ],
     );
   }
+}
+
+class _PositionCloseBanner extends StatelessWidget {
+  const _PositionCloseBanner({
+    required this.position,
+    required this.volume,
+    this.onTap,
+  });
+
+  final DemoPosition position;
+  final double volume;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.tradeSwipeClose,
+    child: InkWell(
+      key: const Key('order-close-position'),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 38),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        alignment: Alignment.center,
+        child: Text(
+          'Đóng #${displayTradingTicketId(position.id)} '
+          '${position.side.toLowerCase()} '
+          '${volume.toStringAsFixed(2)} ở Thị Trường với mức '
+          '${position.profit < 0 ? 'Lỗ' : 'Lợi nhuận'} '
+          '${position.profit.toStringAsFixed(2)}',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white,
+            fontFamily: 'sans-serif',
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            height: 1.1,
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _OrderCompleted extends StatelessWidget {
@@ -828,8 +867,8 @@ class _OrderCompleted extends StatelessWidget {
     required this.orderId,
     required this.orderType,
     required this.pendingOrder,
-    required this.fillPolicy,
     required this.closedPosition,
+    required this.referenceLayout,
     required this.onBack,
     required this.format,
   });
@@ -842,8 +881,8 @@ class _OrderCompleted extends StatelessWidget {
   final String orderId;
   final String orderType;
   final bool pendingOrder;
-  final String fillPolicy;
   final bool closedPosition;
+  final bool referenceLayout;
   final VoidCallback onBack;
   final String Function(double value) format;
 
@@ -856,6 +895,7 @@ class _OrderCompleted extends StatelessWidget {
           symbolName: symbolName,
           onBack: onBack,
           completed: true,
+          referenceLayout: referenceLayout,
         ),
         const SizedBox(height: 31),
         Padding(
@@ -883,16 +923,8 @@ class _OrderCompleted extends StatelessWidget {
                   text:
                       ' ${volume.toStringAsFixed(2)} '
                       '${displayTradingSymbol(symbol)} at\n'
-                      '${format(price)}\nhoàn tất',
+                      '${format(price)}\nhoan tat',
                 ),
-                if (!closedPosition)
-                  TextSpan(
-                    text: '\n$fillPolicy',
-                    style: const TextStyle(
-                      color: AppColors.textTertiary,
-                      fontSize: 13,
-                    ),
-                  ),
               ],
             ),
             textAlign: TextAlign.center,
@@ -985,7 +1017,9 @@ class _OrderHeader extends StatelessWidget {
                   ),
                 const SizedBox(height: 6),
                 Text(
-                  symbolName,
+                  symbol == 'BTCUSD'
+                      ? 'Bitcoin vs US Dollar Tether'
+                      : symbolName,
                   maxLines: 1,
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -1161,6 +1195,7 @@ class _MarketOrderButton extends StatelessWidget {
                     color: Colors.white,
                     fontFamily: referenceLayout ? 'sans-serif' : null,
                     fontSize: referenceLayout ? 16 : 13.5,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
               ),
@@ -1218,55 +1253,68 @@ class _ChoiceSheet extends StatelessWidget {
   final String optionKeyPrefix;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: const BoxDecoration(
-      color: AppColors.sheetSurface,
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * .78,
     ),
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 38,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              color: AppColors.textTertiary,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final option in options)
-            Material(
-              color: Colors.transparent,
-              child: ListTile(
-                key: ValueKey('$optionKeyPrefix-${_choiceKey(option)}'),
-                dense: true,
-                title: Text(
-                  option,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                ),
-                trailing: option == selected
-                    ? const Icon(
-                        CupertinoIcons.check_mark,
-                        color: AppColors.primary,
-                        size: 20,
-                      )
-                    : null,
-                onTap: () => Navigator.pop(context, option),
+    child: DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppColors.sheetSurface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: AppColors.textTertiary,
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-        ],
+            Text(
+              title,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                children: [
+                  for (final option in options)
+                    Material(
+                      color: Colors.transparent,
+                      child: ListTile(
+                        key: ValueKey('$optionKeyPrefix-${_choiceKey(option)}'),
+                        dense: true,
+                        title: Text(
+                          option,
+                          style: const TextStyle(color: AppColors.textPrimary),
+                        ),
+                        trailing: option == selected
+                            ? const Icon(
+                                CupertinoIcons.check_mark,
+                                color: AppColors.primary,
+                                size: 20,
+                              )
+                            : null,
+                        onTap: () => Navigator.pop(context, option),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -1343,7 +1391,7 @@ class _VolumeEditorSheetState extends State<_VolumeEditorSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Khối lượng',
+              'Khoi luong',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: AppColors.textPrimary,
@@ -1353,7 +1401,7 @@ class _VolumeEditorSheetState extends State<_VolumeEditorSheet> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Từ 0.01 đến ${widget.maxVolume.toStringAsFixed(2)}',
+              'Tu 0.01 den ${widget.maxVolume.toStringAsFixed(2)}',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.textSecondary,
@@ -1384,7 +1432,7 @@ class _VolumeEditorSheetState extends State<_VolumeEditorSheet> {
                 filled: true,
                 fillColor: AppColors.surface,
                 errorText: parsedValue == null
-                    ? 'Khối lượng không hợp lệ'
+                    ? 'Khoi luong khong hop le'
                     : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1442,6 +1490,7 @@ class _StepButton extends StatelessWidget {
                 : AppColors.primary,
             fontFamily: referenceLayout ? 'sans-serif' : null,
             fontSize: referenceLayout ? 14.5 : 13.5,
+            fontWeight: referenceLayout ? FontWeight.w600 : null,
           ),
         ),
       ),
@@ -1525,11 +1574,13 @@ class _ProtectionRow extends StatelessWidget {
                       ? const Offset(-1.3333333333, 0)
                       : Offset.zero,
                   child: Text(
-                    value == null ? 'không cài đặt' : format(value!),
+                    value == null ? 'khong cai dat' : format(value!),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: value == null
-                          ? AppColors.textTertiary
+                          ? referenceLayout
+                                ? AppColors.orderTicketPlaceholder
+                                : AppColors.textTertiary
                           : AppColors.textPrimary,
                       fontFamily: referenceLayout ? 'sans-serif' : null,
                       fontSize: referenceLayout ? 14.5 : 12.5,

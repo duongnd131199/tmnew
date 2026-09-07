@@ -22,6 +22,7 @@ void main() {
       expect(adapter.options!.uri.path, '/ex/v2/api/mobile/bootstrap');
       expect(adapter.options!.headers['X-Device-Token'], 'test-device-token');
       expect(adapter.options!.headers['X-Correlation-Id'], isNotEmpty);
+      expect(adapter.options!.headers['Accept'], 'application/json');
     },
   );
 
@@ -46,6 +47,8 @@ void main() {
 
     expect(adapter.options!.headers['Idempotency-Key'], 'idem-1');
     expect(adapter.options!.headers['X-Correlation-Id'], 'corr-1');
+    expect(adapter.options!.headers['Accept'], 'application/json');
+    expect(adapter.options!.headers['Content-Type'], 'application/json');
   });
 
   test('empty server failure becomes a short actionable message', () async {

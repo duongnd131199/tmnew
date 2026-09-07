@@ -63,6 +63,7 @@ final class ExV2AccountMetricSnapshot {
 final class ExV2AccountViewState {
   const ExV2AccountViewState({
     required this.bootstrap,
+    required this.lastSummaryVersion,
     required this.positions,
     required this.pendingOrders,
     required this.orders,
@@ -85,35 +86,45 @@ final class ExV2AccountViewState {
   factory ExV2AccountViewState.fromBootstrap(
     ExV2Bootstrap bootstrap, {
     ExV2AccountPresentation? presentation,
-  }) => ExV2AccountViewState(
-    bootstrap: bootstrap,
-    presentation: presentation,
-    positions: bootstrap.positions
+  }) {
+    final positions = bootstrap.positions
         .map(ExV2DemoMapper.position)
-        .toList(growable: false),
-    pendingOrders: bootstrap.pendingOrders
-        .map(ExV2DemoMapper.pendingOrder)
-        .toList(growable: false),
-    orders: bootstrap.pendingOrders
-        .map(ExV2DemoMapper.order)
-        .toList(growable: false),
-    deals: bootstrap.recentDeals
-        .map(ExV2DemoMapper.deal)
-        .toList(growable: false),
-    historyPositions: ExV2WalletHistoryMapper.entries(
-      historyTransactions: const [],
+        .toList(growable: false);
+    final valuation = _applyPositionValuations(
+      positions,
+      bootstrap.summary.positionValuations,
+    );
+    return ExV2AccountViewState(
+      bootstrap: bootstrap,
+      lastSummaryVersion: bootstrap.version,
+      presentation: presentation,
+      positions: valuation.positions,
+      pendingOrders: bootstrap.pendingOrders
+          .map(ExV2DemoMapper.pendingOrder)
+          .toList(growable: false),
+      orders: bootstrap.pendingOrders
+          .map(ExV2DemoMapper.order)
+          .toList(growable: false),
+      deals: bootstrap.recentDeals
+          .map(ExV2DemoMapper.deal)
+          .toList(growable: false),
+      historyPositions: ExV2WalletHistoryMapper.entries(
+        historyTransactions: const [],
+        deposits: bootstrap.recentDeposits
+            .map((deposit) => deposit.toJson())
+            .toList(growable: false),
+        withdrawals: const [],
+      ),
       deposits: bootstrap.recentDeposits
           .map((deposit) => deposit.toJson())
           .toList(growable: false),
-      withdrawals: const [],
-    ),
-    deposits: bootstrap.recentDeposits
-        .map((deposit) => deposit.toJson())
-        .toList(growable: false),
-    historySummary: bootstrap.historySummary,
-  );
+      historySummary: bootstrap.historySummary,
+      liveValuationPositionIds: valuation.positionIds,
+    );
+  }
 
   final ExV2Bootstrap bootstrap;
+  final int lastSummaryVersion;
   final List<DemoPosition> positions;
   final List<DemoPendingOrder> pendingOrders;
   final List<DemoOrder> orders;
@@ -139,14 +150,6 @@ final class ExV2AccountViewState {
         (position) => liveValuationPositionIds.contains(position.id),
       );
   bool get _hasOptimisticClose => pendingCloseValuationPositions.isNotEmpty;
-  bool get _hasCompleteOptimisticValuation =>
-      _hasOptimisticClose &&
-      positions.every(
-        (position) => liveValuationPositionIds.contains(position.id),
-      ) &&
-      pendingCloseValuationPositions.every(
-        (position) => liveValuationPositionIds.contains(position.id),
-      );
 
   double get _preCloseVolume {
     final pendingIds = pendingCloseValuationPositions
@@ -181,55 +184,12 @@ final class ExV2AccountViewState {
     });
   }
 
-  double get _optimisticMarginReduction {
-    final totalVolume = _preCloseVolume;
-    if (!_hasOptimisticClose || totalVolume <= 0) return 0;
-    final closedVolume = pendingCloseValuationPositions.fold<double>(
-      0,
-      (total, position) => total + position.volume * _closedRatio(position),
-    );
-    return bootstrap.summary.margin * closedVolume / totalVolume;
-  }
-
-  double get balance =>
-      lockedAccountMetrics?.balance ??
-      bootstrap.summary.balance + _optimisticRealizedProfit;
-  double get profit =>
-      lockedAccountMetrics?.profit ??
-      (_hasOptimisticClose
-          ? _hasCompleteOptimisticValuation
-                ? positions.fold<double>(
-                    0,
-                    (total, position) => total + position.profit,
-                  )
-                : bootstrap.summary.profit - _optimisticRealizedProfit
-          : hasLiveValuation
-          ? positions.fold<double>(
-              0,
-              (total, position) => total + position.profit,
-            )
-          : bootstrap.summary.profit);
-  double get equity =>
-      lockedAccountMetrics?.equity ??
-      (_hasOptimisticClose || hasLiveValuation
-          ? balance + profit
-          : bootstrap.summary.equity);
-  double get margin =>
-      lockedAccountMetrics?.margin ??
-      (bootstrap.summary.margin - _optimisticMarginReduction).clamp(
-        0.0,
-        double.infinity,
-      );
-  double get freeMargin =>
-      lockedAccountMetrics?.freeMargin ??
-      (_hasOptimisticClose || hasLiveValuation
-          ? equity - margin
-          : bootstrap.summary.freeMargin);
-  double get marginLevel =>
-      lockedAccountMetrics?.marginLevel ??
-      (_hasOptimisticClose || hasLiveValuation
-          ? (margin == 0 ? 0 : equity / margin * 100)
-          : bootstrap.summary.marginLevel);
+  double get balance => bootstrap.summary.balance;
+  double get profit => bootstrap.summary.profit;
+  double get equity => bootstrap.summary.equity;
+  double get margin => bootstrap.summary.margin;
+  double get freeMargin => bootstrap.summary.freeMargin;
+  double get marginLevel => bootstrap.summary.marginLevel;
   ExV2HistorySummary get displayHistorySummary =>
       lockedAccountMetrics?.historySummary ?? historySummary;
   ExV2Wallet get wallet => bootstrap.wallet;
@@ -247,6 +207,7 @@ final class ExV2AccountViewState {
 
   ExV2AccountViewState copyWith({
     ExV2Bootstrap? bootstrap,
+    int? lastSummaryVersion,
     List<DemoPosition>? positions,
     List<DemoPendingOrder>? pendingOrders,
     List<DemoOrder>? orders,
@@ -267,6 +228,7 @@ final class ExV2AccountViewState {
     Set<String>? pendingOperationIds,
   }) => ExV2AccountViewState(
     bootstrap: bootstrap ?? this.bootstrap,
+    lastSummaryVersion: lastSummaryVersion ?? this.lastSummaryVersion,
     positions: positions ?? this.positions,
     pendingOrders: pendingOrders ?? this.pendingOrders,
     orders: orders ?? this.orders,
@@ -290,13 +252,42 @@ final class ExV2AccountViewState {
     pendingOperationIds: pendingOperationIds ?? this.pendingOperationIds,
   );
 
+  ExV2AccountViewState withAuthoritativeSummary(
+    ExV2AccountSummary summary, {
+    DateTime? serverTime,
+    int? version,
+    int? lastSummaryVersion,
+  }) {
+    final valuation = _applyPositionValuations(
+      positions,
+      summary.positionValuations,
+    );
+    return copyWith(
+      bootstrap: bootstrap.copyWith(
+        serverTime: serverTime ?? summary.updatedAt,
+        version: version,
+        summary: summary,
+      ),
+      lastSummaryVersion: lastSummaryVersion,
+      positions: valuation.positions,
+      liveValuationPositionIds: summary.positionValuations == null
+          ? liveValuationPositionIds
+          : valuation.positionIds,
+      clearLockedAccountMetrics: true,
+    );
+  }
+
   ExV2AccountViewState withMarketPrice({
     required String symbol,
     required double bid,
     required double ask,
   }) {
     final matchingPositionIds = positions
-        .where((position) => position.symbol == symbol)
+        .where(
+          (position) =>
+              position.symbol == symbol &&
+              !liveValuationPositionIds.contains(position.id),
+        )
         .map((position) => position.id)
         .toSet();
     if (matchingPositionIds.isEmpty) return this;
@@ -308,10 +299,6 @@ final class ExV2AccountViewState {
           else
             _withPrice(position, bid: bid, ask: ask),
       ],
-      liveValuationPositionIds: Set<String>.unmodifiable({
-        ...liveValuationPositionIds,
-        ...matchingPositionIds,
-      }),
     );
   }
 
@@ -329,7 +316,8 @@ final class ExV2AccountViewState {
     final preservablePositionIds = positions
         .where((position) {
           final previousPosition = previousPositions[position.id];
-          return previous.liveValuationPositionIds.contains(position.id) &&
+          return !liveValuationPositionIds.contains(position.id) &&
+              previous.liveValuationPositionIds.contains(position.id) &&
               previousPosition != null &&
               previousPosition.symbol == position.symbol &&
               previousPosition.side == position.side;
@@ -340,18 +328,56 @@ final class ExV2AccountViewState {
       positions: [
         for (final position in positions)
           if (preservablePositionIds.contains(position.id))
-            _withCurrentPrice(
-              position,
-              previousPositions[position.id]!.currentPrice,
+            position.copyWith(
+              currentPrice: previousPositions[position.id]!.currentPrice,
+              profit: previousPositions[position.id]!.profit,
             )
           else
             position,
       ],
-      liveValuationPositionIds: Set<String>.unmodifiable(
-        preservablePositionIds,
-      ),
+      liveValuationPositionIds: Set<String>.unmodifiable({
+        ...liveValuationPositionIds,
+        ...preservablePositionIds,
+      }),
     );
   }
+
+  static ({List<DemoPosition> positions, Set<String> positionIds})
+  _applyPositionValuations(
+    List<DemoPosition> positions,
+    List<ExV2PositionValuation>? valuations,
+  ) {
+    if (valuations == null) {
+      return (positions: positions, positionIds: const <String>{});
+    }
+    final valuationsById = {
+      for (final valuation in valuations) valuation.positionId: valuation,
+    };
+    final appliedIds = <String>{};
+    final mappedPositions = [
+      for (final position in positions)
+        if (valuationsById[position.id] case final valuation?)
+          if (_sameSymbol(position.symbol, valuation.symbol))
+            () {
+              appliedIds.add(position.id);
+              return position.copyWith(
+                currentPrice: valuation.currentPrice,
+                profit: valuation.floatingProfit,
+              );
+            }()
+          else
+            position
+        else
+          position,
+    ];
+    return (
+      positions: List<DemoPosition>.unmodifiable(mappedPositions),
+      positionIds: Set<String>.unmodifiable(appliedIds),
+    );
+  }
+
+  static bool _sameSymbol(String left, String right) =>
+      left.trim().toUpperCase() == right.trim().toUpperCase();
 
   DemoPosition _withPrice(
     DemoPosition position, {
@@ -364,11 +390,6 @@ final class ExV2AccountViewState {
   }
 
   DemoPosition _withCurrentPrice(DemoPosition position, double price) {
-    final isBuy = position.side == 'BUY';
-    final direction = isBuy ? 1.0 : -1.0;
-    return position.copyWith(
-      currentPrice: price,
-      profit: (price - position.openPrice) * direction * position.volume * 100,
-    );
+    return position.copyWith(currentPrice: price);
   }
 }

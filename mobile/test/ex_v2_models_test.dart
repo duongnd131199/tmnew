@@ -199,6 +199,60 @@ void main() {
     },
   );
 
+  test('bootstrap rejects a summary from another account', () {
+    expect(
+      () => ExV2Bootstrap.fromJson(
+        _minimalBootstrapJson(summaryAccountId: 'account-2'),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('account summary rejects non-finite financial values', () {
+    expect(
+      () => ExV2Bootstrap.fromJson(
+        _minimalBootstrapJson(
+          summaryOverrides: const <String, Object?>{'equity': double.infinity},
+        ),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('account summary parses optional authoritative position valuations', () {
+    final snapshot = ExV2Bootstrap.fromJson(
+      _minimalBootstrapJson(
+        summaryOverrides: const <String, Object?>{
+          'positionValuations': <Object?>[
+            <String, Object?>{
+              'positionId': 'position-btc',
+              'symbol': 'BTCUSD',
+              'currentPrice': 79911.64,
+              'floatingProfit': 35.79,
+            },
+          ],
+        },
+      ),
+    );
+    final dynamic summary = snapshot.summary;
+
+    expect(summary.positionValuations, hasLength(1));
+    expect(summary.positionValuations.single.positionId, 'position-btc');
+    expect(summary.positionValuations.single.symbol, 'BTCUSD');
+    expect(summary.positionValuations.single.currentPrice, 79911.64);
+    expect(summary.positionValuations.single.floatingProfit, 35.79);
+  });
+
+  test(
+    'account summary preserves compatibility when valuations are omitted',
+    () {
+      final snapshot = ExV2Bootstrap.fromJson(_minimalBootstrapJson());
+      final dynamic summary = snapshot.summary;
+
+      expect(summary.positionValuations, isNull);
+    },
+  );
+
   test('bootstrap accepts nullable display metadata from production', () {
     final snapshot = ExV2Bootstrap.fromJson({
       'serverTime': '2026-09-02T08:00:00Z',
@@ -407,4 +461,53 @@ Map<String, Object?> _closeSyncJson({required String mode}) => {
     'commission': 0,
     'netChange': -0.26,
   },
+};
+
+Map<String, Object?> _minimalBootstrapJson({
+  String accountId = 'account-1',
+  String summaryAccountId = 'account-1',
+  Map<String, Object?> summaryOverrides = const <String, Object?>{},
+}) => <String, Object?>{
+  'serverTime': '2026-09-05T10:00:00Z',
+  'version': 1,
+  'device': {'id': 'device-1', 'name': 'Phone'},
+  'activeAccount': {
+    'id': accountId,
+    'accountCode': 'TEST-100',
+    'name': 'Demo account',
+    'currency': 'USD',
+    'status': 'active',
+  },
+  'summary': {
+    'accountId': summaryAccountId,
+    'currency': 'USD',
+    'balance': 5000,
+    'equity': 5000,
+    'profit': 0,
+    'margin': 0,
+    'freeMargin': 5000,
+    'marginLevel': 0,
+    'updatedAt': '2026-09-05T10:00:00Z',
+    ...summaryOverrides,
+  },
+  'positions': <Object?>[],
+  'pendingOrders': <Object?>[],
+  'recentDeals': <Object?>[],
+  'wallet': {
+    'currency': 'USD',
+    'availableBalance': 0,
+    'lockedBalance': 0,
+    'totalBalance': 0,
+  },
+  'performance': {
+    'netProfit': 0,
+    'grossProfit': 0,
+    'grossLoss': 0,
+    'floatingProfit': 0,
+    'tradingVolume': 0,
+    'updatedAt': null,
+    'integrityWarnings': 0,
+  },
+  'connection': {'marketFeedStatus': 'connected', 'lastMarketTickAt': null},
+  'integrityWarnings': 0,
 };

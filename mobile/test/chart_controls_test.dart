@@ -1454,7 +1454,7 @@ void main() {
     expect(find.byKey(const Key('market-manage-edit-icon')), findsOneWidget);
   });
 
-  testWidgets('one-click defaults to the current symbol position volume', (
+  testWidgets('one-click always defaults to 79 with an existing position', (
     tester,
   ) async {
     final container = createVideoReferenceContainer();
@@ -1481,7 +1481,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const Key('chart-one-click-volume-text')))
           .data,
-      '179',
+      '79',
     );
     expect(
       tester
@@ -1620,7 +1620,7 @@ void main() {
     await tester.tap(find.byKey(const Key('chart-one-click-toggle')));
     await tester.pump();
     expect(find.byKey(const Key('chart-one-click-panel')), findsOneWidget);
-    expect(find.text('0.25'), findsOneWidget);
+    expect(find.text('79'), findsOneWidget);
     final oneClickPanel = find.byKey(const Key('chart-one-click-panel'));
     final downChevron = find.descendant(
       of: oneClickPanel,
@@ -1639,6 +1639,8 @@ void main() {
     expect(find.byType(EditableText), findsNothing);
     await tester.tap(find.byKey(const Key('chart-keypad-backspace')));
     await tester.tap(find.byKey(const Key('chart-keypad-backspace')));
+    await tester.tap(find.byKey(const Key('chart-keypad-0')));
+    await tester.tap(find.byKey(const Key('chart-keypad-decimal')));
     await tester.tap(find.byKey(const Key('chart-keypad-5')));
     await tester.tap(find.byKey(const Key('chart-keypad-0')));
     await tester.pump();
@@ -4101,7 +4103,7 @@ void main() {
     await tester.tap(volumeUp);
     await tester.pump();
     expect(
-      find.descendant(of: panel, matching: find.text('0.26')),
+      find.descendant(of: panel, matching: find.text('79.01')),
       findsOneWidget,
     );
   });

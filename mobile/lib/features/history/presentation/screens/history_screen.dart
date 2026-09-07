@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
@@ -11,6 +12,7 @@ import 'package:trading_mobile/core/theme/reference_typography_profile.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
+import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
@@ -61,6 +63,7 @@ class HistoryScreen extends ConsumerStatefulWidget {
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   int tab = 0;
   bool descending = true;
+  _HistorySortCriterion sortCriterion = _HistorySortCriterion.defaultOrder;
   _HistoryPeriod period = _HistoryPeriod.sixMonths;
   DateTimeRange? customRange;
   String? symbolFilter;
@@ -73,6 +76,24 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   final Map<String, DateTime?> _parsedHistoryTimes = {};
   String? _anchoredAccountId;
   int? _anchoredHistoryLength;
+  bool _historyBranchActive = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isActive = AppTabScope.maybeIndexOf(context) == 3;
+    if (isActive && !_historyBranchActive && ref.read(exV2EnabledProvider)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || AppTabScope.maybeIndexOf(context) != 3) return;
+        unawaited(
+          ref
+              .read(exV2AccountProvider.notifier)
+              .refresh(queueAfterInFlight: true),
+        );
+      });
+    }
+    _historyBranchActive = isActive;
+  }
 
   @override
   void dispose() {
@@ -174,7 +195,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             child: _HistoryHeader(
               tab: tab,
               onTabChanged: (value) => setState(() => tab = value),
-              onSort: () => setState(() => descending = !descending),
+              onSort: _showSort,
               onPeriod: _showPeriod,
             ),
           ),
@@ -188,52 +209,191 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final tradingBalance = ref.watch(
       demoTradingProvider.select((trading) => trading.balance),
     );
-    final entries = _filteredHistory(
-      cache: _positionFilterCache,
-      source: ref.watch(demoHistoryPositionsProvider),
-      symbolOf: (entry) => entry.title,
-      timeOf: (entry) => entry.time,
+    final entries = _sortedPositionHistory(
+      _filteredHistory(
+        cache: _positionFilterCache,
+        source: ref.watch(demoHistoryPositionsProvider),
+        symbolOf: (entry) => entry.title,
+        timeOf: (entry) => entry.time,
+      ),
     );
     _syncPositionsBottomAnchor(accountProfile.id, entries.length);
     return _PositionsHistory(
       controller: _positionsController,
       entries: entries,
-      descending: descending,
+      descending: sortCriterion == _HistorySortCriterion.defaultOrder
+          ? descending
+          : true,
       profile: accountProfile,
       tradingBalance: tradingBalance,
       onEntryTap: _showPositionDetails,
     );
   }
 
+  List<DemoHistoryPosition> _sortedPositionHistory(
+    List<DemoHistoryPosition> source,
+  ) {
+    if (sortCriterion == _HistorySortCriterion.defaultOrder) return source;
+    final indexed = source.indexed.toList(growable: false);
+    indexed.sort((left, right) {
+      final result = _comparePositionHistory(left.$2, right.$2);
+      if (result != 0) return descending ? -result : result;
+      return left.$1.compareTo(right.$1);
+    });
+    return [for (final item in indexed) item.$2];
+  }
+
+  int _comparePositionHistory(
+    DemoHistoryPosition left,
+    DemoHistoryPosition right,
+  ) {
+    return switch (sortCriterion) {
+      _HistorySortCriterion.defaultOrder => 0,
+      _HistorySortCriterion.symbol => left.title.toUpperCase().compareTo(
+        right.title.toUpperCase(),
+      ),
+      _HistorySortCriterion.ticket => _compareTicketIds(left.id, right.id),
+      _HistorySortCriterion.type => _positionTypeSortKey(
+        left,
+      ).compareTo(_positionTypeSortKey(right)),
+      _HistorySortCriterion.volume => (left.volume ?? 0).compareTo(
+        right.volume ?? 0,
+      ),
+      _HistorySortCriterion.openTime =>
+        (left.openedAt ??
+                _historyTime(left.time) ??
+                DateTime.fromMillisecondsSinceEpoch(0))
+            .compareTo(
+              right.openedAt ??
+                  _historyTime(right.time) ??
+                  DateTime.fromMillisecondsSinceEpoch(0),
+            ),
+      _HistorySortCriterion.closeTime =>
+        (left.closedAt ??
+                _historyTime(left.time) ??
+                DateTime.fromMillisecondsSinceEpoch(0))
+            .compareTo(
+              right.closedAt ??
+                  _historyTime(right.time) ??
+                  DateTime.fromMillisecondsSinceEpoch(0),
+            ),
+      _HistorySortCriterion.profit => left.profit.compareTo(right.profit),
+    };
+  }
+
+  String _positionTypeSortKey(DemoHistoryPosition entry) {
+    if (entry.isBalance) return 'BALANCE';
+    return entry.side?.toUpperCase() ?? '';
+  }
+
+  int _compareTicketIds(String left, String right) {
+    final leftDisplay = displayTradingTicketId(left);
+    final rightDisplay = displayTradingTicketId(right);
+    final leftNumber = BigInt.tryParse(leftDisplay);
+    final rightNumber = BigInt.tryParse(rightDisplay);
+    if (leftNumber != null && rightNumber != null) {
+      return leftNumber.compareTo(rightNumber);
+    }
+    return leftDisplay.compareTo(rightDisplay);
+  }
+
   Widget _buildOrdersHistory() {
-    final orders = _filteredHistory(
-      cache: _orderFilterCache,
-      source: ref.watch(demoOrdersProvider),
-      symbolOf: (order) => order.symbol,
-      timeOf: (order) => order.time,
+    final orders = _sortedOrderHistory(
+      _filteredHistory(
+        cache: _orderFilterCache,
+        source: ref.watch(demoOrdersProvider),
+        symbolOf: (order) => order.symbol,
+        timeOf: (order) => order.time,
+      ),
     );
     return _OrdersHistory(
       controller: _ordersController,
       orders: orders,
-      descending: descending,
+      descending: sortCriterion == _HistorySortCriterion.defaultOrder
+          ? descending
+          : true,
       onOrderTap: _showOrderDetails,
     );
   }
 
+  List<DemoOrder> _sortedOrderHistory(List<DemoOrder> source) {
+    if (sortCriterion == _HistorySortCriterion.defaultOrder) return source;
+    return _stableSorted(source, (left, right) {
+      return switch (sortCriterion) {
+        _HistorySortCriterion.defaultOrder => 0,
+        _HistorySortCriterion.symbol => left.symbol.toUpperCase().compareTo(
+          right.symbol.toUpperCase(),
+        ),
+        _HistorySortCriterion.ticket => _compareTicketIds(left.id, right.id),
+        _HistorySortCriterion.type =>
+          '${left.side} ${left.type}'.toUpperCase().compareTo(
+            '${right.side} ${right.type}'.toUpperCase(),
+          ),
+        _HistorySortCriterion.volume => left.volume.compareTo(right.volume),
+        _HistorySortCriterion.openTime || _HistorySortCriterion.closeTime =>
+          (_historyTime(left.time) ?? DateTime.fromMillisecondsSinceEpoch(0))
+              .compareTo(
+                _historyTime(right.time) ??
+                    DateTime.fromMillisecondsSinceEpoch(0),
+              ),
+        _HistorySortCriterion.profit => 0,
+      };
+    });
+  }
+
   Widget _buildDealsHistory() {
-    final deals = _filteredHistory(
-      cache: _dealFilterCache,
-      source: ref.watch(demoDealsProvider),
-      symbolOf: (deal) => deal.symbol,
-      timeOf: (deal) => deal.time,
+    final deals = _sortedDealHistory(
+      _filteredHistory(
+        cache: _dealFilterCache,
+        source: ref.watch(demoDealsProvider),
+        symbolOf: (deal) => deal.symbol,
+        timeOf: (deal) => deal.time,
+      ),
     );
     return _DealsHistory(
       controller: _dealsController,
       deals: deals,
-      descending: descending,
+      descending: sortCriterion == _HistorySortCriterion.defaultOrder
+          ? descending
+          : true,
       profile: ref.watch(activeDemoAccountProvider),
       onDealTap: _showDealDetails,
     );
+  }
+
+  List<DemoDeal> _sortedDealHistory(List<DemoDeal> source) {
+    if (sortCriterion == _HistorySortCriterion.defaultOrder) return source;
+    return _stableSorted(source, (left, right) {
+      return switch (sortCriterion) {
+        _HistorySortCriterion.defaultOrder => 0,
+        _HistorySortCriterion.symbol => left.symbol.toUpperCase().compareTo(
+          right.symbol.toUpperCase(),
+        ),
+        _HistorySortCriterion.ticket => _compareTicketIds(left.id, right.id),
+        _HistorySortCriterion.type =>
+          '${left.side} ${left.entry}'.toUpperCase().compareTo(
+            '${right.side} ${right.entry}'.toUpperCase(),
+          ),
+        _HistorySortCriterion.volume => left.volume.compareTo(right.volume),
+        _HistorySortCriterion.openTime || _HistorySortCriterion.closeTime =>
+          (_historyTime(left.time) ?? DateTime.fromMillisecondsSinceEpoch(0))
+              .compareTo(
+                _historyTime(right.time) ??
+                    DateTime.fromMillisecondsSinceEpoch(0),
+              ),
+        _HistorySortCriterion.profit => left.profit.compareTo(right.profit),
+      };
+    });
+  }
+
+  List<T> _stableSorted<T>(List<T> source, int Function(T, T) compare) {
+    final indexed = source.indexed.toList(growable: false);
+    indexed.sort((left, right) {
+      final result = compare(left.$2, right.$2);
+      if (result != 0) return descending ? -result : result;
+      return left.$1.compareTo(right.$1);
+    });
+    return [for (final item in indexed) item.$2];
   }
 
   List<T> _filteredHistory<T>({
@@ -251,6 +411,52 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       include: (entry) {
         return (symbolFilter == null || symbolOf(entry) == symbolFilter) &&
             _withinPeriod(timeOf(entry), now);
+      },
+    );
+  }
+
+  Future<void> _showSort() {
+    return showGeneralDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: true,
+      barrierLabel: 'Đóng sắp xếp',
+      barrierColor: AppColors.transparent,
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (dialogContext, _, _) => _HistorySortMenu(
+        criterion: sortCriterion,
+        descending: descending,
+        onChanged: (criterion, isDescending) {
+          if (!mounted) return;
+          setState(() {
+            sortCriterion = criterion;
+            descending = isDescending;
+          });
+        },
+      ),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        final size = MediaQuery.sizeOf(context);
+        final horizontalScale = (size.width / 384).clamp(.9, 1.12);
+        final anchor = Offset(
+          6 * horizontalScale,
+          MediaQuery.paddingOf(context).top,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            alignment: Alignment(
+              2 * anchor.dx / size.width - 1,
+              2 * anchor.dy / size.height - 1,
+            ),
+            scale: Tween<double>(begin: .16, end: 1).animate(curved),
+            child: child,
+          ),
+        );
       },
     );
   }
@@ -745,6 +951,197 @@ class _SymbolFilterRow extends StatelessWidget {
         : null,
     onTap: onTap,
   );
+}
+
+enum _HistorySortCriterion {
+  defaultOrder('default', 'Mặc định'),
+  symbol('symbol', 'Cặp ngoại tệ'),
+  ticket('ticket', 'Ticket'),
+  type('type', 'Loại'),
+  volume('volume', 'Khối lượng'),
+  openTime('open-time', 'Thời gian mở'),
+  closeTime('close-time', 'Thời gian đóng'),
+  profit('profit', 'Lợi nhuận');
+
+  const _HistorySortCriterion(this.keyName, this.label);
+
+  final String keyName;
+  final String label;
+}
+
+class _HistorySortMenu extends StatefulWidget {
+  const _HistorySortMenu({
+    required this.criterion,
+    required this.descending,
+    required this.onChanged,
+  });
+
+  final _HistorySortCriterion criterion;
+  final bool descending;
+  final void Function(_HistorySortCriterion criterion, bool descending)
+  onChanged;
+
+  @override
+  State<_HistorySortMenu> createState() => _HistorySortMenuState();
+}
+
+class _HistorySortMenuState extends State<_HistorySortMenu> {
+  late _HistorySortCriterion criterion = widget.criterion;
+  late bool descending = widget.descending;
+
+  void _select(_HistorySortCriterion next) {
+    setState(() {
+      if (next == _HistorySortCriterion.defaultOrder) {
+        criterion = next;
+        descending = true;
+      } else if (next == criterion) {
+        descending = !descending;
+      } else {
+        criterion = next;
+        descending = true;
+      }
+    });
+    widget.onChanged(criterion, descending);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final safeTop = MediaQuery.paddingOf(context).top;
+    final size = MediaQuery.sizeOf(context);
+    final horizontalScale = (size.width / 384).clamp(.9, 1.12);
+    final verticalScale = (size.height / 848).clamp(.9, 1.12);
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          Positioned(
+            key: const Key('history-sort-menu'),
+            left: 6 * horizontalScale,
+            top: safeTop,
+            width: 292 * horizontalScale,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(30 * horizontalScale),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0x34000000),
+                    blurRadius: 24 * horizontalScale,
+                    offset: Offset(0, 8 * verticalScale),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(30 * horizontalScale),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ColoredBox(
+                      color: AppColors.historySortHeaderSurface,
+                      child: SizedBox(
+                        height: 34 * verticalScale,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              left: 18 * horizontalScale,
+                            ),
+                            child: Text(
+                              'Sắp xếp theo',
+                              style: TextStyle(
+                                color: AppColors.historySortHeading,
+                                fontSize: 16 * horizontalScale,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    for (final item in _HistorySortCriterion.values)
+                      _HistorySortRow(
+                        criterion: item,
+                        selected: criterion == item,
+                        descending: descending,
+                        horizontalScale: horizontalScale,
+                        verticalScale: verticalScale,
+                        onTap: () => _select(item),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorySortRow extends StatelessWidget {
+  const _HistorySortRow({
+    required this.criterion,
+    required this.selected,
+    required this.descending,
+    required this.horizontalScale,
+    required this.verticalScale,
+    required this.onTap,
+  });
+
+  final _HistorySortCriterion criterion;
+  final bool selected;
+  final bool descending;
+  final double horizontalScale;
+  final double verticalScale;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      key: ValueKey('history-sort-option-${criterion.keyName}'),
+      onTap: onTap,
+      child: Container(
+        height: 49.5 * verticalScale,
+        margin: EdgeInsets.symmetric(horizontal: 14 * horizontalScale),
+        decoration: const BoxDecoration(
+          border: Border(
+            top: BorderSide(color: AppColors.historySortDivider, width: .5),
+          ),
+        ),
+        child: Row(
+          children: [
+            SizedBox(width: 4 * horizontalScale),
+            Expanded(
+              child: Text(
+                criterion.label,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16 * horizontalScale,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+            if (selected)
+              Icon(
+                key: ValueKey('history-sort-indicator-${criterion.keyName}'),
+                criterion == _HistorySortCriterion.defaultOrder
+                    ? CupertinoIcons.check_mark
+                    : descending
+                    ? CupertinoIcons.arrow_down
+                    : CupertinoIcons.arrow_up,
+                color: AppColors.primary,
+                size:
+                    (criterion == _HistorySortCriterion.defaultOrder
+                        ? 20
+                        : 16) *
+                    horizontalScale,
+              ),
+            SizedBox(width: horizontalScale),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _HistoryHeader extends StatelessWidget {

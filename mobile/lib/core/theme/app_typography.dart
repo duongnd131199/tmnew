@@ -505,7 +505,7 @@ abstract final class AppTypography {
     fontWeight: FontWeight.w700,
   );
   static const tradePositionSecondary = TextStyle(
-    color: AppColors.tradingSecondaryText,
+    color: AppColors.tradePositionSecondaryText,
     fontFamily: referenceCondensedFamily,
     fontSize: 16,
     fontWeight: FontWeight.w400,

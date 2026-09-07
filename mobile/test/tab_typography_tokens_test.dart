@@ -150,7 +150,10 @@ void main() {
     expect(AppTypography.tradePositionPrimary.letterSpacing, 0);
     expect(AppTypography.tradePositionSecondary.fontSize, 16);
     expect(AppTypography.tradePositionSecondary.letterSpacing, .98);
-    expect(AppTypography.tradePositionSecondary.color, const Color(0xFF201F21));
+    expect(
+      AppTypography.tradePositionSecondary.color,
+      AppColors.tradePositionSecondaryText,
+    );
     expect(AppTypography.tradePositionSecondary.fontWeight, FontWeight.w400);
     expect(AppTypography.tradePositionSecondary.fontVariations, isNull);
     expect(AppTypography.tradePositionProfit.fontSize, 21);

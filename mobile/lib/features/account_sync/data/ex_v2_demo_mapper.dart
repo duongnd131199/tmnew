@@ -6,15 +6,16 @@ abstract final class ExV2DemoMapper {
     final id = _firstString(json, const ['id', 'positionId']);
     final symbol = _firstString(json, const ['symbol', 'title']);
     final profit = _firstDouble(json, const ['profit', 'realizedProfit']);
-    final time = _firstDate(json, const [
-      'closedAt',
-      'closedAtUtc',
+    final openedAt = _optionalDate(json, const [
+      'openedAt',
       'createdAt',
       'createdAtUtc',
-      'time',
-      'updatedAt',
-      'updatedAtUtc',
     ]);
+    final closedAt = _optionalDate(json, const ['closedAt', 'closedAtUtc']);
+    final time =
+        closedAt ??
+        openedAt ??
+        _firstDate(json, const ['time', 'updatedAt', 'updatedAtUtc']);
     return DemoHistoryPosition(
       id: id,
       title: symbol,
@@ -29,6 +30,8 @@ abstract final class ExV2DemoMapper {
       profit: profit,
       time: dateLabel(time),
       subtitle: _optionalString(json, const ['description', 'subtitle']),
+      openedAt: openedAt,
+      closedAt: closedAt,
     );
   }
 
@@ -193,6 +196,12 @@ abstract final class ExV2DemoMapper {
   }
 
   static DateTime _firstDate(JsonMap json, List<String> keys) {
+    final value = _optionalDate(json, keys);
+    if (value != null) return value;
+    throw FormatException('EX V2 history date ${keys.join('/')} is missing');
+  }
+
+  static DateTime? _optionalDate(JsonMap json, List<String> keys) {
     for (final key in keys) {
       final value = json[key];
       if (value is String) {
@@ -200,6 +209,6 @@ abstract final class ExV2DemoMapper {
         if (parsed != null) return parsed.toUtc();
       }
     }
-    throw FormatException('EX V2 history date ${keys.join('/')} is missing');
+    return null;
   }
 }

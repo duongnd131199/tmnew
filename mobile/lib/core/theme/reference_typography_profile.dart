@@ -365,7 +365,7 @@ abstract final class ReferenceTextColors {
     ReferenceTextColorRole.blueAction: AppColors.primary,
     ReferenceTextColorRole.positive: AppColors.positive,
     ReferenceTextColorRole.negative: AppColors.negative,
-    ReferenceTextColorRole.tradeSecondary: AppColors.tradingSecondaryText,
+    ReferenceTextColorRole.tradeSecondary: AppColors.tradePositionSecondaryText,
     ReferenceTextColorRole.tradeNegative: AppColors.tradeNegative,
     ReferenceTextColorRole.historyStatus: AppColors.historyOrderStatus,
     ReferenceTextColorRole.chartToolbar: AppColors.textSecondary,

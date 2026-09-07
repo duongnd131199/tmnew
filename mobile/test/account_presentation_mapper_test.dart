@@ -3,6 +3,7 @@ import 'package:trading_mobile/features/account_sync/application/ex_v2_account_v
 import 'package:trading_mobile/features/account_sync/domain/ex_v2_models.dart';
 import 'package:trading_mobile/features/profile/application/ex_v2_account_profile_mapper.dart';
 import 'package:trading_mobile/features/profile/domain/account_presentation_profile.dart';
+import 'package:trading_mobile/shared/models/demo_models.dart';
 
 void main() {
   test('missing presentation metadata never exposes unavailable copy', () {
@@ -143,6 +144,37 @@ void main() {
     expect(profile.accessPoint, 'Access Point #4');
     expect(profile.mode, 'Netting');
     expect(profile.isMaster, isFalse);
+  });
+
+  test('profile balance ignores optimistic local close valuation', () {
+    final state =
+        _accountState(
+          accountCode: 'LIVE-8',
+          name: 'Authoritative account',
+          status: 'active',
+          balance: 1000,
+        ).copyWith(
+          positions: const [],
+          pendingCloseValuationPositions: const [
+            DemoPosition(
+              id: 'position-1',
+              symbol: 'XAUUSD+',
+              side: 'BUY',
+              volume: 1,
+              openPrice: 100,
+              currentPrice: 102,
+              profit: 200,
+            ),
+          ],
+          liveValuationPositionIds: const {'position-1'},
+        );
+
+    expect(state.balance, 1200);
+
+    final profile = ExV2AccountProfileMapper.map(state);
+
+    expect(profile.balance, 1000);
+    expect(profile.historyBalance, 1000);
   });
 }
 

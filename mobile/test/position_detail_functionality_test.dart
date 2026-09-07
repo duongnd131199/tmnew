@@ -9,6 +9,55 @@ import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'test_support/video_reference_fixtures.dart';
 
 void main() {
+  testWidgets('BTC position detail uses the approved display copy', (
+    tester,
+  ) async {
+    const position = DemoPosition(
+      id: '2891570754',
+      symbol: 'BTCUSD',
+      side: 'BUY',
+      volume: .01,
+      openPrice: 79718.86,
+      currentPrice: 79725.86,
+      profit: 7,
+    );
+    final container = createVideoReferenceContainer(
+      overrides: [
+        demoPositionsProvider.overrideWithValue(const [position]),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: PositionDetailScreen(positionId: '2891570754'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('BTCUSDT'), findsOneWidget);
+    expect(find.text('Bitcoin vs US Dollar Tether'), findsOneWidget);
+    expect(find.text('#2891570754 buy 0.01 BTCUSDT'), findsOneWidget);
+
+    final warning = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const Key('position-detail-lower-surface')),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(
+      warning.data,
+      'Chot Loi/ Cat Lo phai duoc dat it nhat 0 điểm so voi gia thi\n'
+      'truong. Qua trinh Chot Loi/ Cat Lo se duoc thuc hien boi\n'
+      'broker.',
+    );
+    expect(warning.maxLines, 3);
+    expect(warning.softWrap, isFalse);
+  });
+
   testWidgets('server GUID is hidden behind a short numeric position ticket', (
     tester,
   ) async {
@@ -96,7 +145,7 @@ void main() {
       await tester.pump();
       expect(find.text('4102.397'), findsOneWidget);
 
-      await tester.tap(find.text('Chỉnh sửa'));
+      await tester.tap(find.text('Chinh sua'));
       await tester.pump();
       final modified = container
           .read(demoPositionsProvider)

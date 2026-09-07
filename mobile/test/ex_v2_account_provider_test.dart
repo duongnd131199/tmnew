@@ -16,8 +16,11 @@ import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
-  test('production endpoints use the canonical V2 route and hub', () {
-    expect(ExV2Config.production.restBaseUrl, 'https://trochoi.top/ex/v2/api');
+  test('production uses the public paths before the Nginx V2 rewrite', () {
+    expect(
+      ExV2Config.production.restBaseUrl,
+      'https://trochoi.top/ex/v2/api',
+    );
     expect(
       ExV2Config.production.hubUrl,
       'https://trochoi.top/ex/v2/hubs/trading',
@@ -704,7 +707,16 @@ void main() {
 
       adapter.failBootstrap = true;
       await container.read(exV2AccountProvider.notifier).refresh();
-      expect(container.read(exV2AccountProvider).hasError, isTrue);
+      expect(container.read(exV2AccountProvider).hasError, isFalse);
+      expect(
+        container
+            .read(exV2AccountProvider)
+            .requireValue!
+            .bootstrap
+            .summary
+            .balance,
+        5000,
+      );
       expect(container.read(exV2AccountGenerationProvider), accountA);
 
       adapter.failBootstrap = false;

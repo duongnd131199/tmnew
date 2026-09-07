@@ -109,7 +109,7 @@ void main() {
     expect(find.text('Huy'), findsOneWidget);
   });
 
-  testWidgets('Trade position sheet uses video white roles', (tester) async {
+  testWidgets('Trade position dialog uses video white roles', (tester) async {
     await tester.binding.setSurfaceSize(const Size(384, 848));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final container = createVideoReferenceContainer();
@@ -136,8 +136,14 @@ void main() {
     await tester.tap(find.byKey(ValueKey('trade-position-${position.id}')));
     await tester.pumpAndSettle();
 
-    final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
-    expect(sheet.backgroundColor, AppColors.sheetSurface);
+    expect(find.byType(BottomSheet), findsNothing);
+    final dialog = tester.widget<DecoratedBox>(
+      find.byKey(const Key('position-actions-dialog')),
+    );
+    expect(
+      (dialog.decoration as BoxDecoration).color,
+      AppColors.sheetSurface.withValues(alpha: .94),
+    );
     expect(find.text('Đóng trạng thái'), findsOneWidget);
     expect(
       tester.widget<Text>(find.text('Đóng trạng thái')).style?.color,

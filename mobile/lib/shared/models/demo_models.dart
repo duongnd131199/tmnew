@@ -212,6 +212,8 @@ class DemoHistoryPosition {
     this.closePrice,
     this.subtitle,
     this.referenceIsAuthoritative = false,
+    this.openedAt,
+    this.closedAt,
   });
 
   final String id;
@@ -224,6 +226,8 @@ class DemoHistoryPosition {
   final String time;
   final String? subtitle;
   final bool referenceIsAuthoritative;
+  final DateTime? openedAt;
+  final DateTime? closedAt;
 
   bool get isBalance => side == null;
 }

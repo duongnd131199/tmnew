@@ -128,7 +128,7 @@ void main() {
       const Offset(-220, 0),
     );
     await tester.pumpAndSettle();
-    expect(tradeRowOffset(tester, positionId), -151);
+    expect(tradeRowOffset(tester, positionId), -168);
 
     await tester.tap(find.text('Gia'));
     await tester.pumpAndSettle();

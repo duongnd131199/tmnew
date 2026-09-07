@@ -93,7 +93,8 @@ void main() {
 
     final orderedKeys = [
       for (final scope in PositionBulkActionScope.values)
-        find.byKey(ValueKey('position-bulk-action-${scope.name}')),
+        if (scope != PositionBulkActionScope.closeBySymbol)
+          find.byKey(ValueKey('position-bulk-action-${scope.name}')),
       find.byKey(const Key('position-bulk-cancel')),
     ];
     final topEdges = orderedKeys
@@ -120,7 +121,7 @@ void main() {
 
     final subtitle = find.byKey(const Key('position-bulk-subtitle'));
     final text = tester.widget<Text>(subtitle);
-    expect(text.data, '#11615687251 buy 0.25 BTCUSD 77348.51');
+    expect(text.data, '#11615687251 buy 0.25 BTCUSDT 77348.51');
     expect(text.data, isNot(contains(position.id)));
     expect(text.overflow, isNull);
     expect(
@@ -129,7 +130,9 @@ void main() {
     );
   });
 
-  for (final scope in PositionBulkActionScope.values) {
+  for (final scope in PositionBulkActionScope.values.where(
+    (scope) => scope != PositionBulkActionScope.closeBySymbol,
+  )) {
     testWidgets('position bulk dialog returns ${scope.name}', (tester) async {
       final result = ValueNotifier<PositionBulkActionScope?>(null);
       addTearDown(result.dispose);
@@ -206,6 +209,7 @@ void main() {
     expect(subtitleRect.left, closeTo(titleRect.left, 1));
 
     for (final scope in PositionBulkActionScope.values) {
+      if (scope == PositionBulkActionScope.closeBySymbol) continue;
       final actionRect = tester.getRect(
         find.byKey(ValueKey('position-bulk-action-${scope.name}')),
       );

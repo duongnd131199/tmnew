@@ -17,7 +17,6 @@ void main() {
         'lib/features/authentication/presentation/screens/register_screen.dart',
       ];
       const forbidden = [
-        'Lệnh đã được gửi đến server',
         'lịch sử đang đồng bộ',
         'Đã gửi yêu cầu',
         'Đã đóng ',
@@ -29,6 +28,8 @@ void main() {
         r'Đã đặt $type',
         'Báo cáo giao dịch đã được tạo',
         'Đã tạo tài khoản demo',
+        'Vui lòng chờ...',
+        'Lệnh đã được gửi đến server',
       ];
 
       for (final path in files) {

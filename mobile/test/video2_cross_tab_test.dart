@@ -284,45 +284,8 @@ void main() {
       expect(addInk.bounds.bottom, closeTo(41.5, .01));
       expect(addInk.pixels, inInclusiveRange(112, 126));
 
-      final accountButton = physical(
-        tester.getRect(find.byKey(const Key('trade-balance-button'))),
-      );
-      expect(accountButton.left, closeTo(23, .01));
-      expect(accountButton.top, closeTo(addButton.top, .01));
-      expect(accountButton.right, closeTo(87, .01));
-      expect(accountButton.bottom, closeTo(addButton.bottom, .01));
-      final walletInk = await _tradeButtonInkMetrics(
-        tester,
-        const Key('trade-balance-button'),
-        pixelRatio: 1.5,
-        maximumLuminance: 190,
-      );
-      expect(walletInk.bounds.left, closeTo(17.5, 1));
-      expect(walletInk.bounds.top, closeTo(20, 1));
-      expect(walletInk.bounds.right, closeTo(49.5, 1));
-      expect(walletInk.bounds.bottom, closeTo(43, 1));
-      expect(walletInk.pixels, inInclusiveRange(340, 390));
-      expect(walletInk.medianLuminance, inInclusiveRange(112, 118));
-      expect(
-        walletInk.inkByRow[26],
-        greaterThanOrEqualTo(28),
-        reason: 'The wallet header separator must be above the four dots.',
-      );
-      expect(
-        walletInk.inkByRow[32],
-        inInclusiveRange(12, 20),
-        reason: 'The wallet body must contain four circular dots.',
-      );
-      expect(
-        walletInk.inkByRow[36],
-        lessThanOrEqualTo(10),
-        reason: 'The reference has no filled bar below the dots.',
-      );
-      expect(
-        walletInk.inkByRow[40],
-        greaterThanOrEqualTo(28),
-        reason: 'The wallet bottom edge must close the outlined body.',
-      );
+      expect(find.byKey(const Key('trade-balance-button')), findsNothing);
+      expect(find.byKey(const Key('trade-wallet-glyph')), findsNothing);
 
       final first = tester.getRect(
         find.byKey(ValueKey('trade-position-${positions[0].id}')),

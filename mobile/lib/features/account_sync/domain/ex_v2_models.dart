@@ -20,14 +20,20 @@ final class ExV2Bootstrap {
 
   factory ExV2Bootstrap.fromJson(JsonMap json) {
     final summary = ExV2AccountSummary.fromJson(_map(json, 'summary'));
+    final account = ExV2Account.fromJson(
+      _map(json, 'activeAccount'),
+      fallbackCurrency: summary.currency,
+    );
+    if (account.id != summary.accountId) {
+      throw const FormatException(
+        'EX V2 summary account must match the active account',
+      );
+    }
     return ExV2Bootstrap(
       serverTime: _date(json, 'serverTime'),
       version: _integer(json, 'version'),
       device: ExV2Device.fromJson(_map(json, 'device')),
-      account: ExV2Account.fromJson(
-        _map(json, 'activeAccount'),
-        fallbackCurrency: summary.currency,
-      ),
+      account: account,
       summary: summary,
       positions: _list(json, 'positions', ExV2Position.fromJson),
       pendingOrders: _list(json, 'pendingOrders', ExV2Order.fromJson),
@@ -141,6 +147,7 @@ final class ExV2AccountSummary {
     required this.freeMargin,
     required this.marginLevel,
     required this.updatedAt,
+    this.positionValuations,
   });
 
   factory ExV2AccountSummary.fromJson(JsonMap json) => ExV2AccountSummary(
@@ -153,6 +160,11 @@ final class ExV2AccountSummary {
     freeMargin: _double(json, 'freeMargin'),
     marginLevel: _double(json, 'marginLevel'),
     updatedAt: _date(json, 'updatedAt'),
+    positionValuations: _nullableList(
+      json,
+      'positionValuations',
+      ExV2PositionValuation.fromJson,
+    ),
   );
 
   final String accountId;
@@ -164,6 +176,28 @@ final class ExV2AccountSummary {
   final double freeMargin;
   final double marginLevel;
   final DateTime updatedAt;
+  final List<ExV2PositionValuation>? positionValuations;
+}
+
+final class ExV2PositionValuation {
+  const ExV2PositionValuation({
+    required this.positionId,
+    required this.symbol,
+    required this.currentPrice,
+    required this.floatingProfit,
+  });
+
+  factory ExV2PositionValuation.fromJson(JsonMap json) => ExV2PositionValuation(
+    positionId: _string(json, 'positionId'),
+    symbol: _string(json, 'symbol'),
+    currentPrice: _double(json, 'currentPrice'),
+    floatingProfit: _double(json, 'floatingProfit'),
+  );
+
+  final String positionId;
+  final String symbol;
+  final double currentPrice;
+  final double floatingProfit;
 }
 
 final class ExV2HistorySummary {
@@ -714,6 +748,11 @@ List<T> _list<T>(JsonMap json, String key, T Function(JsonMap) parse) {
       .toList(growable: false);
 }
 
+List<T>? _nullableList<T>(JsonMap json, String key, T Function(JsonMap) parse) {
+  if (json[key] == null) return null;
+  return _list(json, key, parse);
+}
+
 List<JsonMap> _mapList(JsonMap json, String key) =>
     _list<JsonMap>(json, key, (value) => Map.unmodifiable(value));
 
@@ -739,14 +778,20 @@ String? _nullableString(JsonMap json, String key) {
 
 double _double(JsonMap json, String key) {
   final value = json[key];
-  if (value is num) return value.toDouble();
+  if (value is num) {
+    final parsed = value.toDouble();
+    if (parsed.isFinite) return parsed;
+  }
   throw FormatException('EX V2 field "$key" must be numeric');
 }
 
 double? _nullableDouble(JsonMap json, String key) {
   final value = json[key];
   if (value == null) return null;
-  if (value is num) return value.toDouble();
+  if (value is num) {
+    final parsed = value.toDouble();
+    if (parsed.isFinite) return parsed;
+  }
   throw FormatException('EX V2 field "$key" must be numeric or null');
 }
 

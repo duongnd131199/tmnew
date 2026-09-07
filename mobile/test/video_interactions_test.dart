@@ -30,6 +30,8 @@ class _RecordingOrderSuccessSoundPlayer implements OrderSuccessSoundPlayer {
 }
 
 void main() {
+  const tradeViewportScale = 393 / 384;
+
   void useVideoViewport(WidgetTester tester) {
     tester.view.physicalSize = const Size(393, 853);
     tester.view.devicePixelRatio = 1;
@@ -79,7 +81,7 @@ void main() {
     final surface = tester.widget<AnimatedContainer>(
       find.byKey(ValueKey('trade-position-surface-$positionId')),
     );
-    return surface.transform?.storage[12] ?? 0;
+    return (surface.transform?.storage[12] ?? 0) * tradeViewportScale;
   }
 
   testWidgets('plus order form does not show a position close action', (
@@ -98,7 +100,6 @@ void main() {
     expect(find.byKey(const Key('order-close-position')), findsNothing);
     expect(find.text('Sell by Market'), findsOneWidget);
     expect(find.text('Buy by Market'), findsOneWidget);
-    expect(find.text('Giao dich'), findsOneWidget);
   });
 
   testWidgets('slow order submission exposes no infrastructure message', (
@@ -258,7 +259,7 @@ void main() {
   });
 
   for (final side in ['sell', 'buy']) {
-    testWidgets('$side market button closes the ticket position', (
+    testWidgets('$side market button opens a new position from close ticket', (
       tester,
     ) async {
       final container = createContainer();
@@ -286,72 +287,134 @@ void main() {
         container
             .read(demoPositionsProvider)
             .where((item) => item.id == position.id),
-        isEmpty,
+        isNotEmpty,
       );
       expect(
         container.read(demoPositionsProvider),
-        hasLength(before.length - 1),
+        hasLength(before.length + 1),
+      );
+      expect(
+        container.read(demoPositionsProvider).first.side,
+        side.toUpperCase(),
       );
     });
   }
 
-  testWidgets('Market order action creates a position and reaches Trade', (
-    tester,
-  ) async {
-    useVideoViewport(tester);
-    final container = createContainer();
-    addTearDown(container.dispose);
-    final initialPositions = container.read(demoPositionsProvider).length;
-    final router = GoRouter(
-      initialLocation: '/market',
-      routes: [
-        GoRoute(
-          path: '/market',
-          builder: (context, state) => const MarketWatchScreen(),
-        ),
-        GoRoute(
-          path: '/order',
-          builder: (context, state) => NewOrderScreen(
-            symbol: state.uri.queryParameters['symbol'] ?? 'XAUUSD+',
-            initialSide: state.uri.queryParameters['side'] ?? 'buy',
+  testWidgets(
+    'confirmed market order automatically returns to the updated Trade list',
+    (tester) async {
+      useVideoViewport(tester);
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final initialPositions = container.read(demoPositionsProvider).length;
+      final router = GoRouter(
+        initialLocation: '/market',
+        routes: [
+          GoRoute(
+            path: '/market',
+            builder: (context, state) => const MarketWatchScreen(),
           ),
-        ),
-        GoRoute(
-          path: '/trade',
-          builder: (context, state) => Consumer(
-            builder: (context, ref, child) => Scaffold(
-              body: Text('TRADE ${ref.watch(demoPositionsProvider).length}'),
+          GoRoute(
+            path: '/order',
+            builder: (context, state) => NewOrderScreen(
+              symbol: state.uri.queryParameters['symbol'] ?? 'XAUUSD+',
+              initialSide: state.uri.queryParameters['side'] ?? 'buy',
             ),
           ),
+          GoRoute(
+            path: '/trade',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, child) => Scaffold(
+                body: Text('TRADE ${ref.watch(demoPositionsProvider).length}'),
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
         ),
-      ],
-    );
-    addTearDown(router.dispose);
+      );
+      await tester.pump();
+      await tester.tap(find.text('XAUUSD'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Giao dich'));
+      await tester.pumpAndSettle();
+      expect(find.text('Buy by Market'), findsOneWidget);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(routerConfig: router),
-      ),
-    );
-    await tester.pump();
-    await tester.tap(find.text('XAUUSD'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Giao dich'));
-    await tester.pumpAndSettle();
-    expect(find.text('Buy by Market'), findsOneWidget);
+      await tester.tap(find.text('Buy by Market'));
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(
+        container.read(demoPositionsProvider),
+        hasLength(initialPositions + 1),
+      );
+      expect(find.textContaining('hoan tat'), findsOneWidget);
 
-    await tester.tap(find.text('Buy by Market'));
-    await tester.pump(const Duration(milliseconds: 750));
-    expect(
-      container.read(demoPositionsProvider),
-      hasLength(initialPositions + 1),
-    );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(find.text('TRADE ${initialPositions + 1}'), findsOneWidget);
+      expect(find.byType(NewOrderScreen), findsNothing);
+    },
+  );
 
-    await tester.tap(find.text('Giao dich'));
-    await tester.pumpAndSettle();
-    expect(find.text('TRADE ${initialPositions + 1}'), findsOneWidget);
-  });
+  testWidgets(
+    'confirmed position close automatically returns to the updated Trade list',
+    (tester) async {
+      useVideoViewport(tester);
+      final container = createContainer();
+      addTearDown(container.dispose);
+      container.read(activeDemoAccountIdProvider.notifier).select('10001002');
+      final position = container.read(demoPositionsProvider).first;
+      final initialPositions = container.read(demoPositionsProvider).length;
+      final router = GoRouter(
+        initialLocation:
+            '/order?symbol=${position.symbol}&positionId=${position.id}',
+        routes: [
+          GoRoute(
+            path: '/order',
+            builder: (context, state) => NewOrderScreen(
+              symbol: state.uri.queryParameters['symbol'] ?? 'XAUUSD+',
+              closePositionId: state.uri.queryParameters['positionId'],
+            ),
+          ),
+          GoRoute(
+            path: '/trade',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, child) => Scaffold(
+                body: Text('TRADE ${ref.watch(demoPositionsProvider).length}'),
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('order-close-position')));
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(
+        container.read(demoPositionsProvider),
+        hasLength(initialPositions - 1),
+      );
+      expect(find.textContaining('hoan tat'), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(find.text('TRADE ${initialPositions - 1}'), findsOneWidget);
+      expect(find.byType(NewOrderScreen), findsNothing);
+    },
+  );
 
   testWidgets('orange position action opens a ticket-bound close form', (
     tester,
@@ -385,7 +448,7 @@ void main() {
           .where((item) => item.id == position.id),
       isEmpty,
     );
-    expect(find.textContaining('hoàn tất'), findsOneWidget);
+    expect(find.textContaining('hoan tat'), findsOneWidget);
   });
 
   testWidgets('close form hides a server GUID behind a short numeric ticket', (
@@ -452,7 +515,10 @@ void main() {
     await tester.pumpAndSettle();
     final more = find.byKey(ValueKey('trade-menu-${position.id}'));
     expect(more, findsOneWidget);
-    expect(tradePositionOffset(tester, position.id), -151);
+    expect(
+      tradePositionOffset(tester, position.id),
+      closeTo(-168 * tradeViewportScale, .01),
+    );
 
     await tester.drag(row, const Offset(220, 0));
     await tester.pumpAndSettle();
@@ -460,11 +526,15 @@ void main() {
 
     await tester.drag(row, const Offset(-220, 0));
     await tester.pumpAndSettle();
-    expect(tradePositionOffset(tester, position.id), -151);
+    expect(
+      tradePositionOffset(tester, position.id),
+      closeTo(-168 * tradeViewportScale, .01),
+    );
 
     await tester.tap(more);
     await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsNothing);
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
     expect(find.text('Đóng trạng thái'), findsOneWidget);
   });
 
@@ -491,12 +561,13 @@ void main() {
       for (var attempt = 0; attempt < 2; attempt++) {
         await tester.tap(find.byKey(ValueKey('trade-position-${position.id}')));
         await tester.pumpAndSettle();
-        expect(find.byType(BottomSheet), findsOneWidget);
+        expect(find.byType(Dialog), findsOneWidget);
+        expect(find.byType(BottomSheet), findsNothing);
 
         await tester.tap(find.text('Hoạt động hàng loạt...'));
         await tester.pumpAndSettle();
 
-        expect(find.byType(BottomSheet), findsNothing);
+        expect(find.byType(Dialog), findsOneWidget);
         expect(
           find.byKey(const Key('position-bulk-actions-dialog')),
           findsOneWidget,
@@ -721,20 +792,32 @@ void main() {
       expect(tradePositionOffset(tester, position.id), closeTo(-80, 1));
       await open.up();
       await tester.pumpAndSettle();
-      expect(tradePositionOffset(tester, position.id), -151);
+      expect(
+        tradePositionOffset(tester, position.id),
+        closeTo(-168 * tradeViewportScale, .01),
+      );
 
       final stayOpen = await tester.startGesture(Offset(180, rowY));
       await stayOpen.moveBy(const Offset(20, 0));
       await tester.pump(const Duration(milliseconds: 50));
-      expect(tradePositionOffset(tester, position.id), closeTo(-131, 1));
+      expect(
+        tradePositionOffset(tester, position.id),
+        closeTo(-168 * tradeViewportScale + 20, 1),
+      );
       await stayOpen.up();
       await tester.pumpAndSettle();
-      expect(tradePositionOffset(tester, position.id), -151);
+      expect(
+        tradePositionOffset(tester, position.id),
+        closeTo(-168 * tradeViewportScale, .01),
+      );
 
       final close = await tester.startGesture(Offset(180, rowY));
-      await close.moveBy(const Offset(95, 0));
+      await close.moveBy(const Offset(110, 0));
       await tester.pump(const Duration(milliseconds: 50));
-      expect(tradePositionOffset(tester, position.id), closeTo(-56, 1));
+      expect(
+        tradePositionOffset(tester, position.id),
+        closeTo(-168 * tradeViewportScale + 110, 1),
+      );
       await close.up();
       await tester.pumpAndSettle();
       expect(tradePositionOffset(tester, position.id), 0);
@@ -743,7 +826,10 @@ void main() {
       await rightOverscroll.moveBy(const Offset(80, 0));
       await tester.pump();
       expect(tradePositionOffset(tester, position.id), greaterThan(0));
-      expect(tradePositionOffset(tester, position.id), lessThanOrEqualTo(24));
+      expect(
+        tradePositionOffset(tester, position.id),
+        lessThanOrEqualTo(24 * tradeViewportScale),
+      );
       await rightOverscroll.up();
       await tester.pumpAndSettle();
       expect(tradePositionOffset(tester, position.id), 0);
@@ -751,14 +837,20 @@ void main() {
       final leftOverscroll = await tester.startGesture(Offset(180, rowY));
       await leftOverscroll.moveBy(const Offset(-220, 0));
       await tester.pump();
-      expect(tradePositionOffset(tester, position.id), lessThan(-151));
       expect(
         tradePositionOffset(tester, position.id),
-        greaterThanOrEqualTo(-175),
+        lessThan(-168 * tradeViewportScale),
+      );
+      expect(
+        tradePositionOffset(tester, position.id),
+        greaterThanOrEqualTo(-192 * tradeViewportScale),
       );
       await leftOverscroll.up();
       await tester.pumpAndSettle();
-      expect(tradePositionOffset(tester, position.id), -151);
+      expect(
+        tradePositionOffset(tester, position.id),
+        closeTo(-168 * tradeViewportScale, .01),
+      );
     },
   );
 
