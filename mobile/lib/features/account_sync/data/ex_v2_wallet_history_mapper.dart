@@ -4,7 +4,7 @@ import 'package:trading_mobile/shared/models/demo_models.dart';
 
 abstract final class ExV2WalletHistoryMapper {
   static const _depositReferencePrefix = 'D-ALLINT-USD-INT-';
-  static const _withdrawalReferencePrefix = 'W-BANKVNGT-USD-';
+  static const _withdrawalReferencePrefix = 'W-ALLINT-USD-INT-';
   static const _depositReferenceDigits = 12;
   static const _withdrawalReferenceDigits = 13;
   static final _referenceEpoch = DateTime.utc(2000);

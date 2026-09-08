@@ -959,7 +959,7 @@ void main() {
       expect(find.text('Balance'), findsNWidgets(2));
       expect(find.text('D-ALLINT-USD-INT-924750483461'), findsOneWidget);
       expect(find.text('2026.07.21 02:28:53'), findsOneWidget);
-      expect(find.text('W-BANKVNGT-USD-1475391737862'), findsOneWidget);
+      expect(find.text('W-ALLINT-USD-INT-1475391737862'), findsOneWidget);
       expect(find.text('2026.07.21 06:49:19'), findsOneWidget);
       expect(tester.getSize(depositRow).height, 52);
       expect(
@@ -973,7 +973,7 @@ void main() {
         ),
       );
       expect(
-        tester.getRect(find.text('W-BANKVNGT-USD-1475391737862')).right,
+        tester.getRect(find.text('W-ALLINT-USD-INT-1475391737862')).right,
         lessThanOrEqualTo(
           tester.getRect(find.text('2026.07.21 06:49:19')).left - 4,
         ),

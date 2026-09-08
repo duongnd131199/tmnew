@@ -43,7 +43,7 @@ void main() {
       _numericSuffix(entries[1].subtitle!),
       greaterThan(_numericSuffix(entries.first.subtitle!)),
     );
-    expect(entries.last.subtitle, 'W-BANKVNGT-USD-1475391737862');
+    expect(entries.last.subtitle, 'W-ALLINT-USD-INT-1475391737862');
     expect(entries.map((entry) => entry.time), [
       '2026.07.21 02:28:53',
       '2026.07.21 03:00:00',
@@ -192,7 +192,10 @@ void main() {
       entries.first.subtitle,
       matches(RegExp(r'^D-ALLINT-USD-INT-\d{12}$')),
     );
-    expect(entries.last.subtitle, matches(RegExp(r'^W-BANKVNGT-USD-\d{13}$')));
+    expect(
+      entries.last.subtitle,
+      matches(RegExp(r'^W-ALLINT-USD-INT-\d{13}$')),
+    );
     expect(entries.map((entry) => entry.time), [
       '2026.08.04 17:00:00',
       '2026.08.07 22:14:25',
@@ -244,10 +247,13 @@ void main() {
       'wallet-$secondId',
     ]);
     expect(entries.map((entry) => entry.subtitle), [
-      'W-BANKVNGT-USD-6770669400337',
-      'W-BANKVNGT-USD-1847190348322',
+      'W-ALLINT-USD-INT-6770669400337',
+      'W-ALLINT-USD-INT-1847190348322',
     ]);
-    expect(replayAtAnotherTime.single.subtitle, 'W-BANKVNGT-USD-6770669400337');
+    expect(
+      replayAtAnotherTime.single.subtitle,
+      'W-ALLINT-USD-INT-6770669400337',
+    );
   });
 
   test('keeps the withdrawal UUID identity after merging history', () {
@@ -278,7 +284,7 @@ void main() {
 
     expect(entries, hasLength(1));
     expect(entries.single.id, 'wallet-transaction:1919');
-    expect(entries.single.subtitle, 'W-BANKVNGT-USD-6770669400337');
+    expect(entries.single.subtitle, 'W-ALLINT-USD-INT-6770669400337');
     expect(entries.single.referenceIsAuthoritative, isTrue);
   });
 
@@ -336,10 +342,10 @@ void main() {
         depositReferences,
         everyElement(matches(RegExp(r'^D-ALLINT-USD-INT-\d{12}$'))),
       );
-      expect(withdrawalReferences.first, 'W-BANKVNGT-USD-1475391737862');
+      expect(withdrawalReferences.first, 'W-ALLINT-USD-INT-1475391737862');
       expect(
         withdrawalReferences,
-        everyElement(matches(RegExp(r'^W-BANKVNGT-USD-\d{13}$'))),
+        everyElement(matches(RegExp(r'^W-ALLINT-USD-INT-\d{13}$'))),
       );
       expect(
         _numericSuffix(depositReferences[1]),
@@ -382,7 +388,7 @@ void main() {
     expect(normalized.map((entry) => entry.subtitle), [
       'D-ALLINT-USD-INT-928059393626',
       'D-ALLINT-USD-INT-928059393627',
-      matches(RegExp(r'^W-BANKVNGT-USD-\d{13}$')),
+      matches(RegExp(r'^W-ALLINT-USD-INT-\d{13}$')),
     ]);
   });
 }

@@ -213,7 +213,7 @@ void main() {
         .toList(growable: false);
     expect(balanceHistory.map((entry) => entry.subtitle), [
       'D-ALLINT-USD-INT-924750483461',
-      'W-BANKVNGT-USD-1475391737862',
+      'W-ALLINT-USD-INT-1475391737862',
     ]);
     expect(balanceHistory.map((entry) => entry.profit), [518.54, -2000]);
     final profile = container.read(demoAccountsProvider).single;
