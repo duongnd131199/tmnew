@@ -20,11 +20,19 @@ class OrderTicketQuoteText extends StatelessWidget {
         children: [
           TextSpan(
             text: formattedPrice.substring(0, suffixStart),
-            style: const TextStyle(fontSize: 20.5, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: color,
+              fontSize: 20.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           TextSpan(
             text: formattedPrice.substring(suffixStart),
-            style: const TextStyle(fontSize: 26.5, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              color: color,
+              fontSize: 26.5,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),

@@ -28,6 +28,20 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
   bool initialized = false;
   bool showActionMenu = false;
   bool submittingProtection = false;
+  double? _lastQuoteMidpoint;
+  Color _quoteColor = AppColors.tradeNegative;
+
+  void _trackQuoteDirection(DemoQuote? quote) {
+    if (quote == null) return;
+    final midpoint = (quote.bid + quote.ask) / 2;
+    final previous = _lastQuoteMidpoint;
+    if (previous != null && midpoint != previous) {
+      _quoteColor = midpoint > previous
+          ? AppColors.primary
+          : AppColors.tradeNegative;
+    }
+    _lastQuoteMidpoint = midpoint;
+  }
 
   void _selectAction(DemoPosition position, String action) {
     if (action == 'Sửa trạng thái') {
@@ -183,6 +197,7 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
       );
     });
     final liveQuote = ref.watch(demoQuoteProvider(position.symbol)).value;
+    _trackQuoteDirection(liveQuote);
     final priceDigits = _priceDigits(position.symbol);
     final priceStep = switch (priceDigits) {
       5 => .00001,
@@ -232,7 +247,7 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 15,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                                 height: 1,
                               ),
                             ),
@@ -289,6 +304,7 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                                 color: AppColors.textPrimary,
                                 fontFamily: 'sans-serif',
                                 fontSize: 15,
+                                fontWeight: FontWeight.w300,
                               ),
                             ),
                           ),
@@ -342,13 +358,13 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                       Expanded(
                         child: OrderTicketQuoteText(
                           formattedPrice: bid.toStringAsFixed(priceDigits),
-                          color: AppColors.tradeNegative,
+                          color: _quoteColor,
                         ),
                       ),
                       Expanded(
                         child: OrderTicketQuoteText(
                           formattedPrice: ask.toStringAsFixed(priceDigits),
-                          color: AppColors.primary,
+                          color: _quoteColor,
                         ),
                       ),
                     ],
@@ -356,12 +372,17 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                 ),
               ),
               SizedBox(
-                height: 39,
+                height: 40,
                 width: double.infinity,
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.surfaceSelected,
-                    foregroundColor: AppColors.textPrimary,
+                    backgroundColor: AppColors.positionModifySurface,
+                    disabledBackgroundColor: AppColors.positionModifySurface,
+                    foregroundColor: AppColors.positionModifyText,
+                    disabledForegroundColor: AppColors.positionModifyText,
+                    side: const BorderSide(
+                      color: AppColors.positionModifyBorder,
+                    ),
                     shape: const RoundedRectangleBorder(),
                     padding: EdgeInsets.zero,
                   ),

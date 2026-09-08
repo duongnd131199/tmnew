@@ -62,6 +62,9 @@ abstract final class AppColors {
   static const tradeSwipeClose = Color(0xFFEB8305);
   static const tradeSwipeActionGlyph = Color(0xFFFFFFFF);
   static const positionActionSurface = Color(0xFFD5D5D5);
+  static const positionModifySurface = Color(0xFFBEBEBE);
+  static const positionModifyBorder = Color(0xFFB2B2B2);
+  static const positionModifyText = Color(0xFFFFFFFF);
   static const warning = Color(0xFFFF9F0A);
   static const savePasswordEnabled = Color(0xFF30D158);
   static const settingsRowSecondary = Color(0xFF8E8E8E);

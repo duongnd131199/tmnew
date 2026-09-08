@@ -36,6 +36,10 @@ dist/
 **/build/
 mobile/test/failures/
 
+# Generated visual QA output
+/artifacts/
+/docs/screenshots/**/*.png
+
 # Local signing material and generated packages
 *.keystore
 *.jks

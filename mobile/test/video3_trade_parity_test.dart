@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -405,12 +406,16 @@ void main() {
     expect(subtitle.style?.fontSize, 11.5);
     expect(subtitle.style?.color, AppColors.textSecondary);
 
+    final symbolTitle = tester.widget<Text>(find.text('XAUUSD'));
+    expect(symbolTitle.style?.fontWeight, FontWeight.w600);
+
     final actionField = find.byKey(const Key('position-action-field'));
     expect(tester.getSize(actionField).height, 41);
     final actionLabel = tester.widget<Text>(
       find.textContaining('#58308513468'),
     );
     expect(actionLabel.style?.fontSize, 15);
+    expect(actionLabel.style?.fontWeight, FontWeight.w300);
     expect(actionLabel.style?.color, AppColors.textPrimary);
 
     expect(find.text('Cat lo'), findsOneWidget);
@@ -443,7 +448,7 @@ void main() {
         .toList(growable: false);
     expect(quoteTexts, hasLength(2));
     expect(quoteTexts[0].style?.color, AppColors.tradeNegative);
-    expect(quoteTexts[1].style?.color, AppColors.primary);
+    expect(quoteTexts[1].style?.color, AppColors.tradeNegative);
     expect(quoteTexts.map((text) => text.textSpan), everyElement(isNotNull));
     final bidSpans = (quoteTexts[0].textSpan! as TextSpan).children!
         .cast<TextSpan>();
@@ -459,7 +464,21 @@ void main() {
     }
 
     final modify = find.byType(FilledButton);
-    expect(tester.getSize(modify).height, 39);
+    expect(tester.getSize(modify).height, 40);
+    final modifyButton = tester.widget<FilledButton>(modify);
+    const disabled = <WidgetState>{WidgetState.disabled};
+    expect(
+      modifyButton.style?.backgroundColor?.resolve(disabled),
+      const Color(0xFFBEBEBE),
+    );
+    expect(
+      modifyButton.style?.foregroundColor?.resolve(disabled),
+      Colors.white,
+    );
+    expect(
+      modifyButton.style?.side?.resolve(disabled),
+      const BorderSide(color: Color(0xFFB2B2B2)),
+    );
     final modifyText = tester.widget<Text>(find.text('Chinh sua'));
     expect(modifyText.style?.fontSize, 16);
     expect(modifyText.style?.fontWeight, FontWeight.w400);
@@ -494,6 +513,135 @@ void main() {
       Offset.zero & warningParagraph.size,
     );
     expect(paintedWarningBounds.height, closeTo(47.52, .5));
+  });
+
+  testWidgets('position detail moves both quote colors together with ticks', (
+    tester,
+  ) async {
+    final quotes = StreamController<DemoQuote>();
+    addTearDown(quotes.close);
+    final container = _video3Container(quotes: (_) => quotes.stream);
+    addTearDown(container.dispose);
+    final paintBoundaryKey = GlobalKey();
+    _useVideoViewport(tester);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: RepaintBoundary(
+            key: paintBoundaryKey,
+            child: const PositionDetailScreen(positionId: '58308513468'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    List<Text> quoteTexts() => tester
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byKey(const Key('position-detail-quote-strip')),
+            matching: find.byType(Text),
+          ),
+        )
+        .toList(growable: false);
+
+    Iterable<Color?> quoteColors() =>
+        quoteTexts().map((text) => text.style?.color);
+
+    Iterable<Color?> quoteRunColors() => quoteTexts().expand(
+      (text) => (text.textSpan! as TextSpan).children!.cast<TextSpan>().map(
+        (span) => span.style?.color,
+      ),
+    );
+
+    quotes.add(
+      const DemoQuote(
+        symbol: 'XAUUSD',
+        name: 'Gold US Dollar',
+        bid: 4434,
+        ask: 4434.4,
+        changePercent: 0,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+    expect(quoteTexts().map((text) => text.textSpan?.toPlainText()), [
+      '4434.000',
+      '4434.400',
+    ]);
+    expect(quoteColors(), everyElement(AppColors.tradeNegative));
+
+    quotes.add(
+      const DemoQuote(
+        symbol: 'XAUUSD',
+        name: 'Gold US Dollar',
+        bid: 4434.2,
+        ask: 4434.6,
+        changePercent: 0,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+    expect(quoteTexts().map((text) => text.textSpan?.toPlainText()), [
+      '4434.200',
+      '4434.600',
+    ]);
+    expect(quoteColors(), everyElement(AppColors.primary));
+
+    quotes.add(
+      const DemoQuote(
+        symbol: 'XAUUSD',
+        name: 'Gold US Dollar',
+        bid: 4434.1,
+        ask: 4434.5,
+        changePercent: 0,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+    expect(quoteTexts().map((text) => text.textSpan?.toPlainText()), [
+      '4434.100',
+      '4434.500',
+    ]);
+    expect(quoteColors(), everyElement(AppColors.tradeNegative));
+    expect(quoteRunColors(), everyElement(AppColors.tradeNegative));
+
+    final boundary =
+        paintBoundaryKey.currentContext!.findRenderObject()!
+            as RenderRepaintBoundary;
+    final firstQuote = tester.renderObject<RenderBox>(find.text('4434.100'));
+    final firstQuoteTopLeft = firstQuote.localToGlobal(
+      Offset.zero,
+      ancestor: boundary,
+    );
+    final image = (await tester.runAsync(boundary.toImage))!;
+    final bytes = (await tester.runAsync(
+      () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+    ))!;
+    var redPixels = 0;
+    var staleBluePixels = 0;
+    for (
+      var y = firstQuoteTopLeft.dy.floor();
+      y < firstQuoteTopLeft.dy.ceil() + firstQuote.size.height.ceil();
+      y++
+    ) {
+      for (
+        var x = firstQuoteTopLeft.dx.floor();
+        x < firstQuoteTopLeft.dx.ceil() + firstQuote.size.width.ceil();
+        x++
+      ) {
+        final offset = (y * image.width + x) * 4;
+        final red = bytes.getUint8(offset);
+        final green = bytes.getUint8(offset + 1);
+        final blue = bytes.getUint8(offset + 2);
+        if (red > 180 && green < 110 && blue < 110) redPixels++;
+        if (blue > 150 && red < 100 && green < 170) staleBluePixels++;
+      }
+    }
+    expect(redPixels, greaterThan(20));
+    expect(staleBluePixels, 0);
   });
 
   testWidgets('detail tickets cap the iPhone 17 dynamic-island top inset', (

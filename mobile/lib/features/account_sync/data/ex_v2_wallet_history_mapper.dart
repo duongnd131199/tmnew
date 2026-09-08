@@ -8,6 +8,10 @@ abstract final class ExV2WalletHistoryMapper {
   static const _depositReferenceDigits = 12;
   static const _withdrawalReferenceDigits = 13;
   static final _referenceEpoch = DateTime.utc(2000);
+  static final _canonicalUuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+    r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
 
   static bool isSettled(JsonMap json) => _isSettled(json);
 
@@ -50,14 +54,22 @@ abstract final class ExV2WalletHistoryMapper {
       _WalletHistoryCandidate canonical, {
       _WalletHistoryCandidate? metadata,
     }) {
-      final reference = _displayReference(canonical, metadata: metadata);
+      final canonicalWithdrawalSuffix = canonical.type == 'withdrawal'
+          ? _canonicalWithdrawalReferenceSuffix(canonical, metadata: metadata)
+          : null;
+      final reference = _displayReference(
+        canonical,
+        metadata: metadata,
+        canonicalWithdrawalSuffix: canonicalWithdrawalSuffix,
+      );
       final referenceIsAuthoritative =
-          canonical.type == 'deposit' &&
-          _referenceSuffix(
-                canonical.depositTransactionCode,
-                _depositReferenceDigits,
-              ) !=
-              null;
+          (canonical.type == 'deposit' &&
+              _referenceSuffix(
+                    canonical.depositTransactionCode,
+                    _depositReferenceDigits,
+                  ) !=
+                  null) ||
+          canonicalWithdrawalSuffix != null;
       final duplicateKeys = <String>{
         'reference:${reference.toLowerCase()}',
         for (final identifier in canonical.identifiers)
@@ -193,6 +205,7 @@ abstract final class ExV2WalletHistoryMapper {
   static String _displayReference(
     _WalletHistoryCandidate canonical, {
     _WalletHistoryCandidate? metadata,
+    int? canonicalWithdrawalSuffix,
   }) {
     final detail = metadata ?? canonical;
     final explicit = detail.explicitReference ?? canonical.explicitReference;
@@ -212,8 +225,30 @@ abstract final class ExV2WalletHistoryMapper {
         : _depositReferenceDigits;
     final suffix =
         _referenceSuffix(explicit, digits) ??
+        canonicalWithdrawalSuffix ??
         _generatedReferenceSuffix(canonical, digits);
     return '$prefix${suffix.toString().padLeft(digits, '0')}';
+  }
+
+  static int? _canonicalWithdrawalReferenceSuffix(
+    _WalletHistoryCandidate canonical, {
+    _WalletHistoryCandidate? metadata,
+  }) {
+    for (final source in [metadata, canonical]) {
+      if (source == null) continue;
+      for (final identifier in source.identifiers) {
+        if (!_canonicalUuidPattern.hasMatch(identifier)) continue;
+        final value = BigInt.tryParse(
+          identifier.replaceAll('-', ''),
+          radix: 16,
+        );
+        if (value == null) continue;
+        final minimum = BigInt.from(1000000000000);
+        final range = BigInt.from(9000000000000);
+        return (minimum + value % range).toInt();
+      }
+    }
+    return null;
   }
 
   static List<DemoHistoryPosition> normalizeReferences(
@@ -238,7 +273,7 @@ abstract final class ExV2WalletHistoryMapper {
           final authoritativeSuffix = entry.referenceIsAuthoritative
               ? _referenceSuffix(entry.subtitle, digits)
               : null;
-          if (!isWithdrawal && authoritativeSuffix != null) {
+          if (authoritativeSuffix != null) {
             final previous = lastSuffixByType[type];
             if (previous == null || authoritativeSuffix > previous) {
               lastSuffixByType[type] = authoritativeSuffix;

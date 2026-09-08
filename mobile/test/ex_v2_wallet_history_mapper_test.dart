@@ -199,6 +199,89 @@ void main() {
     ]);
   });
 
+  test('uses each server withdrawal UUID as its stable display identity', () {
+    const firstId = '11111111-1111-4111-8111-111111111111';
+    const secondId = '22222222-2222-4222-8222-222222222222';
+    final entries = ExV2WalletHistoryMapper.entries(
+      historyTransactions: const [],
+      deposits: const [],
+      withdrawals: const [
+        {
+          'id': firstId,
+          'amount': 10.0,
+          'currency': 'USD',
+          'status': 'pending',
+          'version': 123,
+          'createdAt': '2026-09-07T04:55:00Z',
+        },
+        {
+          'id': secondId,
+          'amount': 20.0,
+          'currency': 'USD',
+          'status': 'pending',
+          'version': 124,
+          'createdAt': '2026-09-07T04:56:00Z',
+        },
+      ],
+    );
+    final replayAtAnotherTime = ExV2WalletHistoryMapper.entries(
+      historyTransactions: const [],
+      deposits: const [],
+      withdrawals: const [
+        {
+          'id': firstId,
+          'amount': 10.0,
+          'currency': 'USD',
+          'status': 'pending',
+          'version': 123,
+          'createdAt': '2026-09-08T12:34:56Z',
+        },
+      ],
+    );
+
+    expect(entries.map((entry) => entry.id), [
+      'wallet-$firstId',
+      'wallet-$secondId',
+    ]);
+    expect(entries.map((entry) => entry.subtitle), [
+      'W-BANKVNGT-USD-6770669400337',
+      'W-BANKVNGT-USD-1847190348322',
+    ]);
+    expect(replayAtAnotherTime.single.subtitle, 'W-BANKVNGT-USD-6770669400337');
+  });
+
+  test('keeps the withdrawal UUID identity after merging history', () {
+    const withdrawalId = '11111111-1111-4111-8111-111111111111';
+    final entries = ExV2WalletHistoryMapper.entries(
+      historyTransactions: const [
+        {
+          'id': 'transaction:1919',
+          'type': 'Rút tiền',
+          'timestamp': '2026-09-07T04:55:00Z',
+          'amountValue': 10.0,
+          'currency': 'USD',
+          'status': 'hoàn tất',
+        },
+      ],
+      deposits: const [],
+      withdrawals: const [
+        {
+          'id': withdrawalId,
+          'status': 'pending',
+          'amount': 10.0,
+          'currency': 'USD',
+          'version': 123,
+          'createdAt': '2026-09-07T04:55:00.100Z',
+        },
+      ],
+    );
+
+    expect(entries, hasLength(1));
+    expect(entries.single.id, 'wallet-transaction:1919');
+    expect(entries.single.subtitle, 'W-BANKVNGT-USD-6770669400337');
+    expect(entries.single.referenceIsAuthoritative, isTrue);
+  });
+
   test(
     'normalizes wallet references to stable MT5 prefixes and increasing digits',
     () {
