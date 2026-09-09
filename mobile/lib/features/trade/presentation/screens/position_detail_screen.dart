@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/utils/trading_price_precision.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
@@ -358,12 +359,14 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                       Expanded(
                         child: OrderTicketQuoteText(
                           formattedPrice: bid.toStringAsFixed(priceDigits),
+                          usePipette: isGoldTradingSymbol(position.symbol),
                           color: _quoteColor,
                         ),
                       ),
                       Expanded(
                         child: OrderTicketQuoteText(
                           formattedPrice: ask.toStringAsFixed(priceDigits),
+                          usePipette: isGoldTradingSymbol(position.symbol),
                           color: _quoteColor,
                         ),
                       ),
@@ -624,8 +627,8 @@ class _ProtectionRow extends StatelessWidget {
 }
 
 int _priceDigits(String symbol) {
-  if (symbol == 'XAUUSD') return 3;
-  if (symbol == 'XAUUSD+' || symbol == 'BTCUSD') return 2;
+  if (isGoldTradingSymbol(symbol)) return goldPriceFractionDigits;
+  if (symbol == 'BTCUSD') return 2;
   return 5;
 }
 

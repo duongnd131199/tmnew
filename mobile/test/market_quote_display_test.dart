@@ -5,6 +5,20 @@ import 'package:trading_mobile/shared/models/market_candle.dart';
 
 void main() {
   group('buildMarketQuoteDisplay', () {
+    test('XAUG ETF retains its legacy two-digit Market Watch precision', () {
+      for (final bid in <double>[42.12345, 142.12345]) {
+        final quote = DemoQuote(
+          symbol: 'XAUG',
+          name: 'US Goldmining ETF',
+          bid: bid,
+          ask: bid + .01,
+          changePercent: 0,
+        );
+
+        expect(marketQuoteDigits(quote), 2);
+      }
+    });
+
     test(
       'uses the preceding D1 close and includes live XAU prices in the range',
       () {
@@ -40,13 +54,13 @@ void main() {
         );
 
         expect(display.timestamp, DateTime.utc(2026, 8, 31, 13, 15, 42));
-        expect(display.digits, 2);
+        expect(display.digits, 3);
         expect(display.previousClose, 2000.000);
-        expect(display.pointChange, -50);
+        expect(display.pointChange, -500);
         expect(display.percentChange, closeTo(-0.025, 0.000000001));
         expect(display.low, 1999.500);
         expect(display.high, 2001.250);
-        expect(display.spreadPoints, 175);
+        expect(display.spreadPoints, 1750);
       },
     );
 

@@ -11,6 +11,7 @@ import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/core/theme/reference_typography_profile.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
+import 'package:trading_mobile/core/utils/trading_price_precision.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/chart/presentation/screens/chart_screen.dart';
@@ -26,8 +27,9 @@ final RegExp _historyTimestampPattern = RegExp(
 
 int _historyPriceDigitsForSymbol(String symbol) {
   final normalized = symbol.toUpperCase();
-  if (normalized == 'XAUUSD+' || normalized == 'BTCUSD') return 2;
-  if (normalized == 'XAUUSD' || normalized.endsWith('JPY')) return 3;
+  if (isGoldTradingSymbol(normalized)) return goldPriceFractionDigits;
+  if (normalized == 'BTCUSD') return 2;
+  if (normalized.endsWith('JPY')) return 3;
   return 5;
 }
 

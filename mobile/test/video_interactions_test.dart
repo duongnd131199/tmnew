@@ -1145,38 +1145,38 @@ void main() {
 
       await tester.tap(find.byKey(const Key('chart-pending-sl')));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), '3900.50');
+      await tester.enterText(find.byType(TextField), '3900.501');
       await tester.tap(find.text('XONG'));
       await tester.pumpAndSettle();
 
       var pendingOrder = container.read(demoPendingOrdersProvider).single;
-      expect(pendingOrder.stopLoss, 3900.50);
+      expect(pendingOrder.stopLoss, 3900.501);
       expect(pendingOrder.takeProfit, isNull);
 
       await tester.tap(find.byKey(const Key('chart-pending-sl')));
       await tester.pumpAndSettle();
       expect(
         tester.widget<TextFormField>(find.byType(TextFormField)).initialValue,
-        '3900.50',
+        '3900.501',
       );
       await tester.tap(find.text('HỦY'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('chart-pending-tp')));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), '3995.50');
+      await tester.enterText(find.byType(TextField), '3995.501');
       await tester.tap(find.text('XONG'));
       await tester.pumpAndSettle();
 
       pendingOrder = container.read(demoPendingOrdersProvider).single;
-      expect(pendingOrder.stopLoss, 3900.50);
-      expect(pendingOrder.takeProfit, 3995.50);
+      expect(pendingOrder.stopLoss, 3900.501);
+      expect(pendingOrder.takeProfit, 3995.501);
 
       await tester.tap(find.byKey(const Key('chart-pending-tp')));
       await tester.pumpAndSettle();
       expect(
         tester.widget<TextFormField>(find.byType(TextFormField)).initialValue,
-        '3995.50',
+        '3995.501',
       );
       await tester.tap(find.text('HỦY'));
       await tester.pumpAndSettle();

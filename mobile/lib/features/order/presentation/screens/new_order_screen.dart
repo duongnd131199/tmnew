@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/utils/trading_price_precision.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
@@ -143,6 +144,9 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
   }
 
   String _format(double value) {
+    if (isGoldTradingSymbol(widget.symbol)) {
+      return value.toStringAsFixed(goldPriceFractionDigits);
+    }
     if (value >= 1000) return value.toStringAsFixed(2);
     if (value >= 100) return value.toStringAsFixed(3);
     return value.toStringAsFixed(5);
@@ -722,6 +726,7 @@ class _OrderForm extends StatelessWidget {
               Expanded(
                 child: OrderTicketQuoteText(
                   formattedPrice: format(bid),
+                  usePipette: isGoldTradingSymbol(symbol),
                   color: closePosition != null
                       ? AppColors.textPrimary
                       : referenceLayout
@@ -732,6 +737,7 @@ class _OrderForm extends StatelessWidget {
               Expanded(
                 child: OrderTicketQuoteText(
                   formattedPrice: format(ask),
+                  usePipette: isGoldTradingSymbol(symbol),
                   color: closePosition != null
                       ? AppColors.textPrimary
                       : referenceLayout

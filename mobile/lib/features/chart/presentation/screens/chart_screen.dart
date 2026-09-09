@@ -11,6 +11,8 @@ import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/audio/order_success_sound.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
 import 'package:trading_mobile/core/theme/reference_typography_profile.dart';
+import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
+import 'package:trading_mobile/core/utils/trading_price_precision.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
 import 'package:trading_mobile/features/chart/application/chart_timeframe_session.dart';
@@ -1019,7 +1021,11 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
               ((localY.clamp(priceTop, chartHeight) - priceTop) / priceHeight) *
                   range
         : _latestMarketPrice * .9988;
-    return double.parse(mappedPrice.toStringAsFixed(2));
+    return double.parse(
+      mappedPrice.toStringAsFixed(
+        goldAwarePriceFractionDigits(widget.symbol, fallback: 2),
+      ),
+    );
   }
 
   void _showPendingSubtitleTemporarily() {
@@ -1033,6 +1039,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
   }
 
   String _format(double value) {
+    if (isGoldTradingSymbol(widget.symbol)) {
+      return value.toStringAsFixed(goldPriceFractionDigits);
+    }
     if (value >= 1000) return value.toStringAsFixed(2);
     if (value >= 100) return value.toStringAsFixed(3);
     return value.toStringAsFixed(5);
@@ -1680,6 +1689,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                         theme: _theme,
                         label: 'SELL',
                         price: _format(marketPrice),
+                        usePipette: isGoldTradingSymbol(widget.symbol),
                         color: _sellQuoteColor,
                         onTap: () => _placeChartOrder('SELL', marketPrice),
                       ),
@@ -1757,6 +1767,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                         theme: _theme,
                         label: 'Buy',
                         price: _format(marketPrice + spread),
+                        usePipette: isGoldTradingSymbol(widget.symbol),
                         color: _buyQuoteColor,
                         onTap: () =>
                             _placeChartOrder('BUY', marketPrice + spread),
@@ -3037,7 +3048,11 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
         : stopLoss
         ? order.stopLoss
         : order.takeProfit;
-    var draft = current?.toStringAsFixed(2) ?? '';
+    var draft =
+        current?.toStringAsFixed(
+          goldAwarePriceFractionDigits(order.symbol, fallback: 2),
+        ) ??
+        '';
     final result = await showDialog<double?>(
       context: context,
       barrierColor: _theme.foreground.withValues(alpha: .32),
@@ -3282,7 +3297,11 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
   Future<void> _showPriceDialog(String label) async {
     final isStopLoss = label == 'Stop Loss';
     final current = isStopLoss ? pendingStopLoss : pendingTakeProfit;
-    var draft = current?.toStringAsFixed(2) ?? '';
+    var draft =
+        current?.toStringAsFixed(
+          goldAwarePriceFractionDigits(widget.symbol, fallback: 2),
+        ) ??
+        '';
     final result = await showDialog<double?>(
       context: context,
       barrierColor: _theme.foreground.withValues(alpha: .32),
@@ -4262,19 +4281,27 @@ class _TradeQuote extends StatelessWidget {
     required this.theme,
     required this.label,
     required this.price,
+    required this.usePipette,
     required this.color,
     required this.onTap,
   });
   final ChartReferenceTheme theme;
   final String label;
   final String price;
+  final bool usePipette;
   final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final leading = price.substring(0, price.length - 2);
-    final trailing = price.substring(price.length - 2);
+    final decimalAt = price.lastIndexOf('.');
+    final fractionLength = decimalAt < 0 ? 0 : price.length - decimalAt - 1;
+    final hasPipette = usePipette && fractionLength >= 3;
+    final pipetteAt = hasPipette ? price.length - 1 : price.length;
+    final pipsAt = pipetteAt > 2 ? pipetteAt - 2 : 0;
+    final leading = price.substring(0, pipsAt);
+    final pips = price.substring(pipsAt, pipetteAt);
+    final pipette = hasPipette ? price.substring(pipetteAt) : null;
     return Material(
       key: ValueKey('chart-ticket-${label.toLowerCase()}'),
       color: color,
@@ -4302,8 +4329,8 @@ class _TradeQuote extends StatelessWidget {
             Positioned(
               left: 0,
               right: 0,
-              top: 17.5,
-              height: 24,
+              top: 15,
+              height: 26.5,
               child: ClipRect(
                 child: OverflowBox(
                   minWidth: 0,
@@ -4320,11 +4347,24 @@ class _TradeQuote extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        trailing,
+                        pips,
                         style: AppTypography.chartTicketPriceMinor.copyWith(
                           color: theme.background,
                         ),
                       ),
+                      if (pipette != null)
+                        Transform.translate(
+                          offset: const Offset(
+                            0,
+                            TabReferenceMetrics.chartTicketPipetteOffsetY,
+                          ),
+                          child: Text(
+                            pipette,
+                            style: AppTypography.quotePricePipette.copyWith(
+                              color: theme.background,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

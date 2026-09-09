@@ -11,6 +11,7 @@ import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/app_shell.dart';
+import 'package:trading_mobile/shared/widgets/order_ticket_quote_text.dart';
 
 import 'test_support/video_reference_fixtures.dart';
 
@@ -91,15 +92,23 @@ void main() {
     expect(stopLossIncrease.center.dx, closeTo(564.5 / 1.5, .75));
 
     final prices = tester
-        .widgetList<Text>(
-          find.descendant(of: quoteStrip, matching: find.byType(Text)),
+        .widgetList<OrderTicketQuoteText>(
+          find.descendant(
+            of: quoteStrip,
+            matching: find.byType(OrderTicketQuoteText),
+          ),
         )
         .toList(growable: false);
     expect(prices, hasLength(2));
     expect(
-      prices.map((price) => price.style?.color),
+      prices.map((price) => price.color),
       everyElement(const Color(0xFF007FFF)),
     );
+    expect(prices.map((price) => price.formattedPrice), [
+      '4104.116',
+      '4104.246',
+    ]);
+    expect(prices.map((price) => price.usePipette), everyElement(isTrue));
 
     final sell = tester.widget<Material>(
       find.byKey(const Key('order-market-sell')),
@@ -164,25 +173,21 @@ void main() {
     await tester.pump();
 
     final prices = tester
-        .widgetList<Text>(
+        .widgetList<OrderTicketQuoteText>(
           find.descendant(
             of: find.byKey(const Key('order-quote-strip')),
-            matching: find.byType(Text),
+            matching: find.byType(OrderTicketQuoteText),
           ),
         )
         .toList(growable: false);
     expect(prices, hasLength(2));
-    expect(prices[0].style?.color, AppColors.tradeNegative);
-    expect(prices[1].style?.color, AppColors.primary);
-    for (final price in prices) {
-      expect(price.textSpan, isNotNull);
-      final spans = (price.textSpan! as TextSpan).children!.cast<TextSpan>();
-      expect(spans, hasLength(2));
-      expect(spans.first.style?.fontSize, 20.5);
-      expect(spans.first.style?.fontWeight, FontWeight.w600);
-      expect(spans.last.style?.fontSize, 26.5);
-      expect(spans.last.style?.fontWeight, FontWeight.w700);
-    }
+    expect(prices[0].color, AppColors.tradeNegative);
+    expect(prices[1].color, AppColors.primary);
+    expect(prices.map((price) => price.formattedPrice), [
+      '4104.090',
+      '4104.220',
+    ]);
+    expect(prices.map((price) => price.usePipette), everyElement(isTrue));
   });
 
   testWidgets('regular order ticket defaults volume to 0.01', (tester) async {
@@ -269,31 +274,23 @@ void main() {
       final quoteStrip = find.byKey(const Key('order-quote-strip'));
       expect(tester.getSize(quoteStrip).height, 55);
       final prices = tester
-          .widgetList<Text>(
-            find.descendant(of: quoteStrip, matching: find.byType(Text)),
+          .widgetList<OrderTicketQuoteText>(
+            find.descendant(
+              of: quoteStrip,
+              matching: find.byType(OrderTicketQuoteText),
+            ),
           )
           .toList(growable: false);
       expect(prices, hasLength(2));
       expect(
-        prices.map((text) => text.textSpan?.toPlainText()),
-        orderedEquals(['4104.09', '4104.22']),
+        prices.map((price) => price.formattedPrice),
+        orderedEquals(['4104.090', '4104.220']),
       );
       expect(
-        prices.map((text) => text.style?.color),
+        prices.map((price) => price.color),
         everyElement(AppColors.textPrimary),
       );
-      final bidSpans = (prices[0].textSpan! as TextSpan).children!
-          .cast<TextSpan>();
-      final askSpans = (prices[1].textSpan! as TextSpan).children!
-          .cast<TextSpan>();
-      expect(bidSpans.map((span) => span.text), ['4104.', '09']);
-      expect(askSpans.map((span) => span.text), ['4104.', '22']);
-      for (final spans in [bidSpans, askSpans]) {
-        expect(spans.first.style?.fontSize, 20.5);
-        expect(spans.first.style?.fontWeight, FontWeight.w600);
-        expect(spans.last.style?.fontSize, 26.5);
-        expect(spans.last.style?.fontWeight, FontWeight.w700);
-      }
+      expect(prices.map((price) => price.usePipette), everyElement(isTrue));
 
       final sell = find.byKey(const Key('order-market-sell'));
       final buy = find.byKey(const Key('order-market-buy'));

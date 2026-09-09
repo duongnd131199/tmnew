@@ -1426,27 +1426,32 @@ class _QuotePrice extends StatelessWidget {
               TextSpan(text: emphasized, style: minorStyle),
             if (pipette != null)
               WidgetSpan(
-                alignment: PlaceholderAlignment.baseline,
-                baseline: TextBaseline.alphabetic,
-                child: Transform.translate(
-                  offset: const Offset(
-                    0,
-                    TabReferenceMetrics.quotePricePipetteOffsetY,
+                alignment: PlaceholderAlignment.bottom,
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    top: -TabReferenceMetrics.quotePricePipetteOffsetY,
                   ),
-                  child: Text(
-                    pipette,
-                    key: pipetteKey,
-                    style: AppTypography.forRole(
-                      context,
-                      ReferenceTextRole.quotePricePipette,
-                      colorRole: colorRole,
-                      variant: variant,
+                  child: Transform.translate(
+                    offset: const Offset(
+                      0,
+                      TabReferenceMetrics.quotePricePipetteOffsetY,
+                    ),
+                    child: Text(
+                      pipette,
+                      key: pipetteKey,
+                      style: AppTypography.forRole(
+                        context,
+                        ReferenceTextRole.quotePricePipette,
+                        colorRole: colorRole,
+                        variant: variant,
+                      ),
                     ),
                   ),
                 ),
               ),
           ],
         ),
+        semanticsLabel: value,
         maxLines: 1,
         style: majorStyle,
       ),

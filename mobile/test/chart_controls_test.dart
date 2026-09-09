@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/core/audio/order_success_sound.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/config/market_api_config.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
@@ -33,6 +34,17 @@ import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/providers/realtime_market_provider.dart';
 
 import 'test_support/video_reference_fixtures.dart';
+
+class _SilentOrderSuccessSoundPlayer implements OrderSuccessSoundPlayer {
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> warmUp() async {}
+}
 
 Mt5CandlePainter _viewportInvariantPainter({
   required ChartViewport viewport,
@@ -1436,7 +1448,7 @@ void main() {
     expect(tester.getTopRight(find.text('Chào bán')).dx, closeTo(295, 1.5));
     expect(tester.getTopRight(find.text('Ngày %')).dx, closeTo(380, 1.5));
     expect(
-      tester.widget<Text>(find.text('4104.09')).style?.color,
+      tester.widget<Text>(find.text('4104.090')).style?.color,
       AppColors.textPrimary,
     );
     final unchangedPercentLabels = tester.widgetList<Text>(find.text('0.00%'));
@@ -1996,7 +2008,7 @@ void main() {
                       priceHeight) *
                   ((painter.chartMaxPrice as double) -
                       (painter.chartMinPrice as double)))
-          .toStringAsFixed(2),
+          .toStringAsFixed(3),
     );
     final gesture = await tester.startGesture(
       Offset(rect.left + 100, rect.top + touchLocalY),
@@ -2009,12 +2021,73 @@ void main() {
         .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
         .painter;
     expect(painter.pendingOrderType, 'Buy Limit');
-    expect(painter.pendingOrderPrice as double, closeTo(expected, .02));
+    expect(painter.pendingOrderPrice as double, expected);
     expect(painter.pendingOrderVolume as double, .50);
     expect(
       painter.pendingOrderPrice as double,
       lessThan((painter.currentPrice as double) - 50),
     );
+    await gesture.up();
+  });
+
+  testWidgets('chart pending draft keeps the old two-digit non-gold rounding', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(384, 848));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          marketCandlesProvider.overrideWith(
+            (ref, request) => Stream.value(const <MarketCandle>[]),
+          ),
+          demoQuoteProvider.overrideWith((ref, symbol) {
+            final quote = ref
+                .read(demoQuotesProvider)
+                .firstWhere((item) => item.symbol == 'EURUSD');
+            return Stream.value(quote);
+          }),
+        ],
+        child: const MaterialApp(
+          home: ChartScreen(symbol: 'EURUSD', initialTimeframe: 'H4'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final chart = find.byKey(const Key('chart-gesture-area'));
+    final rect = tester.getRect(chart);
+    const verticalFraction = .72;
+    final touchLocalY = rect.height * verticalFraction;
+    dynamic painter = tester
+        .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+        .painter;
+    final priceTop = painter.hitTargets.priceTop as double;
+    final priceHeight = painter.hitTargets.priceHeight as double;
+    final expected = double.parse(
+      ((painter.chartMaxPrice as double) -
+              ((touchLocalY.clamp(
+                            priceTop,
+                            painter.hitTargets.chartHeight as double,
+                          ) -
+                          priceTop) /
+                      priceHeight) *
+                  ((painter.chartMaxPrice as double) -
+                      (painter.chartMinPrice as double)))
+          .toStringAsFixed(2),
+    );
+
+    final gesture = await tester.startGesture(
+      Offset(rect.left + 100, rect.top + touchLocalY),
+      pointer: 43,
+    );
+    await tester.pump(const Duration(milliseconds: 560));
+    await tester.pump();
+    painter = tester
+        .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
+        .painter;
+
+    expect(painter.pendingOrderPrice as double, expected);
     await gesture.up();
   });
 
@@ -2143,47 +2216,47 @@ void main() {
 
       await tester.tap(find.byKey(const Key('chart-pending-sl')));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), '3900.50');
+      await tester.enterText(find.byType(TextField), '3900.501');
       await tester.tap(find.text('XONG'));
       await tester.pumpAndSettle();
 
       dynamic chartState = tester.state(find.byType(ChartScreen));
-      expect(chartState.pendingStopLoss, 3900.50);
+      expect(chartState.pendingStopLoss, 3900.501);
       expect(container.read(demoPendingOrdersProvider), isEmpty);
       painter = tester
           .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
           .painter;
-      expect(painter.pendingStopLoss, 3900.50);
+      expect(painter.pendingStopLoss, 3900.501);
       expect(painter.pendingTakeProfit, isNull);
       await tester.tap(find.byKey(const Key('chart-pending-sl')));
       await tester.pumpAndSettle();
       expect(
         tester.widget<TextFormField>(find.byType(TextFormField)).initialValue,
-        '3900.50',
+        '3900.501',
       );
       await tester.tap(find.text('HỦY'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('chart-pending-tp')));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), '4200.75');
+      await tester.enterText(find.byType(TextField), '4200.751');
       await tester.tap(find.text('XONG'));
       await tester.pumpAndSettle();
 
       chartState = tester.state(find.byType(ChartScreen));
-      expect(chartState.pendingStopLoss, 3900.50);
-      expect(chartState.pendingTakeProfit, 4200.75);
+      expect(chartState.pendingStopLoss, 3900.501);
+      expect(chartState.pendingTakeProfit, 4200.751);
       expect(container.read(demoPendingOrdersProvider), isEmpty);
       painter = tester
           .widget<CustomPaint>(find.byKey(const Key('chart-canvas')))
           .painter;
-      expect(painter.pendingStopLoss, 3900.50);
-      expect(painter.pendingTakeProfit, 4200.75);
+      expect(painter.pendingStopLoss, 3900.501);
+      expect(painter.pendingTakeProfit, 4200.751);
       await tester.tap(find.byKey(const Key('chart-pending-tp')));
       await tester.pumpAndSettle();
       expect(
         tester.widget<TextFormField>(find.byType(TextFormField)).initialValue,
-        '4200.75',
+        '4200.751',
       );
       await tester.tap(find.text('HỦY'));
       await tester.pumpAndSettle();
@@ -3881,6 +3954,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          orderSuccessSoundPlayerProvider.overrideWithValue(
+            _SilentOrderSuccessSoundPlayer(),
+          ),
           marketCandlesProvider.overrideWith(
             (ref, request) => Stream.value(const <MarketCandle>[]),
           ),
@@ -4059,6 +4135,58 @@ void main() {
     expect(painter.hitTargets.priceHeight, originalPriceHeight);
 
     final panel = find.byKey(const Key('chart-one-click-panel'));
+    for (final ticket
+        in const <({String side, String leading, String pips, String pipette})>[
+          (side: 'sell', leading: '2000.', pips: '00', pipette: '0'),
+          (side: 'buy', leading: '2000.', pips: '20', pipette: '0'),
+        ]) {
+      final ticketFinder = find.byKey(Key('chart-ticket-${ticket.side}'));
+      final parts = tester
+          .widgetList<Text>(
+            find.descendant(of: ticketFinder, matching: find.byType(Text)),
+          )
+          .where(
+            (widget) =>
+                widget.data != null &&
+                widget.data != 'SELL' &&
+                widget.data != 'Buy',
+          )
+          .toList(growable: false);
+      expect(parts.map((part) => part.data), [
+        ticket.leading,
+        ticket.pips,
+        ticket.pipette,
+      ]);
+      expect(parts[0].style?.fontSize, 16);
+      expect(parts[1].style?.fontSize, 24);
+      final pipette = parts[2];
+      expect(pipette.style?.fontSize, 14.5);
+      expect(pipette.style?.color, Colors.white);
+      expect(pipette.style?.fontWeight, FontWeight.w700);
+      final pipsTop = tester.getTopLeft(find.byWidget(parts[1])).dy;
+      final pipetteTop = tester.getTopLeft(find.byWidget(parts[2])).dy;
+      final priceClipTop = tester
+          .getTopLeft(
+            find
+                .descendant(of: ticketFinder, matching: find.byType(ClipRect))
+                .first,
+          )
+          .dy;
+      expect(
+        pipetteTop - priceClipTop,
+        inInclusiveRange(0, 1),
+        reason:
+            'The raised final gold digit must stay inside the visible price '
+            'strip so its top edge is not clipped.',
+      );
+      expect(
+        pipetteTop - pipsTop,
+        closeTo(-2.5, .75),
+        reason:
+            'The final gold digit should sit just above the adjacent large '
+            'digits, matching the Chart reference.',
+      );
+    }
     expect(
       tester.widget<Material>(find.byKey(const Key('chart-ticket-sell'))).color,
       ChartReferenceTheme.light.ticketBlue,

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/features/trade/presentation/screens/position_detail_screen.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
+import 'package:trading_mobile/shared/widgets/order_ticket_quote_text.dart';
 
 import 'test_support/video_reference_fixtures.dart';
 
@@ -138,8 +139,12 @@ void main() {
 
       expect(find.text('Gold vs US Dollar'), findsOneWidget);
       expect(find.textContaining('buy 179 XAUUSD'), findsOneWidget);
-      expect(find.text('4102.396'), findsOneWidget);
-      expect(find.text('4102.520'), findsOneWidget);
+      expect(
+        tester
+            .widgetList<OrderTicketQuoteText>(find.byType(OrderTicketQuoteText))
+            .map((quote) => quote.formattedPrice),
+        ['4102.396', '4102.520'],
+      );
 
       await tester.tap(find.text('+').first);
       await tester.pump();
@@ -154,4 +159,54 @@ void main() {
       expect(modified.stopLoss, closeTo(4102.397, .000001));
     },
   );
+
+  testWidgets('suffixed gold position keeps all three quote digits', (
+    tester,
+  ) async {
+    const position = DemoPosition(
+      id: 'gold-suffixed-position',
+      symbol: 'XAUUSD+',
+      side: 'SELL',
+      volume: .01,
+      openPrice: 4373.328,
+      currentPrice: 4377.441,
+      profit: -4.11,
+    );
+    final container = createVideoReferenceContainer(
+      overrides: [
+        demoPositionsProvider.overrideWithValue(const [position]),
+        demoQuoteProvider.overrideWith(
+          (ref, symbol) => Stream.value(
+            const DemoQuote(
+              symbol: 'XAUUSD+',
+              name: 'Gold US Dollar',
+              bid: 4374.728,
+              ask: 4374.910,
+              changePercent: -.1,
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: PositionDetailScreen(positionId: 'gold-suffixed-position'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final quotes = tester.widgetList<OrderTicketQuoteText>(
+      find.byType(OrderTicketQuoteText),
+    );
+    expect(quotes.map((quote) => quote.formattedPrice), [
+      '4374.728',
+      '4374.910',
+    ]);
+    expect(quotes.map((quote) => quote.usePipette), everyElement(isTrue));
+  });
 }

@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/utils/trading_price_precision.dart';
 import 'package:trading_mobile/features/chart/presentation/geometry/chart_geometry.dart';
 import 'package:trading_mobile/features/chart/presentation/rendering/chart_hit_targets.dart';
 import 'package:trading_mobile/features/chart/presentation/rendering/chart_render_snapshot.dart';
@@ -82,6 +83,22 @@ class Mt5CandlePainter extends CustomPainter {
   ChartPriceViewport get priceViewport => snapshot.priceViewport;
   ChartReferenceTheme get theme => snapshot.theme;
   Rect? _currentPriceBadgeRect;
+
+  int _priceDigits(double value) {
+    final fallback = switch (value) {
+      >= 1000 => 2,
+      >= 100 => 3,
+      _ => 5,
+    };
+    return goldAwarePriceFractionDigits(symbol, fallback: fallback);
+  }
+
+  String _formatPrice(double value) =>
+      value.toStringAsFixed(_priceDigits(value));
+
+  String _formatPendingProtectionPrice(double value) => value.toStringAsFixed(
+    goldAwarePriceFractionDigits(symbol, fallback: value >= 1000 ? 2 : 5),
+  );
 
   double? get pendingOrderY => hitTargets.pendingOrderY;
   double get chartMinPrice => hitTargets.minPrice;
@@ -870,7 +887,7 @@ class Mt5CandlePainter extends CustomPainter {
       );
       _text(
         canvas,
-        '$label ${price >= 1000 ? price.toStringAsFixed(2) : price.toStringAsFixed(5)}',
+        '$label ${_formatPendingProtectionPrice(price)}',
         Offset(_usesVideo2ChartChrome ? 5 : 2, y - 15),
         AppTypography.chartAnnotation.copyWith(
           color: color,
@@ -1291,11 +1308,7 @@ class Mt5CandlePainter extends CustomPainter {
         maxPrice -
         ((point.dy.clamp(priceTop, chartHeight) - priceTop) / priceHeight) *
             (maxPrice - minPrice);
-    final formattedPrice = price >= 1000
-        ? price.toStringAsFixed(2)
-        : price >= 100
-        ? price.toStringAsFixed(3)
-        : price.toStringAsFixed(5);
+    final formattedPrice = _formatPrice(price);
     canvas.drawRect(
       Rect.fromLTWH(chartWidth + 2, point.dy - 10, 67, 21),
       Paint()..color = theme.foreground.withValues(alpha: .62),
@@ -1422,11 +1435,7 @@ class Mt5CandlePainter extends CustomPainter {
           priceTop + priceHeight * index / ChartGeometry.priceAxisTickCount;
       final fraction = ((y - priceTop) / priceHeight).clamp(0.0, 1.0);
       final value = maxPrice - (maxPrice - minPrice) * fraction;
-      final text = value >= 1000
-          ? value.toStringAsFixed(2)
-          : value >= 100
-          ? value.toStringAsFixed(3)
-          : value.toStringAsFixed(5);
+      final text = _formatPrice(value);
       _text(
         canvas,
         text,
@@ -1760,11 +1769,7 @@ class Mt5CandlePainter extends CustomPainter {
   }
 
   void _priceTag(Canvas canvas, double chartWidth, double y) {
-    final formatted = currentPrice >= 1000
-        ? currentPrice.toStringAsFixed(2)
-        : currentPrice >= 100
-        ? currentPrice.toStringAsFixed(3)
-        : currentPrice.toStringAsFixed(5);
+    final formatted = _formatPrice(currentPrice);
     const width = 67.0;
     final height = _usesVideo2ChartChrome ? 20.0 : 11.5;
     final xOffset = _isXauUsdVideo2Reference && timeframe == 'H1'
@@ -1809,11 +1814,7 @@ class Mt5CandlePainter extends CustomPainter {
     double price,
     Color color,
   ) {
-    final formatted = price >= 1000
-        ? price.toStringAsFixed(2)
-        : price >= 100
-        ? price.toStringAsFixed(3)
-        : price.toStringAsFixed(5);
+    final formatted = _formatPrice(price);
     final rect = Rect.fromLTWH(
       chartWidth + 2,
       y - 7.5,

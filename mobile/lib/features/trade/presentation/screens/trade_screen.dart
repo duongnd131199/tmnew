@@ -734,7 +734,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                   '${order.type.toLowerCase()} '
                   '${order.volume.toStringAsFixed(2)}',
                 ),
-                subtitle: Text(order.price.toStringAsFixed(2)),
+                subtitle: Text(formatTradePrice(order.symbol, order.price)),
                 trailing: const Text(
                   'placed',
                   style: TextStyle(color: AppColors.primary),
@@ -810,7 +810,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
     DemoPendingOrder order,
   ) {
     final controller = TextEditingController(
-      text: order.price.toStringAsFixed(2),
+      text: formatTradePrice(order.symbol, order.price),
     );
     showDialog<void>(
       context: context,

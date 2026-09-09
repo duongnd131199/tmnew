@@ -11,9 +11,11 @@ Exact live bid/ask values are also intentionally not copied from the still
 image. The app must continue to display current server ticks while matching the
 reference's formatting, geometry, typography, colors, and data semantics.
 
-Post-reference user override: XAUUSD uses two decimal digits throughout the
-Quotes row. This supersedes the still image's third XAU pipette digit for both
-Bid/Ask and the lower L/H statistics; other layout and styling remain unchanged.
+Superseding reference: the six 2026-09-09 `SoVang` images require XAU symbols,
+including broker-suffixed forms such as `XAUUSD+`, to use three decimal digits.
+Bid/Ask keeps the existing leading and two-pip typography and adds the final
+digit as a raised pipette. Lower L/H statistics use all three digits at their
+existing style. See `docs/screens/gold-price-reference.md`.
 
 ## Current defects
 
@@ -50,8 +52,8 @@ Introduce a small, pure Market Watch presentation model that combines a live
   refreshed D1 data catches up, so a high or low cannot move backward.
 - Point change is `(bid - previousClose) * 10^digits`, rounded to the nearest
   integer. Percent change is `(bid - previousClose) / previousClose * 100`.
-- XAU and BTC symbols use two decimal digits. Other instruments
-  retain their existing precision policy.
+- XAU symbols use three decimal digits. BTC remains at two decimal digits and
+  other instruments retain their existing precision policy.
 - If the latest D1 candle is older than the quote's UTC trading date, treat it
   as the previous candle and seed the current range from bid/ask. If statistics
   cannot be established, do not manufacture them from the demo percentage.
@@ -74,10 +76,10 @@ the source of truth. No backend contract or technology-stack change is needed.
   delay-clock decoration. Render the full `BTCUSD` label.
 - Align left metadata about 2 points farther right. Move only the bid price and
   bid range column about 17 points left; preserve the ask right edge.
-- Render XAU and BTC with two decimal digits in the emphasized full-size run,
-  so neither symbol has a pipette. Other precisions preserve the same two
-  terminal emphasized digits before an optional final pipette, so five-digit
-  FX quotes do not compress four digits.
+- Render XAU with two emphasized full-size decimal digits followed by one
+  raised pipette. BTC keeps two decimal digits and no pipette. Other precisions
+  preserve the same two terminal emphasized digits before an optional final
+  pipette, so five-digit FX quotes do not compress four digits.
 - Use a Prices-specific negative accent close to `#E43C2F`, secondary text
   close to `#4D4D50`, and spread ink close to `#ADAFB0`. Do not change Trade or
   History semantic colors.
@@ -89,8 +91,9 @@ the source of truth. No backend contract or technology-stack change is needed.
 ## Acceptance criteria
 
 - Widget tests prove UTC tick time, D1-derived statistics, full symbol labels,
-  per-symbol precision, XAU's two-decimal upper/lower values, shared row geometry, and
-  absence of obsolete clock/corner decorations.
+  per-symbol precision, XAU's three-decimal upper/lower values and raised
+  pipette, shared row geometry, and absence of obsolete clock/corner
+  decorations.
 - Focused tests are observed failing before implementation and passing after.
 - The iPhone 17 Simulator screenshot aligns with the reference throughout the
   app-owned header and both visible quote rows, allowing only live-number width

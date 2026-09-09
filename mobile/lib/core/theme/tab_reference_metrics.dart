@@ -80,6 +80,7 @@ abstract final class TabReferenceMetrics {
   static const bottomNavigationQuotesIconOffsetX = -.3333333333;
   static const bottomNavigationQuotesIconScaleX = .90;
   static const bottomNavigationQuotesIconScaleY = .94;
+  static const chartTicketPipetteOffsetY = -11.5;
 
   static const quoteHeaderHeight = 91.6666666667;
   static const quoteHeaderControlTop = 40.0;
@@ -87,7 +88,7 @@ abstract final class TabReferenceMetrics {
   static const quoteHeaderButtonSize = 44.0;
   static const quoteHeaderVisualDiameter = 43.3333333333;
   static const quoteRowHeight = 72.0;
-  static const quotePricePipetteOffsetY = -8.0;
+  static const quotePricePipetteOffsetY = -11.0;
   static const quoteBtcRangeOffsetY = 1.3333333333;
   // Legacy compatibility values are no longer consumed by Prices.
   static const quoteBtcMetaTop = 46.0;

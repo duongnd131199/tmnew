@@ -674,8 +674,8 @@ void main() {
       title: 'XAUUSD+',
       side: 'BUY',
       volume: 1,
-      openPrice: 4622.83,
-      closePrice: 4631.37,
+      openPrice: 4622.831,
+      closePrice: 4631.379,
       profit: 854,
       time: '2026.08.24 10:45:11',
     );
@@ -695,8 +695,8 @@ void main() {
       side: 'BUY',
       type: 'Market',
       volume: 1,
-      requestedPrice: 4637.05,
-      executedPrice: 4637.05,
+      requestedPrice: 4637.054,
+      executedPrice: 4637.054,
       status: 'filled',
       time: '2026.08.24 11:58:13',
     );
@@ -717,7 +717,7 @@ void main() {
       symbol: 'XAUUSD+',
       side: 'BUY',
       volume: 1,
-      price: 4637.05,
+      price: 4637.054,
       profit: 0,
       time: '2026.08.24 11:58:13',
     );
@@ -747,7 +747,7 @@ void main() {
     );
     await pumpBottomAnchor(tester);
 
-    expect(_priceRange('4622.83', '4631.37'), findsOneWidget);
+    expect(_priceRange('4622.831', '4631.379'), findsOneWidget);
     expect(_priceRange('1.23456', '1.23457'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('history-tab-1')));
@@ -757,7 +757,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('history-tab-2')));
     await tester.pump();
-    expect(find.text('1 at 4637.05'), findsOneWidget);
+    expect(find.text('1 at 4637.054'), findsOneWidget);
     expect(find.text('1.5 at 1.23456'), findsOneWidget);
   });
 
@@ -812,7 +812,7 @@ void main() {
           ?.color,
       const Color(0xFF3C3C43),
     );
-    expect(find.text('1 at 4637.05'), findsOneWidget);
+    expect(find.text('1 at 4637.050'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('history-deals-trailing-primary-1')),
       findsNothing,
@@ -894,7 +894,7 @@ void main() {
     await pumpBottomAnchor(tester);
 
     expect(tester.takeException(), isNull);
-    expect(_priceRange('4325.41', '—'), findsOneWidget);
+    expect(_priceRange('4325.409', '—'), findsOneWidget);
     expect(
       find.byKey(
         const ValueKey(
@@ -1966,7 +1966,7 @@ void main() {
       expect(
         find.descendant(
           of: detail,
-          matching: _priceRange('4061.39', '4063.44'),
+          matching: _priceRange('4061.390', '4063.440'),
         ),
         findsOneWidget,
       );
@@ -2193,7 +2193,7 @@ void main() {
       expect(find.text('#57016800413'), findsOneWidget);
       expect(find.text('57360798130'), findsOneWidget);
       expect(find.text('filled'), findsOneWidget);
-      expect(find.text('0.25 at 4105.05'), findsWidgets);
+      expect(find.text('0.25 at 4105.050'), findsWidgets);
 
       await tester.tap(find.byKey(const Key('history-detail-chart')));
       await tester.pump();

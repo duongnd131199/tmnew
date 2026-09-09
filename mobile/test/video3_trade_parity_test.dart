@@ -15,6 +15,8 @@ import 'package:trading_mobile/features/trade/presentation/screens/trade_screen.
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/mt5_toolbar_icons.dart';
+import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
+import 'package:trading_mobile/shared/widgets/order_ticket_quote_text.dart';
 
 import 'test_support/load_test_fonts.dart';
 
@@ -133,6 +135,43 @@ void main() {
     expect(find.byKey(const Key('trade-balance-button')), findsOneWidget);
     expect(find.byKey(const Key('trade-wallet-glyph')), findsOneWidget);
     expect(find.byKey(const Key('trade-account-metrics')), findsOneWidget);
+  });
+
+  testWidgets('suffixed gold position keeps three digits in the price range', (
+    tester,
+  ) async {
+    const position = DemoPosition(
+      id: 'gold-suffixed-trade-position',
+      symbol: 'XAUUSD+',
+      side: 'SELL',
+      volume: .01,
+      openPrice: 4373.328,
+      currentPrice: 4377.441,
+      profit: -4.11,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        demoTradingSeedProvider.overrideWithValue(
+          (accountId) => const DemoTradingState(
+            balance: 53.85,
+            positions: [position],
+            deals: [],
+          ),
+        ),
+        demoQuoteProvider.overrideWith(
+          (ref, symbol) => const Stream<DemoQuote>.empty(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+
+    expect(
+      tester
+          .widgetList<MtPriceRangeText>(find.byType(MtPriceRangeText))
+          .map((range) => range.semanticLabel),
+      contains('4373.328 → 4377.441'),
+    );
   });
 
   testWidgets('position tap opens the compact floating action dialog', (
@@ -435,33 +474,17 @@ void main() {
     );
 
     final quoteTexts = tester
-        .widgetList<Text>(
-          find.byWidgetPredicate(
-            (widget) =>
-                widget is Text &&
-                ((widget.data ?? widget.textSpan?.toPlainText()) ==
-                        '4434.080' ||
-                    (widget.data ?? widget.textSpan?.toPlainText()) ==
-                        '4434.204'),
-          ),
+        .widgetList<OrderTicketQuoteText>(find.byType(OrderTicketQuoteText))
+        .where(
+          (quote) =>
+              quote.formattedPrice == '4434.080' ||
+              quote.formattedPrice == '4434.204',
         )
         .toList(growable: false);
     expect(quoteTexts, hasLength(2));
-    expect(quoteTexts[0].style?.color, AppColors.tradeNegative);
-    expect(quoteTexts[1].style?.color, AppColors.tradeNegative);
-    expect(quoteTexts.map((text) => text.textSpan), everyElement(isNotNull));
-    final bidSpans = (quoteTexts[0].textSpan! as TextSpan).children!
-        .cast<TextSpan>();
-    final askSpans = (quoteTexts[1].textSpan! as TextSpan).children!
-        .cast<TextSpan>();
-    expect(bidSpans.map((span) => span.text), ['4434.0', '80']);
-    expect(askSpans.map((span) => span.text), ['4434.2', '04']);
-    for (final spans in [bidSpans, askSpans]) {
-      expect(spans.first.style?.fontSize, 20.5);
-      expect(spans.first.style?.fontWeight, FontWeight.w600);
-      expect(spans.last.style?.fontSize, 26.5);
-      expect(spans.last.style?.fontWeight, FontWeight.w700);
-    }
+    expect(quoteTexts[0].color, AppColors.tradeNegative);
+    expect(quoteTexts[1].color, AppColors.tradeNegative);
+    expect(quoteTexts.map((quote) => quote.usePipette), everyElement(isTrue));
 
     final modify = find.byType(FilledButton);
     expect(tester.getSize(modify).height, 40);
@@ -538,23 +561,16 @@ void main() {
     );
     await tester.pump();
 
-    List<Text> quoteTexts() => tester
-        .widgetList<Text>(
+    List<OrderTicketQuoteText> quoteTexts() => tester
+        .widgetList<OrderTicketQuoteText>(
           find.descendant(
             of: find.byKey(const Key('position-detail-quote-strip')),
-            matching: find.byType(Text),
+            matching: find.byType(OrderTicketQuoteText),
           ),
         )
         .toList(growable: false);
 
-    Iterable<Color?> quoteColors() =>
-        quoteTexts().map((text) => text.style?.color);
-
-    Iterable<Color?> quoteRunColors() => quoteTexts().expand(
-      (text) => (text.textSpan! as TextSpan).children!.cast<TextSpan>().map(
-        (span) => span.style?.color,
-      ),
-    );
+    Iterable<Color?> quoteColors() => quoteTexts().map((quote) => quote.color);
 
     quotes.add(
       const DemoQuote(
@@ -567,7 +583,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 1));
     await tester.pump();
-    expect(quoteTexts().map((text) => text.textSpan?.toPlainText()), [
+    expect(quoteTexts().map((quote) => quote.formattedPrice), [
       '4434.000',
       '4434.400',
     ]);
@@ -584,7 +600,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 1));
     await tester.pump();
-    expect(quoteTexts().map((text) => text.textSpan?.toPlainText()), [
+    expect(quoteTexts().map((quote) => quote.formattedPrice), [
       '4434.200',
       '4434.600',
     ]);
@@ -601,17 +617,18 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 1));
     await tester.pump();
-    expect(quoteTexts().map((text) => text.textSpan?.toPlainText()), [
+    expect(quoteTexts().map((quote) => quote.formattedPrice), [
       '4434.100',
       '4434.500',
     ]);
     expect(quoteColors(), everyElement(AppColors.tradeNegative));
-    expect(quoteRunColors(), everyElement(AppColors.tradeNegative));
 
     final boundary =
         paintBoundaryKey.currentContext!.findRenderObject()!
             as RenderRepaintBoundary;
-    final firstQuote = tester.renderObject<RenderBox>(find.text('4434.100'));
+    final firstQuote = tester.renderObject<RenderBox>(
+      find.byWidget(quoteTexts().first),
+    );
     final firstQuoteTopLeft = firstQuote.localToGlobal(
       Offset.zero,
       ancestor: boundary,
@@ -787,19 +804,20 @@ void main() {
     await tester.pump();
 
     final quoteTexts = tester
-        .widgetList<Text>(
+        .widgetList<OrderTicketQuoteText>(
           find.descendant(
             of: find.byKey(const Key('order-quote-strip')),
-            matching: find.byType(Text),
+            matching: find.byType(OrderTicketQuoteText),
           ),
         )
         .toList(growable: false);
     expect(quoteTexts, hasLength(2));
-    expect(
-      quoteTexts.map((text) => text.data ?? text.textSpan?.toPlainText()),
-      ['4434.20', '4434.30'],
-    );
-    expect(quoteTexts[0].style?.color, AppColors.textPrimary);
-    expect(quoteTexts[1].style?.color, AppColors.textPrimary);
+    expect(quoteTexts.map((quote) => quote.formattedPrice), [
+      '4434.200',
+      '4434.300',
+    ]);
+    expect(quoteTexts[0].color, AppColors.textPrimary);
+    expect(quoteTexts[1].color, AppColors.textPrimary);
+    expect(quoteTexts.map((quote) => quote.usePipette), everyElement(isTrue));
   });
 }

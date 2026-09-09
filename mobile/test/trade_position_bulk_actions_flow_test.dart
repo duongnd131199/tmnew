@@ -87,7 +87,7 @@ DemoTradingState _pendingMarginSeed(String accountId) => const DemoTradingState(
       side: 'BUY',
       type: 'Buy Limit',
       volume: .1,
-      price: 4500,
+      price: 4377.441,
       createdAt: '2026.09.04 10:00:00',
     ),
   ],
@@ -169,6 +169,43 @@ void main() {
       );
     },
   );
+
+  testWidgets('gold pending-order actions and editor keep three digits', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        demoTradingSeedProvider.overrideWithValue(_pendingMarginSeed),
+        demoQuoteProvider.overrideWith(
+          (ref, symbol) => const Stream<DemoQuote>.empty(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+
+    await tester.tap(
+      find.byKey(const ValueKey('trade-pending-pending-margin-order')),
+    );
+    await tester.pumpAndSettle();
+
+    final summary = tester.widget<ListTile>(
+      find
+          .descendant(
+            of: find.byType(BottomSheet),
+            matching: find.byType(ListTile),
+          )
+          .first,
+    );
+    expect((summary.subtitle! as Text).data, '4377.441');
+
+    await tester.tap(find.text('Sửa lệnh'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '4377.441',
+    );
+  });
 
   testWidgets('empty account hides margin and margin level metrics', (
     tester,

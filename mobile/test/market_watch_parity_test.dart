@@ -346,7 +346,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
           .data,
-      '4104.09',
+      '4104.090',
     );
 
     final xauBid = tester.widget<Text>(
@@ -356,7 +356,7 @@ void main() {
     expect((bidSpans[0] as TextSpan).text, '4104.');
     expect((bidSpans[0] as TextSpan).style?.fontWeight, FontWeight.w400);
     expect((bidSpans[0] as TextSpan).style?.fontVariations, isNull);
-    expect(bidSpans, hasLength(2));
+    expect(bidSpans, hasLength(3));
     expect((bidSpans[1] as TextSpan).text, '09');
     expect(
       (bidSpans[1] as TextSpan).style,
@@ -364,7 +364,28 @@ void main() {
     );
     expect(
       find.byKey(const ValueKey('market-bid-pipette-XAUUSD+')),
-      findsNothing,
+      findsOneWidget,
+    );
+    final xauPipette = tester.widget<Text>(
+      find.byKey(const ValueKey('market-bid-pipette-XAUUSD+')),
+    );
+    expect(xauPipette.data, '0');
+    expect(
+      xauPipette.style,
+      AppTypography.quotePricePipette.copyWith(color: const Color(0xFF007AFF)),
+    );
+    final xauBidTop = tester
+        .getTopLeft(find.byKey(const ValueKey('market-bid-XAUUSD+')))
+        .dy;
+    final xauPipetteTop = tester
+        .getTopLeft(find.byKey(const ValueKey('market-bid-pipette-XAUUSD+')))
+        .dy;
+    expect(
+      xauPipetteTop - xauBidTop,
+      inInclusiveRange(0, 2),
+      reason:
+          'The final gold digit should remain raised while staying inside '
+          'the price line so its top edge is not clipped.',
     );
 
     final btcBid = tester.widget<Text>(
@@ -400,7 +421,7 @@ void main() {
 
       expect(
         _plainText(tester, const ValueKey('market-change-XAUUSD+')),
-        '-4482 -1.01%',
+        '-44823 -1.01%',
       );
       expect(
         _plainText(tester, const ValueKey('market-change-BTCUSD')),
@@ -425,7 +446,7 @@ void main() {
         tester
             .widget<Text>(find.byKey(const ValueKey('market-spread-XAUUSD+')))
             .data,
-        '18',
+        '182',
       );
       expect(
         tester
@@ -437,13 +458,13 @@ void main() {
         tester
             .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
             .data,
-        '4396.37',
+        '4396.372',
       );
       expect(
         tester
             .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
             .data,
-        '4472.46',
+        '4472.462',
       );
       expect(
         tester
@@ -462,13 +483,15 @@ void main() {
         tester,
         const ValueKey('market-bid-XAUUSD+'),
         leading: '4413.',
-        emphasized: '46',
+        emphasized: '45',
+        pipetteKey: const ValueKey('market-bid-pipette-XAUUSD+'),
       );
       _expectPriceParts(
         tester,
         const ValueKey('market-ask-XAUUSD+'),
         leading: '4413.',
-        emphasized: '64',
+        emphasized: '63',
+        pipetteKey: const ValueKey('market-ask-pipette-XAUUSD+'),
       );
       _expectPriceParts(
         tester,
@@ -635,7 +658,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('market-spread-XAUUSD+')))
           .data,
-      '13',
+      '130',
     );
 
     controllers['XAUUSD+']!.add(
@@ -658,7 +681,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('market-spread-XAUUSD+')))
           .data,
-      '11',
+      '110',
     );
     expect(
       tester
@@ -773,28 +796,34 @@ void main() {
     },
   );
 
-  testWidgets('XAU omits the final digit from upper prices and lower ranges', (
+  testWidgets('XAU shows the final pipette and three-digit ranges', (
     tester,
   ) async {
     await pumpModernReference(tester);
 
-    expect(_plainText(tester, const ValueKey('market-bid-XAUUSD+')), '4413.46');
-    expect(_plainText(tester, const ValueKey('market-ask-XAUUSD+')), '4413.64');
+    expect(
+      _plainText(tester, const ValueKey('market-bid-XAUUSD+')),
+      '4413.456',
+    );
+    expect(
+      _plainText(tester, const ValueKey('market-ask-XAUUSD+')),
+      '4413.638',
+    );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
           .data,
-      '4396.37',
+      '4396.372',
     );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
           .data,
-      '4472.46',
+      '4472.462',
     );
     expect(
       find.byKey(const ValueKey('market-bid-pipette-XAUUSD+')),
-      findsNothing,
+      findsOneWidget,
     );
     expect(
       find.byKey(const ValueKey('market-bid-pipette-BTCUSD')),
@@ -871,19 +900,19 @@ void main() {
     void expectRetainedStatistics() {
       expect(
         _plainText(tester, const ValueKey('market-change-XAUUSD+')),
-        '-90 -0.89%',
+        '-900 -0.89%',
       );
       expect(
         tester
             .widget<Text>(find.byKey(const ValueKey('market-low-XAUUSD+')))
             .data,
-        '99.00',
+        '99.000',
       );
       expect(
         tester
             .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
             .data,
-        '102.00',
+        '102.000',
       );
     }
 
@@ -942,7 +971,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
           .data,
-      '105.10',
+      '105.100',
     );
 
     controller.add(
@@ -962,7 +991,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
           .data,
-      '105.10',
+      '105.100',
     );
 
     await tester.tap(find.byKey(const Key('market-toggle-view')));
@@ -974,7 +1003,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('market-high-XAUUSD+')))
           .data,
-      '105.10',
+      '105.100',
       reason:
           'The live session high must survive replacing detailed rows with '
           'compact rows and back.',
@@ -1118,10 +1147,12 @@ class _FixedMarketSymbolsController extends MarketSymbolsController {
   List<String> build() => symbols;
 }
 
-String _plainText(WidgetTester tester, ValueKey<String> key) => tester
-    .widget<Text>(find.byKey(key))
-    .textSpan!
-    .toPlainText(includeSemanticsLabels: false);
+String _plainText(WidgetTester tester, ValueKey<String> key) =>
+    tester.widget<Text>(find.byKey(key)).semanticsLabel ??
+    tester
+        .widget<Text>(find.byKey(key))
+        .textSpan!
+        .toPlainText(includeSemanticsLabels: false);
 
 void _expectPriceParts(
   WidgetTester tester,

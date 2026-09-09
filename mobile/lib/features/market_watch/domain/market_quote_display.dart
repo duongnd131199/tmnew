@@ -1,5 +1,6 @@
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/models/market_candle.dart';
+import 'package:trading_mobile/core/utils/trading_price_precision.dart';
 
 class MarketQuoteDisplay {
   const MarketQuoteDisplay({
@@ -177,6 +178,7 @@ double? _validPreviousClose(double? value) {
 
 int marketQuoteDigits(DemoQuote quote) {
   final symbol = quote.symbol.toUpperCase();
+  if (isGoldTradingSymbol(symbol)) return goldPriceFractionDigits;
   if (symbol.startsWith('XAU')) return 2;
   if (symbol.startsWith('BTC')) return 2;
   if (quote.bid.abs() >= 100) return 3;
