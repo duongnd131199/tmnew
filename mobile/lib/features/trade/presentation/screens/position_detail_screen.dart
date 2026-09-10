@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/utils/trading_price_precision.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
+import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
@@ -12,6 +13,7 @@ import 'package:trading_mobile/features/order/presentation/order_failure_message
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/order_ticket_quote_text.dart';
+import 'package:trading_mobile/shared/widgets/order_ticket_reference_viewport.dart';
 
 class PositionDetailScreen extends ConsumerStatefulWidget {
   const PositionDetailScreen({required this.positionId, super.key});
@@ -221,218 +223,228 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
     ).top.clamp(0.0, 24.0);
     return Scaffold(
       backgroundColor: AppColors.orderTicketSurface,
-      body: Padding(
-        padding: EdgeInsets.only(top: referenceTopInset),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 80,
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 17.3333333333,
-                    top: 29,
-                    child: _BackButton(onTap: () => context.pop()),
-                  ),
-                  Positioned(
-                    left: 70,
-                    right: 70,
-                    top: 34,
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              displayTradingSymbol(position.symbol),
-                              style: const TextStyle(
+      body: OrderTicketReferenceViewport(
+        child: Padding(
+          padding: EdgeInsets.only(top: referenceTopInset),
+          child: Column(
+            children: [
+              SizedBox(
+                height: 80,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: 17.3333333333,
+                      top: 29,
+                      child: _BackButton(onTap: () => context.pop()),
+                    ),
+                    Positioned(
+                      left: 70,
+                      right: 70,
+                      top: 34,
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                displayTradingSymbol(position.symbol),
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              const Icon(
+                                CupertinoIcons.chevron_down,
                                 color: AppColors.textPrimary,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                height: 1,
+                                size: 10,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _symbolDescription(position.symbol),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontFamily: 'sans-serif',
+                              fontSize: 11.5,
+                              height: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (showActionMenu)
+                _PositionActionMenu(
+                  onSelect: (action) => _selectAction(position, action),
+                )
+              else ...[
+                Material(
+                  color: AppColors.surface,
+                  child: InkWell(
+                    key: const Key('position-action-field'),
+                    onTap: () => setState(() => showActionMenu = true),
+                    child: SizedBox(
+                      height: 41,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '#${displayTradingTicketId(position.id)} '
+                                '${position.side.toLowerCase()} '
+                                '${_formatVolume(position.volume)} '
+                                '${displayTradingSymbol(position.symbol)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontFamily: 'sans-serif',
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w300,
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 2),
+                            const SizedBox(width: 4),
                             const Icon(
                               CupertinoIcons.chevron_down,
                               color: AppColors.textPrimary,
-                              size: 10,
+                              size: 14,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _symbolDescription(position.symbol),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontFamily: 'sans-serif',
-                            fontSize: 11.5,
-                            height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+                const ColoredBox(
+                  key: Key('position-detail-control-divider'),
+                  color: AppColors.divider,
+                  child: SizedBox(
+                    height:
+                        TabReferenceMetrics.positionDetailControlDividerHeight,
+                  ),
+                ),
+                _ProtectionRow(
+                  label: 'Cat lo',
+                  value: stopLoss,
+                  digits: priceDigits,
+                  onDecrease: () => setState(
+                    () => stopLoss =
+                        (stopLoss ?? position.currentPrice) - priceStep,
+                  ),
+                  onIncrease: () => setState(
+                    () => stopLoss =
+                        (stopLoss ?? position.currentPrice) + priceStep,
+                  ),
+                  onClear: () => setState(() => stopLoss = null),
+                ),
+                _ProtectionRow(
+                  label: 'Chot loi',
+                  value: takeProfit,
+                  digits: priceDigits,
+                  onDecrease: () => setState(
+                    () => takeProfit =
+                        (takeProfit ?? position.currentPrice) - priceStep,
+                  ),
+                  onIncrease: () => setState(
+                    () => takeProfit =
+                        (takeProfit ?? position.currentPrice) + priceStep,
+                  ),
+                  onClear: () => setState(() => takeProfit = null),
+                ),
+                ColoredBox(
+                  key: const Key('position-detail-quote-strip'),
+                  color: AppColors.orderTicketSurface,
+                  child: SizedBox(
+                    height: 55,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OrderTicketQuoteText(
+                            formattedPrice: bid.toStringAsFixed(priceDigits),
+                            usePipette: isGoldTradingSymbol(position.symbol),
+                            color: _quoteColor,
+                          ),
+                        ),
+                        Expanded(
+                          child: OrderTicketQuoteText(
+                            formattedPrice: ask.toStringAsFixed(priceDigits),
+                            usePipette: isGoldTradingSymbol(position.symbol),
+                            color: _quoteColor,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            if (showActionMenu)
-              _PositionActionMenu(
-                onSelect: (action) => _selectAction(position, action),
-              )
-            else ...[
-              Material(
-                color: AppColors.surface,
-                child: InkWell(
-                  key: const Key('position-action-field'),
-                  onTap: () => setState(() => showActionMenu = true),
-                  child: SizedBox(
-                    height: 41,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '#${displayTradingTicketId(position.id)} '
-                              '${position.side.toLowerCase()} '
-                              '${_formatVolume(position.volume)} '
-                              '${displayTradingSymbol(position.symbol)}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontFamily: 'sans-serif',
-                                fontSize: 15,
-                                fontWeight: FontWeight.w300,
-                              ),
+                ),
+                SizedBox(
+                  height: TabReferenceMetrics.positionDetailModifyButtonHeight,
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.positionModifySurface,
+                      disabledBackgroundColor: AppColors.positionModifySurface,
+                      foregroundColor: AppColors.positionModifyText,
+                      disabledForegroundColor: AppColors.positionModifyText,
+                      side: const BorderSide(
+                        color: AppColors.positionModifyBorder,
+                      ),
+                      shape: const RoundedRectangleBorder(),
+                      padding: EdgeInsets.zero,
+                    ),
+                    onPressed: changed && !submittingProtection
+                        ? () => _submitProtection(position)
+                        : null,
+                    child: const Text(
+                      'Chinh sua',
+                      style: TextStyle(
+                        fontFamily: 'sans-serif',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ),
+                const Expanded(
+                  child: ColoredBox(
+                    key: Key('position-detail-lower-surface'),
+                    color: AppColors.orderTicketSurface,
+                    child: SizedBox.expand(
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(14, 17, 14, 0),
+                          child: Text(
+                            'Chot Loi/ Cat Lo phai duoc dat it nhat 0 điểm so voi gia thi\n'
+                            'truong. Qua trinh Chot Loi/ Cat Lo se duoc thuc hien boi\n'
+                            'broker.',
+                            textAlign: TextAlign.center,
+                            maxLines: 3,
+                            softWrap: false,
+                            overflow: TextOverflow.clip,
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontFamily: AppTypography.condensedFamily,
+                              fontSize: 13.2,
+                              height: 1.2,
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            CupertinoIcons.chevron_down,
-                            color: AppColors.textPrimary,
-                            size: 14,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              _ProtectionRow(
-                label: 'Cat lo',
-                value: stopLoss,
-                digits: priceDigits,
-                onDecrease: () => setState(
-                  () => stopLoss =
-                      (stopLoss ?? position.currentPrice) - priceStep,
-                ),
-                onIncrease: () => setState(
-                  () => stopLoss =
-                      (stopLoss ?? position.currentPrice) + priceStep,
-                ),
-                onClear: () => setState(() => stopLoss = null),
-              ),
-              _ProtectionRow(
-                label: 'Chot loi',
-                value: takeProfit,
-                digits: priceDigits,
-                onDecrease: () => setState(
-                  () => takeProfit =
-                      (takeProfit ?? position.currentPrice) - priceStep,
-                ),
-                onIncrease: () => setState(
-                  () => takeProfit =
-                      (takeProfit ?? position.currentPrice) + priceStep,
-                ),
-                onClear: () => setState(() => takeProfit = null),
-              ),
-              ColoredBox(
-                key: const Key('position-detail-quote-strip'),
-                color: AppColors.orderTicketSurface,
-                child: SizedBox(
-                  height: 55,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OrderTicketQuoteText(
-                          formattedPrice: bid.toStringAsFixed(priceDigits),
-                          usePipette: isGoldTradingSymbol(position.symbol),
-                          color: _quoteColor,
-                        ),
-                      ),
-                      Expanded(
-                        child: OrderTicketQuoteText(
-                          formattedPrice: ask.toStringAsFixed(priceDigits),
-                          usePipette: isGoldTradingSymbol(position.symbol),
-                          color: _quoteColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 40,
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.positionModifySurface,
-                    disabledBackgroundColor: AppColors.positionModifySurface,
-                    foregroundColor: AppColors.positionModifyText,
-                    disabledForegroundColor: AppColors.positionModifyText,
-                    side: const BorderSide(
-                      color: AppColors.positionModifyBorder,
-                    ),
-                    shape: const RoundedRectangleBorder(),
-                    padding: EdgeInsets.zero,
-                  ),
-                  onPressed: changed && !submittingProtection
-                      ? () => _submitProtection(position)
-                      : null,
-                  child: const Text(
-                    'Chinh sua',
-                    style: TextStyle(
-                      fontFamily: 'sans-serif',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-              ),
-              const Expanded(
-                child: ColoredBox(
-                  key: Key('position-detail-lower-surface'),
-                  color: AppColors.orderTicketSurface,
-                  child: SizedBox.expand(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(14, 17, 14, 0),
-                        child: Text(
-                          'Chot Loi/ Cat Lo phai duoc dat it nhat 0 điểm so voi gia thi\n'
-                          'truong. Qua trinh Chot Loi/ Cat Lo se duoc thuc hien boi\n'
-                          'broker.',
-                          textAlign: TextAlign.center,
-                          maxLines: 3,
-                          softWrap: false,
-                          overflow: TextOverflow.clip,
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontFamily: AppTypography.condensedFamily,
-                            fontSize: 13.2,
-                            height: 1.2,
-                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -550,7 +562,7 @@ class _ProtectionRow extends StatelessWidget {
   Widget build(BuildContext context) => ColoredBox(
     color: AppColors.orderTicketControlSurface,
     child: SizedBox(
-      height: 38,
+      height: TabReferenceMetrics.positionDetailProtectionRowHeight,
       child: Padding(
         padding: const EdgeInsets.only(left: 8, right: 2),
         child: Row(
@@ -568,7 +580,7 @@ class _ProtectionRow extends StatelessWidget {
               onTap: onDecrease,
               child: const SizedBox(
                 width: 30,
-                height: 38,
+                height: TabReferenceMetrics.positionDetailProtectionRowHeight,
                 child: Center(
                   child: Text(
                     '−',
@@ -606,7 +618,7 @@ class _ProtectionRow extends StatelessWidget {
               onTap: onIncrease,
               child: const SizedBox(
                 width: 30,
-                height: 38,
+                height: TabReferenceMetrics.positionDetailProtectionRowHeight,
                 child: Center(
                   child: Text(
                     '+',

@@ -487,7 +487,7 @@ void main() {
     expect(quoteTexts.map((quote) => quote.usePipette), everyElement(isTrue));
 
     final modify = find.byType(FilledButton);
-    expect(tester.getSize(modify).height, 40);
+    expect(tester.getSize(modify).height, 38);
     final modifyButton = tester.widget<FilledButton>(modify);
     const disabled = <WidgetState>{WidgetState.disabled};
     expect(

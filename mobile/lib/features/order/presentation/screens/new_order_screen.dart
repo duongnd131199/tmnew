@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
+import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_price_precision.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
@@ -12,6 +13,7 @@ import 'package:trading_mobile/features/order/presentation/order_failure_message
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/order_ticket_quote_text.dart';
+import 'package:trading_mobile/shared/widgets/order_ticket_reference_viewport.dart';
 
 const _marketOrderType = 'Vao lenh thi truong';
 const _orderTypes = <String>[
@@ -505,9 +507,11 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
       ),
       child: Scaffold(
         backgroundColor: AppColors.orderTicketSurface,
-        body: Padding(
-          padding: EdgeInsets.only(top: referenceTopInset),
-          child: SizedBox.expand(key: ticketKey, child: orderContent),
+        body: OrderTicketReferenceViewport(
+          child: Padding(
+            padding: EdgeInsets.only(top: referenceTopInset),
+            child: SizedBox.expand(key: ticketKey, child: orderContent),
+          ),
         ),
       ),
     );
@@ -600,6 +604,7 @@ class _OrderForm extends StatelessWidget {
           onTap: onOrderTypeTap,
           referenceLayout: usesReferencePresentation,
           height: usesReferencePresentation ? 41 : 40,
+          showBottomDivider: usesReferencePresentation,
         ),
         ColoredBox(
           color: usesReferencePresentation
@@ -790,6 +795,14 @@ class _OrderForm extends StatelessWidget {
                   ],
                 ),
         ),
+        if (closePosition != null)
+          const ColoredBox(
+            key: Key('order-close-banner-gap'),
+            color: AppColors.orderTicketControlSurface,
+            child: SizedBox(
+              height: TabReferenceMetrics.orderTicketCloseBannerGap,
+            ),
+          ),
         if (closePosition case final position?)
           _PositionCloseBanner(
             position: position,
@@ -840,8 +853,11 @@ class _PositionCloseBanner extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        constraints: const BoxConstraints(minHeight: 38),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        height: TabReferenceMetrics.orderTicketCloseBannerHeight,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: TabReferenceMetrics.orderTicketCloseBannerVerticalPadding,
+        ),
         alignment: Alignment.center,
         child: Text(
           'Đóng #${displayTradingTicketId(position.id)} '
@@ -1090,6 +1106,7 @@ class _OptionRow extends StatelessWidget {
     required this.onTap,
     required this.referenceLayout,
     required this.height,
+    this.showBottomDivider = false,
     this.value,
     super.key,
   });
@@ -1099,6 +1116,7 @@ class _OptionRow extends StatelessWidget {
   final VoidCallback onTap;
   final bool referenceLayout;
   final double height;
+  final bool showBottomDivider;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -1107,44 +1125,58 @@ class _OptionRow extends StatelessWidget {
         : Colors.transparent,
     child: InkWell(
       onTap: onTap,
-      child: SizedBox(
-        height: height,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: referenceLayout
-                        ? AppColors.textPrimary
-                        : AppColors.textSecondary,
-                    fontFamily: referenceLayout ? 'sans-serif' : null,
-                    fontSize: referenceLayout ? 15 : 13.5,
+      child: DecoratedBox(
+        key: showBottomDivider ? const Key('order-type-control-divider') : null,
+        decoration: BoxDecoration(
+          border: showBottomDivider
+              ? const Border(
+                  bottom: BorderSide(
+                    color: AppColors.divider,
+                    width:
+                        TabReferenceMetrics.positionDetailControlDividerHeight,
+                  ),
+                )
+              : null,
+        ),
+        child: SizedBox(
+          height: height,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: referenceLayout
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                      fontFamily: referenceLayout ? 'sans-serif' : null,
+                      fontSize: referenceLayout ? 15 : 13.5,
+                    ),
                   ),
                 ),
-              ),
-              if (value != null) ...[
-                const SizedBox(width: 8),
-                Text(
-                  value!,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontFamily: referenceLayout ? 'sans-serif' : null,
-                    fontSize: referenceLayout ? 14.5 : 12.5,
+                if (value != null) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    value!,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontFamily: referenceLayout ? 'sans-serif' : null,
+                      fontSize: referenceLayout ? 14.5 : 12.5,
+                    ),
                   ),
+                ],
+                const SizedBox(width: 4),
+                Icon(
+                  CupertinoIcons.chevron_down,
+                  color: AppColors.textPrimary,
+                  size: referenceLayout ? 14 : 13,
                 ),
               ],
-              const SizedBox(width: 4),
-              Icon(
-                CupertinoIcons.chevron_down,
-                color: AppColors.textPrimary,
-                size: referenceLayout ? 14 : 13,
-              ),
-            ],
+            ),
           ),
         ),
       ),

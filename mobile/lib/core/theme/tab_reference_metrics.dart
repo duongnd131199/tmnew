@@ -104,6 +104,12 @@ abstract final class TabReferenceMetrics {
   static const tradeSectionHeight = 25.0;
   static const tradePositionRowHeight = 53.1111111111;
   static const tradePositionSecondaryTop = 22.0;
+  static const positionDetailControlDividerHeight = 1.3333333333;
+  static const positionDetailProtectionRowHeight = 36.3333333333;
+  static const positionDetailModifyButtonHeight = 38.0;
+  static const orderTicketCloseBannerGap = 4.0;
+  static const orderTicketCloseBannerHeight = 38.0;
+  static const orderTicketCloseBannerVerticalPadding = 4.0;
   static const tradeScrollbarTopInset = 115.3333333333;
   static const tradeScrollbarBottomInset = 24.0;
   static const tradeScrollbarThumbExtent = 526.6666666667;
