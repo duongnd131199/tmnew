@@ -68,8 +68,10 @@ final appRouter = GoRouter(
       ),
     ),
     StatefulShellRoute.indexedStack(
-      builder: (context, state, navigationShell) =>
-          AppShell(navigationShell: navigationShell),
+      pageBuilder: (context, state, navigationShell) => NoTransitionPage<void>(
+        key: state.pageKey,
+        child: AppShell(navigationShell: navigationShell),
+      ),
       branches: [
         StatefulShellBranch(
           routes: [
