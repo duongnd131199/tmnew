@@ -51,6 +51,15 @@ final class ExV2Repository {
   Future<List<JsonMap>> historyDeals({int page = 1, int pageSize = 50}) async =>
       (await historyDealsSnapshot(page: page, pageSize: pageSize)).items;
 
+  Future<List<JsonMap>> historyDealsPage({
+    int page = 1,
+    int pageSize = 50,
+  }) async => (await _readHistoryRowsPage(
+    '/history/deals',
+    page: page,
+    pageSize: pageSize,
+  )).items;
+
   Future<ExV2HistoryRowsSnapshot> historyDealsSnapshot({
     int page = 1,
     int pageSize = 50,
@@ -61,6 +70,15 @@ final class ExV2Repository {
     int pageSize = 50,
   }) async =>
       (await historyPositionsSnapshot(page: page, pageSize: pageSize)).items;
+
+  Future<List<JsonMap>> historyPositionsPage({
+    int page = 1,
+    int pageSize = 50,
+  }) async => (await _readHistoryRowsPage(
+    '/history/positions',
+    page: page,
+    pageSize: pageSize,
+  )).items;
 
   Future<ExV2HistoryRowsSnapshot> historyPositionsSnapshot({
     int page = 1,
@@ -347,15 +365,16 @@ final class ExV2Repository {
     var everyPageHasVersionMetadata = true;
     int? oldestSnapshotVersion;
     for (var offset = 0; offset < maximumPages; offset++) {
-      final response = await _client.getJson(
+      final pageSnapshot = await _readHistoryRowsPage(
         path,
-        queryParameters: {'page': page + offset, 'pageSize': pageSize},
+        page: page + offset,
+        pageSize: pageSize,
       );
-      final rows = _maps(_pageItems(response));
-      final hasPageVersion = response.containsKey('snapshotVersion');
+      final rows = pageSnapshot.items;
+      final hasPageVersion = pageSnapshot.hasVersionMetadata;
       hasAnyVersionMetadata |= hasPageVersion;
       everyPageHasVersionMetadata &= hasPageVersion;
-      final pageVersion = _snapshotVersion(response['snapshotVersion']);
+      final pageVersion = pageSnapshot.snapshotVersion;
       if (pageVersion != null &&
           (oldestSnapshotVersion == null ||
               pageVersion < oldestSnapshotVersion)) {
@@ -375,6 +394,25 @@ final class ExV2Repository {
       hasVersionMetadata: hasAnyVersionMetadata,
       snapshotVersion: hasAnyVersionMetadata && everyPageHasVersionMetadata
           ? oldestSnapshotVersion
+          : null,
+    );
+  }
+
+  Future<ExV2HistoryRowsSnapshot> _readHistoryRowsPage(
+    String path, {
+    required int page,
+    required int pageSize,
+  }) async {
+    final response = await _client.getJson(
+      path,
+      queryParameters: {'page': page, 'pageSize': pageSize},
+    );
+    final hasVersionMetadata = response.containsKey('snapshotVersion');
+    return ExV2HistoryRowsSnapshot(
+      items: _maps(_pageItems(response)),
+      hasVersionMetadata: hasVersionMetadata,
+      snapshotVersion: hasVersionMetadata
+          ? _snapshotVersion(response['snapshotVersion'])
           : null,
     );
   }

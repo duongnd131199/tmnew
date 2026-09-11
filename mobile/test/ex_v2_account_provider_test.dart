@@ -17,10 +17,7 @@ void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
   test('production uses the public paths before the Nginx V2 rewrite', () {
-    expect(
-      ExV2Config.production.restBaseUrl,
-      'https://trochoi.top/ex/v2/api',
-    );
+    expect(ExV2Config.production.restBaseUrl, 'https://trochoi.top/ex/v2/api');
     expect(
       ExV2Config.production.hubUrl,
       'https://trochoi.top/ex/v2/hubs/trading',
@@ -180,6 +177,51 @@ void main() {
 
     expect(state?.balance, 5000);
   });
+
+  test(
+    'initial history preview publishes before full pagination completes',
+    () async {
+      final paginationGate = Completer<void>();
+      final adapter = _BootstrapAdapter(historyPaginationGate: paginationGate);
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+        ..httpClientAdapter = adapter;
+      final container = ProviderContainer(
+        overrides: [
+          exV2EnabledProvider.overrideWithValue(true),
+          exV2DioProvider.overrideWithValue(dio),
+          deviceTokenStoreProvider.overrideWithValue(
+            _MemoryTokenStore('test-token'),
+          ),
+        ],
+      );
+      addTearDown(() {
+        if (!paginationGate.isCompleted) paginationGate.complete();
+        container.dispose();
+      });
+
+      await container.read(exV2AccountProvider.future);
+      for (var attempt = 0; attempt < 100; attempt++) {
+        final history = container
+            .read(exV2AccountProvider)
+            .value
+            ?.historyPositions;
+        if ((history?.any((entry) => entry.id == 'preview-position-0') ??
+                false) &&
+            adapter.historyPageTwoReads > 0) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      final state = container.read(exV2AccountProvider).requireValue!;
+      expect(
+        state.historyPositions.any((entry) => entry.id == 'preview-position-0'),
+        isTrue,
+      );
+      expect(adapter.historyPageTwoReads, 1);
+      expect(paginationGate.isCompleted, isFalse);
+    },
+  );
 
   test('production paged history contracts hydrate all history tabs', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
@@ -971,6 +1013,7 @@ final class _BootstrapAdapter implements HttpClientAdapter {
   _BootstrapAdapter({
     this.historyDelay = Duration.zero,
     this.productionHistory = false,
+    this.historyPaginationGate,
     this.mutationGate,
     this.includeNotification = false,
     this.includeLinkedAccounts = false,
@@ -983,6 +1026,7 @@ final class _BootstrapAdapter implements HttpClientAdapter {
 
   final Duration historyDelay;
   final bool productionHistory;
+  final Completer<void>? historyPaginationGate;
   final Completer<void>? mutationGate;
   final bool includeNotification;
   final bool includeLinkedAccounts;
@@ -992,6 +1036,7 @@ final class _BootstrapAdapter implements HttpClientAdapter {
   final String depositMutationStatus;
   int remainingDepositTransportFailures;
   int depositPosts = 0;
+  int historyPageTwoReads = 0;
   final List<String> depositIdempotencyKeys = <String>[];
   bool failHistoryDeals = false;
   int activationCalls = 0;
@@ -1108,6 +1153,62 @@ final class _BootstrapAdapter implements HttpClientAdapter {
     }
     if (!options.uri.path.endsWith('/mobile/bootstrap')) {
       await Future<void>.delayed(historyDelay);
+    }
+    final paginationGate = historyPaginationGate;
+    if (paginationGate != null &&
+        (path.endsWith('/history/deals') ||
+            path.endsWith('/history/positions'))) {
+      final page = int.tryParse(options.uri.queryParameters['page'] ?? '') ?? 1;
+      if (page > 1) {
+        historyPageTwoReads += 1;
+        await paginationGate.future;
+        return _jsonResponse({
+          'page': page,
+          'pageSize': 50,
+          'total': 50,
+          'items': const <Object?>[],
+        });
+      }
+      if (path.endsWith('/history/deals')) {
+        return _jsonResponse({
+          'page': 1,
+          'pageSize': 50,
+          'total': 1,
+          'items': const [
+            {
+              'id': 'preview-deal-0',
+              'positionId': 'preview-position-0',
+              'type': 'out',
+              'symbol': 'BTCUSDT',
+              'side': 'sell',
+              'volume': 0.01,
+              'price': 110000,
+              'profit': 10,
+              'createdAtUtc': '2026-09-06T10:01:00Z',
+            },
+          ],
+        });
+      }
+      return _jsonResponse({
+        'page': 1,
+        'pageSize': 50,
+        'total': 50,
+        'items': List.generate(
+          50,
+          (index) => {
+            'positionId': 'preview-position-$index',
+            'symbol': 'BTCUSDT',
+            'side': 'buy',
+            'initialVolume': 0.01,
+            'remainingVolume': 0,
+            'entryPrice': 109000,
+            'realizedProfit': 10,
+            'status': 'closed',
+            'closedAtUtc': '2026-09-06T10:01:00Z',
+            'createdAtUtc': '2026-09-06T10:00:00Z',
+          },
+        ),
+      });
     }
     final historyPayload = productionHistory
         ? _productionHistoryPayload(

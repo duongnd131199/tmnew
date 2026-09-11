@@ -294,7 +294,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
     if (token == null || token.trim().isEmpty) return null;
     final generation = ++_loadGeneration;
     final result = await _loadInitialCore();
-    unawaited(_hydrateAndPublish(result, generation));
+    _startHistoryWarmup(result, generation);
     unawaited(_startRealtime());
     _startFastAccountSummarySync();
     return result;
@@ -803,6 +803,69 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       notifications: results[8] as List<JsonMap>,
       settings: results[9] as JsonMap,
       historySummary: serverHistorySummary,
+    );
+  }
+
+  Future<ExV2AccountViewState> _hydrateTradingHistoryPreview(
+    ExV2AccountViewState base,
+  ) async {
+    final repository = ref.read(exV2RepositoryProvider);
+    final results = await Future.wait<Object?>([
+      _readOrNull(repository.historyDealsPage()),
+      _readOrNull(repository.historyPositionsPage()),
+    ]);
+    final dealRows = results[0] as List<JsonMap>?;
+    final historyRows = results[1] as List<JsonMap>?;
+    if (dealRows == null || historyRows == null) return base;
+    final tradingHistory = _mapRows(
+      ExV2HistoryReconciler.enrichClosedPositions(historyRows, dealRows),
+      ExV2DemoMapper.historyPosition,
+    );
+    final walletHistory = base.historyPositions
+        .where((position) => position.id.startsWith('wallet-'))
+        .toList(growable: false);
+    final combinedHistory = ExV2WalletHistoryMapper.normalizeReferences(
+      [...tradingHistory, ...walletHistory]
+        ..sort((left, right) => left.time.compareTo(right.time)),
+    );
+    return base.copyWith(
+      deals: _mapRows(dealRows, ExV2DemoMapper.historyDeal),
+      historyPositions: combinedHistory,
+    );
+  }
+
+  Future<void> _hydrateInStagesAndPublish(
+    ExV2AccountViewState base,
+    int generation,
+  ) async {
+    final preview = await _hydrateTradingHistoryPreview(base);
+    if (!ref.mounted) return;
+    final current = state.value;
+    final sameAccount =
+        current != null &&
+        current.bootstrap.account.id == preview.bootstrap.account.id;
+    if (!sameAccount && generation != _loadGeneration) return;
+    final previewCore = sameAccount
+        ? current.copyWith(
+            deals: _upsertById(current.deals, preview.deals, (deal) => deal.id),
+            historyPositions: ExV2WalletHistoryMapper.normalizeReferences(
+              _upsertById(
+                current.historyPositions,
+                preview.historyPositions,
+                (position) => position.id,
+              )..sort((left, right) => left.time.compareTo(right.time)),
+            ),
+          )
+        : preview;
+    final published = _applyOptimisticOverlay(previewCore, current);
+    state = AsyncData(published);
+    if (generation != _loadGeneration) return;
+    await _hydrateAndPublish(published, generation);
+  }
+
+  void _startHistoryWarmup(ExV2AccountViewState base, int generation) {
+    unawaited(
+      _hydrateInStagesAndPublish(base, generation).catchError((Object _) {}),
     );
   }
 
@@ -3376,10 +3439,13 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
           _clearCloseSyncDeduplication();
           _walletRequestOverlays.clear();
           state = AsyncData(core);
-          await _hydrateAndPublish(core, generation);
+          await _hydrateInStagesAndPublish(core, generation);
           return;
         }
-        if (core.bootstrap.version < current.bootstrap.version) return;
+        if (core.bootstrap.version < current.bootstrap.version) {
+          await _hydrateAndPublish(current, generation);
+          return;
+        }
       }
       final overlaid = _applyOptimisticOverlay(core, current);
       final staged = current == null
@@ -3444,7 +3510,7 @@ final class ExV2AccountController extends AsyncNotifier<ExV2AccountViewState?> {
       presentation: presentation,
     );
     state = AsyncData(replacement);
-    unawaited(_hydrateAndPublish(replacement, generation));
+    _startHistoryWarmup(replacement, generation);
     return ExV2BootstrapPublication.committed;
   }
 

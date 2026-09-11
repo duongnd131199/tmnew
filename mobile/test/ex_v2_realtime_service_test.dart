@@ -219,7 +219,7 @@ void main() {
     'large account summary version gap publishes then resyncs REST',
     () async {
       final hub = _RecordingHubConnection();
-      final adapter = _RealtimeAccountAdapter();
+      final adapter = _RealtimeAccountAdapter(serveHistoryOnRefresh: true);
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
         ..httpClientAdapter = adapter;
       final realtime = ExV2RealtimeService(
@@ -238,6 +238,17 @@ void main() {
       );
       addTearDown(container.dispose);
       await container.read(exV2AccountProvider.future);
+      for (
+        var attempt = 0;
+        attempt < 100 && adapter.historyPositionReads < 1;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      expect(
+        container.read(exV2AccountProvider).requireValue!.historyPositions,
+        isEmpty,
+      );
       for (
         var attempt = 0;
         attempt < 100 && !hub.handlers.containsKey('AccountSummaryUpdated');
@@ -273,7 +284,11 @@ void main() {
           },
         },
       ]);
-      await Future<void>.delayed(const Duration(milliseconds: 350));
+      for (var attempt = 0; attempt < 100; attempt++) {
+        final account = container.read(exV2AccountProvider).value;
+        if (account?.historyPositions.isNotEmpty ?? false) break;
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
 
       final state = container.read(exV2AccountProvider).requireValue!;
       expect(adapter.bootstrapReads, 2);
@@ -286,6 +301,7 @@ void main() {
       expect(state.bootstrap.summary.marginLevel, 2512.5);
       expect(state.positions.single.id, 'position-1');
       expect(state.hasLiveValuation, isFalse);
+      expect(state.historyPositions.single.id, 'position-1');
 
       container
           .read(exV2AccountProvider.notifier)
@@ -1284,12 +1300,16 @@ final class _RealtimeAccountAdapter implements HttpClientAdapter {
     this.returnCloseSync = false,
     this.closeGate,
     this.polledSummary,
+    this.serveHistoryOnRefresh = false,
   });
 
   final bool returnCloseSync;
   final Map<String, Object?>? polledSummary;
+  final bool serveHistoryOnRefresh;
   int bootstrapReads = 0;
   int summaryReads = 0;
+  int historyDealReads = 0;
+  int historyPositionReads = 0;
   int closePosts = 0;
   Completer<void>? nextBootstrapGate;
   Completer<void>? nextHydrationGate;
@@ -1342,6 +1362,20 @@ final class _RealtimeAccountAdapter implements HttpClientAdapter {
     if (path.endsWith('/account/summary')) {
       summaryReads += 1;
       return _json(polledSummary ?? _realtimeBootstrap['summary']!);
+    }
+    if (path.endsWith('/history/deals')) {
+      historyDealReads += 1;
+      final rows = serveHistoryOnRefresh && historyDealReads > 2
+          ? _realtimeCloseSync['deals']! as List<Object?>
+          : const <Object?>[];
+      return _json({'items': rows});
+    }
+    if (path.endsWith('/history/positions')) {
+      historyPositionReads += 1;
+      final rows = serveHistoryOnRefresh && historyPositionReads > 2
+          ? _realtimeCloseSync['closedPositions']! as List<Object?>
+          : const <Object?>[];
+      return _json({'items': rows});
     }
     if (path.endsWith('/history/summary')) {
       return _json({
