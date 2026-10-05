@@ -561,7 +561,7 @@ void main() {
     expect(find.text('Latest Alpha Brokerage'), findsOneWidget);
   });
 
-  testWidgets('broker load failure stays visible and retry uses the server', (
+  testWidgets('broker load failure stays silent and retry uses the server', (
     tester,
   ) async {
     final repository = _RetryCatalogRepository();
@@ -575,7 +575,7 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('broker-catalog-error')), findsOneWidget);
-    expect(find.text('Unable to link this account'), findsOneWidget);
+    expect(find.text('Unable to link this account'), findsNothing);
 
     await tester.tap(find.byKey(const Key('broker-catalog-retry')));
     await tester.pump();
@@ -667,7 +667,7 @@ void main() {
     expect(find.text('FORM SERVER: Exness-MT5Real15'), findsOneWidget);
   });
 
-  testWidgets('server load failure offers a real retry without fixture data', (
+  testWidgets('server load failure stays silent and offers a real retry', (
     tester,
   ) async {
     final repository = _RetryServerRepository();
@@ -682,7 +682,7 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('server-catalog-error')), findsOneWidget);
-    expect(find.text('Unable to link this account'), findsOneWidget);
+    expect(find.text('Unable to link this account'), findsNothing);
 
     await tester.tap(find.byKey(const Key('server-catalog-retry')));
     await tester.pump();

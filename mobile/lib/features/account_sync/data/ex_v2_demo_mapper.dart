@@ -61,6 +61,11 @@ abstract final class ExV2DemoMapper {
       executedPrice: openPrice,
       status: status,
       time: dateLabel(openedAt),
+      executionReason: _optionalString(json, const [
+        'executionReason',
+        'closeReason',
+        'reason',
+      ]),
     );
   }
 
@@ -79,6 +84,11 @@ abstract final class ExV2DemoMapper {
       entry: _isExitDealType(type) ? 'out' : 'in',
       orderId: _optionalString(json, const ['orderId']) ?? '',
       positionId: _optionalString(json, const ['positionId']) ?? '',
+      executionReason: _optionalString(json, const [
+        'executionReason',
+        'closeReason',
+        'reason',
+      ]),
     );
   }
 
@@ -124,6 +134,7 @@ abstract final class ExV2DemoMapper {
     executedPrice: value.executedPrice,
     status: value.status,
     time: dateLabel(value.createdAt),
+    executionReason: value.executionReason,
   );
 
   static DemoDeal deal(ExV2Deal value) => DemoDeal(
@@ -137,6 +148,7 @@ abstract final class ExV2DemoMapper {
     entry: _isExitDealType(value.type) ? 'out' : 'in',
     orderId: value.orderId ?? '',
     positionId: value.positionId ?? '',
+    executionReason: value.executionReason,
   );
 
   static String orderType(ExV2Order value) {

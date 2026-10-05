@@ -337,7 +337,7 @@ void main() {
     expect(find.text('SERVER APP'), findsNothing);
   });
 
-  testWidgets('bootstrap HTTP error shows safe production diagnostics', (
+  testWidgets('bootstrap HTTP error stays silent and keeps the app protected', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -361,15 +361,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Không thể tải tài khoản.'), findsOneWidget);
-    expect(find.textContaining('HTTP 502'), findsOneWidget);
-    expect(
-      find.textContaining('Mã lỗi: BOOTSTRAP_UNAVAILABLE'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Không thể tải tài khoản.'), findsNothing);
+    expect(find.textContaining('HTTP 502'), findsNothing);
+    expect(find.textContaining('Mã lỗi: BOOTSTRAP_UNAVAILABLE'), findsNothing);
     expect(
       find.textContaining('Mã tra cứu: 11111111-1111-4111-8111-111111111111'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.textContaining('upstream detail'), findsNothing);
     expect(find.text('SERVER APP'), findsNothing);

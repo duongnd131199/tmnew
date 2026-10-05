@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/core/audio/order_success_sound.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_shadows.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
@@ -462,9 +465,14 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                     height: 46,
                     bottomGap: 9,
                     onTap: () {
-                      ref
+                      final closed = ref
                           .read(demoTradingProvider.notifier)
                           .closeAllPositions();
+                      if (closed > 0) {
+                        unawaited(
+                          ref.read(orderCloseSoundPlayerProvider).play(),
+                        );
+                      }
                       Navigator.pop(dialogContext);
                     },
                   ),
@@ -474,9 +482,14 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                     height: 46,
                     bottomGap: 9,
                     onTap: () {
-                      ref
+                      final closed = ref
                           .read(demoTradingProvider.notifier)
                           .closeAllPositions(profitableOnly: true);
+                      if (closed > 0) {
+                        unawaited(
+                          ref.read(orderCloseSoundPlayerProvider).play(),
+                        );
+                      }
                       Navigator.pop(dialogContext);
                     },
                   ),
@@ -486,9 +499,14 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                     height: 46,
                     bottomGap: 9,
                     onTap: () {
-                      ref
+                      final closed = ref
                           .read(demoTradingProvider.notifier)
                           .closeAllPositions(losingOnly: true);
+                      if (closed > 0) {
+                        unawaited(
+                          ref.read(orderCloseSoundPlayerProvider).play(),
+                        );
+                      }
                       Navigator.pop(dialogContext);
                     },
                   ),
@@ -588,7 +606,10 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
           ),
         );
         if (!context.mounted || scope == null) return;
-        _executePositionBulkAction(ref, position, scope);
+        final closed = _executePositionBulkAction(ref, position, scope);
+        if (closed > 0) {
+          unawaited(ref.read(orderCloseSoundPlayerProvider).play());
+        }
       case PositionAction.cancel:
         return;
     }
@@ -685,12 +706,15 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                                 .read(demoTradingProvider.notifier)
                                 .closeByPositions(source.id, selectedId!);
                             Navigator.pop(sheetContext);
-                            if (!closed) {
-                              _showActionResult(
-                                context,
-                                'Không thể đóng hai vị thế đã chọn',
-                              );
-                            }
+                            unawaited(
+                              ref
+                                  .read(
+                                    closed
+                                        ? orderCloseSoundPlayerProvider
+                                        : orderFailureSoundPlayerProvider,
+                                  )
+                                  .play(),
+                            );
                           },
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.negative,
@@ -791,17 +815,6 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
         ),
       ),
     );
-  }
-
-  static void _showActionResult(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          duration: const Duration(milliseconds: 900),
-          content: Text(message),
-        ),
-      );
   }
 
   static void _showPendingPriceDialog(

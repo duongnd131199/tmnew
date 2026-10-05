@@ -29,9 +29,6 @@ class _WalletRequestScreenState extends ConsumerState<WalletRequestScreen> {
   Future<void> _submit() async {
     final amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0 || _submitting) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Số tiền không hợp lệ')));
       return;
     }
     setState(() => _submitting = true);
@@ -57,14 +54,8 @@ class _WalletRequestScreenState extends ConsumerState<WalletRequestScreen> {
         context.go(destination);
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Không thể thực hiện')));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Không thể thực hiện')));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

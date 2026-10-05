@@ -18,13 +18,9 @@ class DevDeviceTokenImportScreen extends ConsumerStatefulWidget {
 
 class _DevDeviceTokenImportScreenState
     extends ConsumerState<DevDeviceTokenImportScreen> {
-  static const _genericError =
-      'Không thể kích hoạt thiết bị. Vui lòng kiểm tra token và thử lại.';
-
   final _tokenController = TextEditingController();
   bool _obscureToken = true;
   bool _submitting = false;
-  String? _errorMessage;
 
   @override
   void dispose() {
@@ -35,10 +31,7 @@ class _DevDeviceTokenImportScreenState
   Future<void> _submit() async {
     if (_submitting) return;
     FocusScope.of(context).unfocus();
-    setState(() {
-      _submitting = true;
-      _errorMessage = null;
-    });
+    setState(() => _submitting = true);
 
     try {
       await ref
@@ -53,7 +46,6 @@ class _DevDeviceTokenImportScreenState
     } catch (_) {
       if (!mounted) return;
       _tokenController.clear();
-      setState(() => _errorMessage = _genericError);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -129,17 +121,6 @@ class _DevDeviceTokenImportScreenState
                     ),
                   ),
                 ),
-                if (_errorMessage case final message?) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    message,
-                    key: const Key('dev-device-token-error'),
-                    textAlign: TextAlign.center,
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.negative,
-                    ),
-                  ),
-                ],
                 const SizedBox(height: AppSpacing.xl),
                 FilledButton(
                   key: const Key('dev-device-token-submit'),

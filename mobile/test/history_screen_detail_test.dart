@@ -37,6 +37,37 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(loadMt5TestFonts);
 
+  testWidgets('stop-out closing order renders Cháy with its closed lot', (
+    tester,
+  ) async {
+    const order = DemoOrder(
+      id: 'stop-out-order-1',
+      symbol: 'XAUUSD+',
+      side: 'SELL',
+      type: 'Market',
+      volume: 7.9,
+      requestedPrice: 4194.132,
+      executedPrice: 4194.132,
+      status: 'filled',
+      executionReason: 'stop-out',
+      time: '2026.10.04 09:33:00',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          demoOrdersProvider.overrideWithValue(const [order]),
+        ],
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('history-tab-1')));
+    await tester.pump();
+
+    expect(find.text('Cháy'), findsOneWidget);
+    expect(find.textContaining('7.9 / 7.9'), findsOneWidget);
+  });
+
   Widget testApp({TargetPlatform platform = TargetPlatform.android}) {
     return ProviderScope(
       overrides: videoReferenceOverrides,

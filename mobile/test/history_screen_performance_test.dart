@@ -45,6 +45,35 @@ void main() {
     expect(orders.iteratorReads, readsAfterOpeningOrders);
   });
 
+  testWidgets('switching history tabs after an order update stays error free', (
+    tester,
+  ) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('history-tab-1')));
+    final controller = container.read(demoTradingProvider.notifier)
+      ..placePendingOrder(
+        symbol: 'XAUUSD',
+        type: 'Buy Limit',
+        volume: 0.01,
+        price: 4200,
+      );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    final orderId = controller.state.orders.single.id;
+    expect(find.byKey(ValueKey('history-order-$orderId')), findsOneWidget);
+  });
+
   testWidgets(
     'initial bottom anchor does not override a user scroll next frame',
     (tester) async {

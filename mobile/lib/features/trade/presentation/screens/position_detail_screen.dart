@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/core/audio/order_success_sound.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/utils/trading_price_precision.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
@@ -9,7 +12,6 @@ import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
-import 'package:trading_mobile/features/order/presentation/order_failure_message.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/order_ticket_quote_text.dart';
@@ -100,9 +102,14 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
                   '${displayTradingSymbol(candidate.symbol)}',
                 ),
                 onTap: () {
-                  ref
+                  final closed = ref
                       .read(demoTradingProvider.notifier)
                       .closeByPositions(source.id, candidate.id);
+                  if (closed) {
+                    unawaited(ref.read(orderCloseSoundPlayerProvider).play());
+                  } else {
+                    unawaited(ref.read(orderFailureSoundPlayerProvider).play());
+                  }
                   Navigator.pop(sheetContext);
                   if (mounted) context.pop();
                 },
@@ -147,18 +154,7 @@ class _PositionDetailScreenState extends ConsumerState<PositionDetailScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => submittingProtection = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              orderFailureMessage(
-                error,
-                fallback: 'Không thể sửa Cắt lỗ/Chốt lời',
-              ),
-            ),
-          ),
-        );
+      unawaited(ref.read(orderFailureSoundPlayerProvider).play());
     }
   }
 

@@ -28,7 +28,6 @@ import 'package:trading_mobile/features/chart/presentation/rendering/mt5_candle_
 import 'package:trading_mobile/features/chart/presentation/theme/chart_reference_theme.dart';
 import 'package:trading_mobile/features/chart/presentation/viewport/chart_price_viewport.dart';
 import 'package:trading_mobile/features/chart/presentation/viewport/chart_viewport.dart';
-import 'package:trading_mobile/features/order/presentation/order_failure_message.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/models/market_candle.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
@@ -2741,10 +2740,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
                             }
                           } catch (_) {
                             if (!mounted) return;
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Không thể sửa lệnh'),
-                              ),
+                            unawaited(
+                              ref.read(orderFailureSoundPlayerProvider).play(),
                             );
                           }
                         },
@@ -3227,13 +3224,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
       return true;
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              orderFailureMessage(error, fallback: 'Không thể đặt lệnh'),
-            ),
-          ),
-        );
+        unawaited(ref.read(orderFailureSoundPlayerProvider).play());
       }
       return false;
     }
@@ -3280,13 +3271,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen>
       return true;
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              orderFailureMessage(error, fallback: 'Không thể đặt lệnh chờ'),
-            ),
-          ),
-        );
+        unawaited(ref.read(orderFailureSoundPlayerProvider).play());
       }
       return false;
     } finally {

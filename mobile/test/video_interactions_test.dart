@@ -44,12 +44,17 @@ void main() {
   ProviderContainer createContainer({
     bool withCandles = false,
     OrderSuccessSoundPlayer? orderSuccessSoundPlayer,
+    OrderSuccessSoundPlayer? orderCloseSoundPlayer,
   }) {
     return createVideoReferenceContainer(
       overrides: [
         if (orderSuccessSoundPlayer != null)
           orderSuccessSoundPlayerProvider.overrideWithValue(
             orderSuccessSoundPlayer,
+          ),
+        if (orderCloseSoundPlayer != null)
+          orderCloseSoundPlayerProvider.overrideWithValue(
+            orderCloseSoundPlayer,
           ),
         demoQuoteProvider.overrideWith((ref, symbol) {
           final quote = ref
@@ -102,28 +107,31 @@ void main() {
     expect(find.text('Buy by Market'), findsOneWidget);
   });
 
-  testWidgets('slow order submission exposes no infrastructure message', (
-    tester,
-  ) async {
-    final container = createContainer();
-    addTearDown(container.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: NewOrderScreen(symbol: 'XAUUSD')),
-      ),
-    );
-    await tester.pump();
+  testWidgets(
+    'new-order ticket preserves its original silent success behavior',
+    (tester) async {
+      final soundPlayer = _RecordingOrderSuccessSoundPlayer();
+      final container = createContainer(orderSuccessSoundPlayer: soundPlayer);
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: NewOrderScreen(symbol: 'XAUUSD')),
+        ),
+      );
+      await tester.pump();
 
-    await tester.tap(find.text('Sell by Market'));
-    await tester.pump();
+      await tester.tap(find.text('Sell by Market'));
+      await tester.pump();
 
-    expect(find.textContaining('server'), findsNothing);
-    expect(find.textContaining('đồng bộ'), findsNothing);
-    expect(find.textContaining('Vui lòng chờ'), findsNothing);
+      expect(find.textContaining('server'), findsNothing);
+      expect(find.textContaining('đồng bộ'), findsNothing);
+      expect(find.textContaining('Vui lòng chờ'), findsNothing);
 
-    await tester.pump(const Duration(milliseconds: 750));
-  });
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(soundPlayer.playCount, 0);
+    },
+  );
 
   testWidgets('new order uses initial side and BTC protection tick size', (
     tester,
@@ -166,65 +174,60 @@ void main() {
     expect(stopLossText(), '65176.00');
   });
 
-  testWidgets(
-    'XAU volume, order type and fill policy sheets update a pending ticket',
-    (tester) async {
-      final container = createContainer();
-      addTearDown(container.dispose);
-      final pendingBefore = container.read(demoPendingOrdersProvider).length;
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(home: NewOrderScreen(symbol: 'XAUUSD+')),
-        ),
-      );
-      await tester.pump();
+  testWidgets('XAU accepts and displays a 175 lot pending ticket', (
+    tester,
+  ) async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final pendingBefore = container.read(demoPendingOrdersProvider).length;
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: NewOrderScreen(symbol: 'XAUUSD+')),
+      ),
+    );
+    await tester.pump();
 
-      await tester.tap(find.byKey(const Key('order-volume-field')));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('order-volume-input')),
-        '100',
-      );
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('order-volume-done')));
-      await tester.pumpAndSettle();
-      expect(find.text('100.00'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('order-volume-field')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('order-volume-input')), '175');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('order-volume-done')));
+    await tester.pumpAndSettle();
+    expect(find.text('175.00'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('order-type-field')));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const ValueKey('order-type-option-buy-limit')),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Buy Limit'), findsWidgets);
-      expect(find.byKey(const Key('order-place-pending')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('order-type-field')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('order-type-option-buy-limit')));
+    await tester.pumpAndSettle();
+    expect(find.text('Buy Limit'), findsWidgets);
+    expect(find.byKey(const Key('order-place-pending')), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('order-fill-policy-field')));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const ValueKey('order-fill-option-immediate-or-cancel')),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Immediate or Cancel'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('order-fill-policy-field')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('order-fill-option-immediate-or-cancel')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Immediate or Cancel'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('order-place-pending')));
-      await tester.pump(const Duration(milliseconds: 750));
-      expect(
-        container.read(demoPendingOrdersProvider),
-        hasLength(pendingBefore + 1),
-      );
-      expect(
-        find.textContaining('100.00 XAUUSD', findRichText: true),
-        findsOneWidget,
-      );
-    },
-  );
+    await tester.tap(find.byKey(const Key('order-place-pending')));
+    await tester.pump(const Duration(milliseconds: 750));
+    expect(
+      container.read(demoPendingOrdersProvider),
+      hasLength(pendingBefore + 1),
+    );
+    expect(
+      find.textContaining('175.00 XAUUSD', findRichText: true),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('position close completion uses the actual position volume', (
     tester,
   ) async {
-    final container = createContainer();
+    final closeSoundPlayer = _RecordingOrderSuccessSoundPlayer();
+    final container = createContainer(orderCloseSoundPlayer: closeSoundPlayer);
     addTearDown(container.dispose);
     container.read(activeDemoAccountIdProvider.notifier).select('10001002');
     final position = container.read(demoPositionsProvider).first;
@@ -256,6 +259,7 @@ void main() {
           .where((item) => item.id == position.id),
       isEmpty,
     );
+    expect(closeSoundPlayer.playCount, 1);
   });
 
   for (final side in ['sell', 'buy']) {
@@ -538,6 +542,35 @@ void main() {
     expect(find.text('Đóng trạng thái'), findsOneWidget);
   });
 
+  testWidgets('XAU market order keeps a 175 lot position visible', (
+    tester,
+  ) async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final initialPositions = container.read(demoPositionsProvider).length;
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: NewOrderScreen(symbol: 'XAUUSD+')),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('order-volume-field')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('order-volume-input')), '175');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('order-volume-done')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sell by Market'));
+    await tester.pump(const Duration(milliseconds: 750));
+
+    final positions = container.read(demoPositionsProvider);
+    expect(positions, hasLength(initialPositions + 1));
+    expect(positions.first.volume, 175);
+    expect(find.textContaining('175.00'), findsWidgets);
+  });
+
   testWidgets(
     'selected position opens contextual bulk actions after its sheet closes',
     (tester) async {
@@ -661,7 +694,8 @@ void main() {
     tester,
   ) async {
     useVideoViewport(tester);
-    final container = createContainer();
+    final closeSoundPlayer = _RecordingOrderSuccessSoundPlayer();
+    final container = createContainer(orderCloseSoundPlayer: closeSoundPlayer);
     addTearDown(container.dispose);
     final source = container.read(demoPositionsProvider).first;
     final oppositeId = container
@@ -700,6 +734,7 @@ void main() {
 
     expect(find.byType(SnackBar), findsNothing);
     expect(find.textContaining('Đã gửi yêu cầu'), findsNothing);
+    expect(closeSoundPlayer.playCount, 1);
 
     expect(
       container

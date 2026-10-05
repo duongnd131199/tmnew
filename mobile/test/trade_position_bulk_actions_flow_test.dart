@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trading_mobile/core/audio/order_success_sound.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_shadows.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
@@ -12,6 +13,19 @@ import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/mt_price_range_text.dart';
 
 import 'test_support/load_test_fonts.dart';
+
+class _RecordingOrderSoundPlayer implements OrderSuccessSoundPlayer {
+  int playCount = 0;
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> play() async => playCount += 1;
+
+  @override
+  Future<void> warmUp() async {}
+}
 
 const _allPositionIds = {'x-buy-win', 'x-buy-loss', 'x-sell-win', 'e-buy-win'};
 const _allPositionIdOrder = [
@@ -97,12 +111,16 @@ DemoTradingState _pendingMarginSeed(String accountId) => const DemoTradingState(
 DemoTradingState _emptyMarginSeed(String accountId) =>
     const DemoTradingState(balance: 1000, positions: [], deals: []);
 
-ProviderContainer _createContainer() => ProviderContainer(
+ProviderContainer _createContainer({
+  OrderSuccessSoundPlayer? closeSoundPlayer,
+}) => ProviderContainer(
   overrides: [
     demoTradingSeedProvider.overrideWithValue(_bulkFlowSeed),
     demoQuoteProvider.overrideWith(
       (ref, symbol) => const Stream<DemoQuote>.empty(),
     ),
+    if (closeSoundPlayer != null)
+      orderCloseSoundPlayerProvider.overrideWithValue(closeSoundPlayer),
   ],
 );
 
@@ -690,6 +708,19 @@ void main() {
       },
     );
   }
+
+  testWidgets('contextual bulk close plays one close cue', (tester) async {
+    final closeSoundPlayer = _RecordingOrderSoundPlayer();
+    final container = _createContainer(closeSoundPlayer: closeSoundPlayer);
+    addTearDown(container.dispose);
+    await _pumpTrade(tester, container);
+    await _openContextualBulkDialog(tester);
+
+    await tester.tap(find.byKey(const ValueKey('position-bulk-action-all')));
+    await tester.pumpAndSettle();
+
+    expect(closeSoundPlayer.playCount, 1);
+  });
 
   testWidgets('contextual bulk cancel keeps every position', (tester) async {
     final container = _createContainer();

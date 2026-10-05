@@ -140,6 +140,7 @@ class DemoOrder {
     required this.status,
     required this.time,
     this.executedPrice,
+    this.executionReason,
   });
 
   final String id;
@@ -151,12 +152,14 @@ class DemoOrder {
   final double? executedPrice;
   final String status;
   final String time;
+  final String? executionReason;
 
   DemoOrder copyWith({
     double? requestedPrice,
     double? executedPrice,
     String? status,
     String? time,
+    String? executionReason,
   }) {
     return DemoOrder(
       id: id,
@@ -168,6 +171,7 @@ class DemoOrder {
       executedPrice: executedPrice ?? this.executedPrice,
       status: status ?? this.status,
       time: time ?? this.time,
+      executionReason: executionReason ?? this.executionReason,
     );
   }
 }
@@ -185,6 +189,7 @@ class DemoDeal {
     this.entry = 'in',
     this.orderId = '',
     this.positionId = '',
+    this.executionReason,
   });
 
   final String id;
@@ -198,6 +203,7 @@ class DemoDeal {
   final String entry;
   final String orderId;
   final String positionId;
+  final String? executionReason;
 }
 
 class DemoHistoryPosition {

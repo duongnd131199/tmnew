@@ -42,6 +42,7 @@ void main() {
     tester,
   ) async {
     final adapter = _RejectOrderAdapter();
+    final failureSoundPlayer = _RecordingOrderSuccessSoundPlayer();
     final quoteTimestamp = DateTime.utc(2026, 9, 4, 20, 57, 59);
     final container = _container(
       adapter,
@@ -54,6 +55,7 @@ void main() {
         sourceTimestamp: quoteTimestamp,
       ),
       now: () => quoteTimestamp.add(const Duration(seconds: 31)),
+      failureSoundPlayer: failureSoundPlayer,
     );
     addTearDown(container.dispose);
 
@@ -69,39 +71,20 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(adapter.orderPosts, 1);
-    expect(find.byType(SnackBar), findsOneWidget);
-    expect(find.textContaining('Order rejected'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.textContaining('Order rejected'), findsNothing);
+    expect(failureSoundPlayer.playCount, 1);
   });
 
-  testWidgets('new-order market rejection shows safe feedback', (tester) async {
-    final adapter = _RejectOrderAdapter();
-    final container = _container(adapter);
-    addTearDown(container.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: NewOrderScreen(symbol: 'XAUUSD+')),
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.text('Sell by Market'));
-    await tester.pumpAndSettle();
-
-    expect(adapter.orderPosts, 1);
-    expect(find.byType(SnackBar), findsOneWidget);
-    expect(find.textContaining('Order rejected'), findsOneWidget);
-    expect(find.textContaining('ORDER_REJECTED'), findsOneWidget);
-    expect(find.textContaining('test-correlation-id'), findsOneWidget);
-    expect(find.text('Sell by Market'), findsOneWidget);
-  });
-
-  testWidgets('new-order pending rejection shows safe feedback', (
+  testWidgets('new-order market rejection stays silent and plays failure cue', (
     tester,
   ) async {
     final adapter = _RejectOrderAdapter();
-    final container = _container(adapter);
+    final failureSoundPlayer = _RecordingOrderSuccessSoundPlayer();
+    final container = _container(
+      adapter,
+      failureSoundPlayer: failureSoundPlayer,
+    );
     addTearDown(container.dispose);
 
     await tester.pumpWidget(
@@ -111,26 +94,67 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.byKey(const Key('order-type-field')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('order-type-option-buy-limit')));
-    await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('order-place-pending')));
+    await tester.tap(find.text('Sell by Market'));
     await tester.pumpAndSettle();
 
     expect(adapter.orderPosts, 1);
-    expect(find.byType(SnackBar), findsOneWidget);
-    expect(find.textContaining('Order rejected'), findsOneWidget);
-    expect(find.textContaining('ORDER_REJECTED'), findsOneWidget);
-    expect(find.textContaining('test-correlation-id'), findsOneWidget);
-    expect(find.byKey(const Key('order-place-pending')), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.textContaining('Order rejected'), findsNothing);
+    expect(find.textContaining('ORDER_REJECTED'), findsNothing);
+    expect(find.textContaining('test-correlation-id'), findsNothing);
+    expect(find.text('Sell by Market'), findsOneWidget);
+    expect(failureSoundPlayer.playCount, 1);
   });
 
-  testWidgets('chart market rejection shows safe feedback', (tester) async {
+  testWidgets(
+    'new-order pending rejection stays silent and plays failure cue',
+    (tester) async {
+      final adapter = _RejectOrderAdapter();
+      final failureSoundPlayer = _RecordingOrderSuccessSoundPlayer();
+      final container = _container(
+        adapter,
+        failureSoundPlayer: failureSoundPlayer,
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: NewOrderScreen(symbol: 'XAUUSD+')),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('order-type-field')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('order-type-option-buy-limit')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('order-place-pending')));
+      await tester.pumpAndSettle();
+
+      expect(adapter.orderPosts, 1);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.textContaining('Order rejected'), findsNothing);
+      expect(find.textContaining('ORDER_REJECTED'), findsNothing);
+      expect(find.textContaining('test-correlation-id'), findsNothing);
+      expect(find.byKey(const Key('order-place-pending')), findsOneWidget);
+      expect(failureSoundPlayer.playCount, 1);
+    },
+  );
+
+  testWidgets('chart market rejection stays silent and plays failure cue', (
+    tester,
+  ) async {
     _useChartViewport(tester);
     final adapter = _RejectOrderAdapter();
-    final container = _container(adapter);
+    final failureSoundPlayer = _RecordingOrderSuccessSoundPlayer();
+    final container = _container(
+      adapter,
+      failureSoundPlayer: failureSoundPlayer,
+    );
     addTearDown(container.dispose);
 
     await tester.pumpWidget(
@@ -149,11 +173,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(adapter.orderPosts, 1);
-    expect(find.byType(SnackBar), findsOneWidget);
-    expect(find.textContaining('Order rejected'), findsOneWidget);
-    expect(find.textContaining('ORDER_REJECTED'), findsOneWidget);
-    expect(find.textContaining('test-correlation-id'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.textContaining('Order rejected'), findsNothing);
+    expect(find.textContaining('ORDER_REJECTED'), findsNothing);
+    expect(find.textContaining('test-correlation-id'), findsNothing);
     expect(find.byKey(const Key('chart-one-click-panel')), findsOneWidget);
+    expect(failureSoundPlayer.playCount, 1);
   });
 
   testWidgets(
@@ -353,10 +378,16 @@ void main() {
     },
   );
 
-  testWidgets('chart pending rejection shows safe feedback', (tester) async {
+  testWidgets('chart pending rejection stays silent and plays failure cue', (
+    tester,
+  ) async {
     _useChartViewport(tester);
     final adapter = _RejectOrderAdapter();
-    final container = _container(adapter);
+    final failureSoundPlayer = _RecordingOrderSuccessSoundPlayer();
+    final container = _container(
+      adapter,
+      failureSoundPlayer: failureSoundPlayer,
+    );
     addTearDown(container.dispose);
 
     await tester.pumpWidget(
@@ -375,18 +406,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(adapter.orderPosts, 1);
-    expect(find.byType(SnackBar), findsOneWidget);
-    expect(find.textContaining('Order rejected'), findsOneWidget);
-    expect(find.textContaining('ORDER_REJECTED'), findsOneWidget);
-    expect(find.textContaining('test-correlation-id'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.textContaining('Order rejected'), findsNothing);
+    expect(find.textContaining('ORDER_REJECTED'), findsNothing);
+    expect(find.textContaining('test-correlation-id'), findsNothing);
     expect(find.byKey(const Key('chart-pending-order-pill')), findsOneWidget);
+    expect(failureSoundPlayer.playCount, 1);
   });
 
-  testWidgets('position protection rejection stays on ticket with feedback', (
+  testWidgets('position protection rejection stays silent on the ticket', (
     tester,
   ) async {
     final adapter = _RejectOrderAdapter();
-    final container = _container(adapter, accountState: _positionAccountState);
+    final failureSoundPlayer = _RecordingOrderSuccessSoundPlayer();
+    final container = _container(
+      adapter,
+      accountState: _positionAccountState,
+      failureSoundPlayer: failureSoundPlayer,
+    );
     addTearDown(container.dispose);
     final router = GoRouter(
       initialLocation: '/trade',
@@ -420,16 +457,22 @@ void main() {
 
     expect(adapter.protectionPuts, 1);
     expect(find.byType(PositionDetailScreen), findsOneWidget);
-    expect(find.byType(SnackBar), findsOneWidget);
-    expect(find.textContaining('Protection rejected'), findsOneWidget);
-    expect(find.textContaining('PROTECTION_REJECTED'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.textContaining('Protection rejected'), findsNothing);
+    expect(find.textContaining('PROTECTION_REJECTED'), findsNothing);
+    expect(failureSoundPlayer.playCount, 1);
   });
 
-  testWidgets('position close rejection stays on ticket with safe feedback', (
+  testWidgets('position close rejection stays silent on the ticket', (
     tester,
   ) async {
     final adapter = _RejectOrderAdapter();
-    final container = _container(adapter, accountState: _positionAccountState);
+    final failureSoundPlayer = _RecordingOrderSuccessSoundPlayer();
+    final container = _container(
+      adapter,
+      accountState: _positionAccountState,
+      failureSoundPlayer: failureSoundPlayer,
+    );
     addTearDown(container.dispose);
 
     await tester.pumpWidget(
@@ -454,9 +497,10 @@ void main() {
       find.byKey(const Key('position-close-order-ticket')),
       findsOneWidget,
     );
-    expect(find.byType(SnackBar), findsOneWidget);
-    expect(find.textContaining('Close rejected'), findsOneWidget);
-    expect(find.textContaining('CLOSE_REJECTED'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.textContaining('Close rejected'), findsNothing);
+    expect(find.textContaining('CLOSE_REJECTED'), findsNothing);
+    expect(failureSoundPlayer.playCount, 1);
   });
 
   testWidgets(
@@ -510,7 +554,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.textContaining('market buy 0.01 BTCUSDT at', findRichText: true),
+        find.textContaining('market buy 0.25 BTCUSDT at', findRichText: true),
         findsOneWidget,
       );
       expect(
@@ -536,6 +580,7 @@ ProviderContainer _container(
   DemoQuote quote = _quote,
   DateTime Function()? now,
   OrderSuccessSoundPlayer? soundPlayer,
+  OrderSuccessSoundPlayer? failureSoundPlayer,
 }) {
   final dio = Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
     ..httpClientAdapter = adapter;
@@ -551,6 +596,8 @@ ProviderContainer _container(
       if (now != null) marketClockProvider.overrideWithValue(now),
       if (soundPlayer != null)
         orderSuccessSoundPlayerProvider.overrideWithValue(soundPlayer),
+      if (failureSoundPlayer != null)
+        orderFailureSoundPlayerProvider.overrideWithValue(failureSoundPlayer),
       marketCandlesProvider.overrideWith(
         (ref, request) => Stream.value(_candles),
       ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 abstract interface class OrderSuccessSoundPlayer {
@@ -18,6 +19,29 @@ final orderSuccessSoundPlayerProvider = Provider<OrderSuccessSoundPlayer>((
   ref.onDispose(() => unawaited(player.dispose()));
   return player;
 });
+
+final orderCloseSoundPlayerProvider = Provider<OrderSuccessSoundPlayer>((ref) {
+  final player = AssetOrderSuccessSoundPlayer();
+  ref.onDispose(() => unawaited(player.dispose()));
+  return player;
+});
+
+final orderFailureSoundPlayerProvider = Provider<OrderSuccessSoundPlayer>(
+  (ref) => const SystemOrderFailureSoundPlayer(),
+);
+
+class SystemOrderFailureSoundPlayer implements OrderSuccessSoundPlayer {
+  const SystemOrderFailureSoundPlayer();
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> play() => SystemSound.play(SystemSoundType.alert);
+
+  @override
+  Future<void> warmUp() async {}
+}
 
 class AssetOrderSuccessSoundPlayer implements OrderSuccessSoundPlayer {
   static final _asset = AssetSource('sounds/order_success.wav');

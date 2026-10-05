@@ -37,6 +37,13 @@ String _historyVolumeLabel(double volume) =>
     volume.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
 
 typedef _HistorySummaryRow = ({String keyId, String label, String value});
+typedef _HistoryScreenData = ({
+  DemoAccountProfile profile,
+  double tradingBalance,
+  List<DemoHistoryPosition> positions,
+  List<DemoOrder> orders,
+  List<DemoDeal> deals,
+});
 
 TextStyle _historyRoleStyle(
   BuildContext context,
@@ -168,11 +175,20 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final data = (
+      profile: ref.watch(activeDemoAccountProvider),
+      tradingBalance: ref.watch(
+        demoTradingProvider.select((trading) => trading.balance),
+      ),
+      positions: ref.watch(demoHistoryPositionsProvider),
+      orders: ref.watch(demoOrdersProvider),
+      deals: ref.watch(demoDealsProvider),
+    );
     final safeTop = MediaQuery.paddingOf(context).top;
     final content = switch (tab) {
-      0 => _buildPositionsHistory(),
-      1 => _buildOrdersHistory(),
-      _ => _buildDealsHistory(),
+      0 => _buildPositionsHistory(data),
+      1 => _buildOrdersHistory(data.orders),
+      _ => _buildDealsHistory(data),
     };
     return Scaffold(
       body: Stack(
@@ -206,28 +222,24 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
-  Widget _buildPositionsHistory() {
-    final accountProfile = ref.watch(activeDemoAccountProvider);
-    final tradingBalance = ref.watch(
-      demoTradingProvider.select((trading) => trading.balance),
-    );
+  Widget _buildPositionsHistory(_HistoryScreenData data) {
     final entries = _sortedPositionHistory(
       _filteredHistory(
         cache: _positionFilterCache,
-        source: ref.watch(demoHistoryPositionsProvider),
+        source: data.positions,
         symbolOf: (entry) => entry.title,
         timeOf: (entry) => entry.time,
       ),
     );
-    _syncPositionsBottomAnchor(accountProfile.id, entries.length);
+    _syncPositionsBottomAnchor(data.profile.id, entries.length);
     return _PositionsHistory(
       controller: _positionsController,
       entries: entries,
       descending: sortCriterion == _HistorySortCriterion.defaultOrder
           ? descending
           : true,
-      profile: accountProfile,
-      tradingBalance: tradingBalance,
+      profile: data.profile,
+      tradingBalance: data.tradingBalance,
       onEntryTap: _showPositionDetails,
     );
   }
@@ -299,11 +311,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return leftDisplay.compareTo(rightDisplay);
   }
 
-  Widget _buildOrdersHistory() {
+  Widget _buildOrdersHistory(List<DemoOrder> source) {
     final orders = _sortedOrderHistory(
       _filteredHistory(
         cache: _orderFilterCache,
-        source: ref.watch(demoOrdersProvider),
+        source: source,
         symbolOf: (order) => order.symbol,
         timeOf: (order) => order.time,
       ),
@@ -343,11 +355,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     });
   }
 
-  Widget _buildDealsHistory() {
+  Widget _buildDealsHistory(_HistoryScreenData data) {
     final deals = _sortedDealHistory(
       _filteredHistory(
         cache: _dealFilterCache,
-        source: ref.watch(demoDealsProvider),
+        source: data.deals,
         symbolOf: (deal) => deal.symbol,
         timeOf: (deal) => deal.time,
       ),
@@ -358,7 +370,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       descending: sortCriterion == _HistorySortCriterion.defaultOrder
           ? descending
           : true,
-      profile: ref.watch(activeDemoAccountProvider),
+      profile: data.profile,
       onDealTap: _showDealDetails,
     );
   }
@@ -1760,7 +1772,7 @@ class _OrdersHistory extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                             trailing: Text(
-                              _historyOrderStatusLabel(order.status),
+                              _historyOrderStatusLabel(order),
                               key: ValueKey(
                                 'history-orders-trailing-primary-$index',
                               ),
@@ -2485,7 +2497,7 @@ class _DealDetailSheet extends StatelessWidget {
                           Expanded(
                             child: _HistoryDetailPair(
                               label: 'Trạng thái:',
-                              value: deal.status,
+                              value: _historyDealStatusLabel(deal),
                               valueOffset: 80,
                             ),
                           ),
@@ -2556,7 +2568,7 @@ class _OrderDetailSheet extends StatelessWidget {
                           ),
                           const Spacer(),
                           Text(
-                            order.status,
+                            _historyOrderStatusLabel(order),
                             style: _HistoryDetailStyles.status,
                           ),
                         ],
@@ -2929,8 +2941,18 @@ String _orderTypeLabel(DemoOrder order) => order.type == 'Market'
     ? order.side.toLowerCase()
     : order.type.toLowerCase();
 
-String _historyOrderStatusLabel(String status) =>
-    status.toLowerCase() == 'canceled' ? 'Bi huy' : status;
+String _historyOrderStatusLabel(DemoOrder order) {
+  if (_isStopOutReason(order.executionReason)) return 'Cháy';
+  return order.status.toLowerCase() == 'canceled' ? 'Bi huy' : order.status;
+}
+
+String _historyDealStatusLabel(DemoDeal deal) =>
+    _isStopOutReason(deal.executionReason) ? 'Cháy' : deal.status;
+
+bool _isStopOutReason(String? value) {
+  final normalized = value?.trim().toLowerCase().replaceAll('_', '-');
+  return normalized == 'stop-out' || normalized == 'stopout';
+}
 
 String _orderVolumeLabel(DemoOrder order) =>
     '${_historyVolumeLabel(order.volume)} / '

@@ -1,15 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:trading_mobile/core/audio/order_success_sound.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/tab_reference_metrics.dart';
 import 'package:trading_mobile/core/utils/trading_price_precision.dart';
 import 'package:trading_mobile/core/utils/trading_ticket_id.dart';
 import 'package:trading_mobile/core/utils/trading_symbol_display.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
-import 'package:trading_mobile/features/order/presentation/order_failure_message.dart';
 import 'package:trading_mobile/shared/models/demo_models.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 import 'package:trading_mobile/shared/widgets/order_ticket_quote_text.dart';
@@ -31,7 +33,7 @@ String _normalizeSide(String side) {
 }
 
 double _maxVolumeForSymbol(String symbol) {
-  return symbol.startsWith('XAU') ? 100 : 10;
+  return symbol.startsWith('XAU') ? 1000 : 100;
 }
 
 double _priceStepForSymbol(String symbol, double price) {
@@ -112,6 +114,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
     if (widget.tradeAddReferenceLayout && widget.closePositionId == null) {
       volume = widget.symbol.trim().toUpperCase().startsWith('XAU') ? 1 : .01;
     }
+    unawaited(ref.read(orderCloseSoundPlayerProvider).warmUp());
     final closePositionId = widget.closePositionId;
     if (closePositionId != null) {
       final position = ref
@@ -119,7 +122,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
           .where((item) => item.id == closePositionId)
           .firstOrNull;
       if (position != null) {
-        volume = position.volume < .01 ? position.volume : .01;
+        volume = position.volume;
       }
     }
   }
@@ -219,13 +222,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            orderFailureMessage(error, fallback: 'Khong the dat lenh'),
-          ),
-        ),
-      );
+      unawaited(ref.read(orderFailureSoundPlayerProvider).play());
     }
   }
 
@@ -290,13 +287,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            orderFailureMessage(error, fallback: 'Khong the dat lenh cho'),
-          ),
-        ),
-      );
+      unawaited(ref.read(orderFailureSoundPlayerProvider).play());
     }
   }
 
@@ -305,6 +296,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
     setState(() => submitting = true);
     try {
       double closePrice = position.currentPrice;
+      var closedVolume = volume;
       if (ref.read(exV2EnabledProvider)) {
         final closeDeal = await ref
             .read(exV2AccountProvider.notifier)
@@ -314,10 +306,12 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
             );
         if (closeDeal == null) {
           if (!mounted) return;
+          unawaited(ref.read(orderCloseSoundPlayerProvider).play());
           context.go('/trade');
           return;
         }
         closePrice = closeDeal.price;
+        closedVolume = closeDeal.volume;
       } else {
         await Future<void>.delayed(const Duration(milliseconds: 700));
         if (!mounted) return;
@@ -330,12 +324,13 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
         }
       }
       if (!mounted) return;
+      unawaited(ref.read(orderCloseSoundPlayerProvider).play());
       setState(() {
         submitting = false;
         completedByClosing = true;
         completedSide = position.side == 'BUY' ? 'SELL' : 'BUY';
         completedPrice = closePrice;
-        completedVolume = volume;
+        completedVolume = closedVolume;
         completedOrderId = position.id;
         completedOrderType = 'Close';
         completedPendingOrder = false;
@@ -344,13 +339,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            orderFailureMessage(error, fallback: 'Khong the dong vi the'),
-          ),
-        ),
-      );
+      unawaited(ref.read(orderFailureSoundPlayerProvider).play());
     }
   }
 

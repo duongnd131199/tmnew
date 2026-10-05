@@ -102,7 +102,7 @@ void main() {
           ?.text,
       isEmpty,
     );
-    expect(find.byKey(const Key('dev-device-token-error')), findsOneWidget);
+    expect(find.byKey(const Key('dev-device-token-error')), findsNothing);
     expect(find.textContaining('backend rejected request'), findsNothing);
     expect(find.text('rejected-widget-token'), findsNothing);
     expect(find.text('SERVER APP'), findsNothing);

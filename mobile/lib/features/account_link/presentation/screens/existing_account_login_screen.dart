@@ -43,7 +43,7 @@ class _ExistingAccountLoginScreenState
   final _passwordController = TextEditingController();
   _AccountLoginMode _loginMode = _AccountLoginMode.tradingAccount;
   bool _savePassword = true;
-  String? _serverError;
+  bool _serverLoadFailed = false;
 
   @override
   void initState() {
@@ -124,18 +124,14 @@ class _ExistingAccountLoginScreenState
                       title: 'Tài khoản thật',
                       description:
                           'Tạo tài khoản thật bằng cách điền vào mẫu đơn sau và gửi các giấy tờ yêu cầu',
-                      onTap: () => _showFeedback(
-                        'Đăng ký tài khoản thật chưa được hỗ trợ',
-                      ),
+                      onTap: () {},
                     ),
                     _RegistrationRow(
                       key: const Key('demo-account-row'),
                       title: 'Tài khoản dùng thử',
                       description:
                           'Đăng ký tài khoản để học giao dịch và kiểm tra chiến lược',
-                      onTap: () => _showFeedback(
-                        'Đăng ký tài khoản dùng thử chưa được hỗ trợ',
-                      ),
+                      onTap: () {},
                     ),
                     const _SectionLabel(
                       text: 'Sử dụng tài khoản hiện có',
@@ -156,9 +152,8 @@ class _ExistingAccountLoginScreenState
                               '/accounts/add/${Uri.encodeComponent(widget.brokerId)}/servers',
                             ),
                     ),
-                    if (_serverError case final message?)
+                    if (_serverLoadFailed)
                       _ServerFailureRow(
-                        message: message,
                         onRetry: () => unawaited(_loadServers()),
                       ),
                     _InputRow(
@@ -242,9 +237,7 @@ class _ExistingAccountLoginScreenState
                       child: Center(
                         child: TextButton(
                           key: const Key('existing-account-forgot-password'),
-                          onPressed: () => _showFeedback(
-                            'Khôi phục mật khẩu chưa được hỗ trợ',
-                          ),
+                          onPressed: () {},
                           child: Text(
                             'Quên mật khẩu',
                             style: AccountLinkReferenceTypography.rowValue
@@ -327,15 +320,13 @@ class _ExistingAccountLoginScreenState
   }
 
   Future<void> _loadServers() async {
-    if (_serverError != null) setState(() => _serverError = null);
+    if (_serverLoadFailed) setState(() => _serverLoadFailed = false);
     final controller = ref.read(accountLinkControllerProvider.notifier);
     await controller.loadServers(widget.brokerId);
     if (!mounted) return;
     final state = ref.read(accountLinkControllerProvider).value;
     if (state == null || state.phase == AccountLinkPhase.failed) {
-      setState(() {
-        _serverError = state?.errorMessage ?? 'Unable to link this account';
-      });
+      setState(() => _serverLoadFailed = true);
       return;
     }
     if (state.selectedServer == null && state.servers.isNotEmpty) {
@@ -366,9 +357,6 @@ class _ExistingAccountLoginScreenState
       if (current.errorCode == 'invalid_credentials') {
         _passwordController.clear();
       }
-      if (current.errorMessage case final message?) {
-        _showFeedback(message);
-      }
       setState(() {});
       return;
     }
@@ -383,14 +371,6 @@ class _ExistingAccountLoginScreenState
       context.go('/trade');
       return;
     }
-    final message = ref.read(accountLinkControllerProvider).value?.errorMessage;
-    if (message != null) _showFeedback(message);
-  }
-
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   static void _synchronize(TextEditingController controller, String value) {
@@ -736,9 +716,8 @@ class _SavePasswordRow extends StatelessWidget {
 }
 
 class _ServerFailureRow extends StatelessWidget {
-  const _ServerFailureRow({required this.message, required this.onRetry});
+  const _ServerFailureRow({required this.onRetry});
 
-  final String message;
   final VoidCallback onRetry;
 
   @override
@@ -751,21 +730,13 @@ class _ServerFailureRow extends StatelessWidget {
       AppSpacing.md,
       AppSpacing.sm,
     ),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            message,
-            style: AppTypography.bodySmall.copyWith(color: AppColors.negative),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        TextButton(
-          key: const Key('existing-account-server-retry'),
-          onPressed: onRetry,
-          child: const Text('Thử lại'),
-        ),
-      ],
+    child: Align(
+      alignment: Alignment.centerRight,
+      child: TextButton(
+        key: const Key('existing-account-server-retry'),
+        onPressed: onRetry,
+        child: const Text('Thử lại'),
+      ),
     ),
   );
 }

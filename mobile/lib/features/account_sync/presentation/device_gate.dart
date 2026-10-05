@@ -316,8 +316,6 @@ class _AccountBootstrapUnavailable extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(message, textAlign: TextAlign.center),
-              const SizedBox(height: AppSpacing.lg),
               OutlinedButton(onPressed: onRetry, child: Text(buttonLabel)),
             ],
           ),

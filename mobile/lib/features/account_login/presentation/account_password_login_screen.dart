@@ -108,17 +108,6 @@ class _AccountPasswordLoginScreenState
                       onSubmitted: submitting ? null : (_) => _submit(),
                       decoration: _decoration('Mật khẩu'),
                     ),
-                    if (state.errorMessage case final message?) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        message,
-                        key: const Key('account-login-error'),
-                        textAlign: TextAlign.center,
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.negative,
-                        ),
-                      ),
-                    ],
                     const SizedBox(height: AppSpacing.xl),
                     FilledButton(
                       key: const Key('account-login-submit'),

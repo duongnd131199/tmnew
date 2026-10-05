@@ -125,6 +125,48 @@ void main() {
     );
   });
 
+  test('create order sends the full 175 lot volume to EX V2', () async {
+    final adapter = _JsonAdapter(<String, Object?>{
+      'id': 'order-175',
+      'clientOrderId': 'client-175',
+      'symbol': 'XAUUSD+',
+      'type': 'market',
+      'side': 'BUY',
+      'volume': 175.0,
+      'requestedPrice': null,
+      'executedPrice': 4397.25,
+      'stopLoss': null,
+      'takeProfit': null,
+      'status': 'filled',
+      'createdAt': '2026-10-04T08:00:00Z',
+      'version': 2,
+      'rowVersion': 'row-version-175',
+    });
+    final repository = ExV2Repository(
+      ExV2ApiClient(
+        dio: Dio(BaseOptions(baseUrl: 'https://example.com/ex/v2/api'))
+          ..httpClientAdapter = adapter,
+        tokenReader: () async => 'test-token',
+      ),
+    );
+
+    final order = await repository.createOrder(
+      clientOrderId: 'client-175',
+      symbol: 'XAUUSD+',
+      type: 'market',
+      side: 'BUY',
+      volume: 175,
+      metadata: const ExV2CommandMetadata(
+        idempotencyKey: 'client-175',
+        correlationId: 'corr-175',
+      ),
+    );
+
+    expect(adapter.options!.uri.path, '/ex/v2/api/orders');
+    expect(adapter.options!.data, containsPair('volume', 175.0));
+    expect(order.volume, 175.0);
+  });
+
   test('deposit list rejects non-canonical rows after restart', () async {
     final repository = ExV2Repository(
       ExV2ApiClient(

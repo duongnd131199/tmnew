@@ -29,7 +29,7 @@ class TradingServerScreen extends ConsumerStatefulWidget {
 
 class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
   final _scrollController = ScrollController();
-  String? _routeError;
+  bool _routeFailed = false;
 
   @override
   void initState() {
@@ -57,8 +57,6 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
       brokerId: widget.brokerId,
       servers: servers,
     );
-    final message = _routeError ?? state?.errorMessage;
-
     return Scaffold(
       key: const Key('trading-server-screen'),
       backgroundColor: AppColors.accountLinkServerHeader,
@@ -77,7 +75,7 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
             ),
             Positioned.fill(
               child: switch ((
-                failed || message != null,
+                failed || _routeFailed,
                 loading,
                 servers.isEmpty,
               )) {
@@ -87,10 +85,7 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
                         AccountLinkReferenceMetrics.toolbarHeight +
                         AccountLinkReferenceMetrics.serverHeaderGap,
                   ),
-                  child: _ServerFailure(
-                    message: message ?? 'Unable to link this account',
-                    onRetry: () => unawaited(_load()),
-                  ),
+                  child: _ServerFailure(onRetry: () => unawaited(_load())),
                 ),
                 (false, true, true) => const Padding(
                   padding: EdgeInsets.only(
@@ -185,10 +180,7 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
         broker = _brokerFor(state.brokers);
       }
       if (broker == null) {
-        setState(
-          () => _routeError =
-              state.errorMessage ?? 'Không tìm thấy công ty đã chọn',
-        );
+        setState(() => _routeFailed = true);
         return;
       }
       controller.selectBroker(broker);
@@ -204,7 +196,7 @@ class _TradingServerScreenState extends ConsumerState<TradingServerScreen> {
   }
 
   Future<void> _loadServers() async {
-    if (mounted && _routeError != null) setState(() => _routeError = null);
+    if (mounted && _routeFailed) setState(() => _routeFailed = false);
     await ref
         .read(accountLinkControllerProvider.notifier)
         .loadServers(widget.brokerId);
@@ -289,9 +281,8 @@ class _ServerRow extends StatelessWidget {
 }
 
 class _ServerFailure extends StatelessWidget {
-  const _ServerFailure({required this.message, required this.onRetry});
+  const _ServerFailure({required this.onRetry});
 
-  final String message;
   final VoidCallback onRetry;
 
   @override
@@ -302,14 +293,6 @@ class _ServerFailure extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
           OutlinedButton(
             key: const Key('server-catalog-retry'),
             onPressed: onRetry,

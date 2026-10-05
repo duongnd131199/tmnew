@@ -70,7 +70,7 @@ void main() {
     expect(find.text('ACCOUNT LIST'), findsOneWidget);
   });
 
-  testWidgets('removal failure stays on detail and shows a safe message', (
+  testWidgets('removal failure stays on detail without showing feedback', (
     tester,
   ) async {
     final service = _FakeRemovalService(error: StateError('secret failure'));
@@ -82,9 +82,10 @@ void main() {
 
     expect(service.calls, 1);
     expect(find.byKey(const Key('account-detail-screen')), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
     expect(
       find.text('Không thể xóa tài khoản khỏi thiết bị. Thử lại.'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.textContaining('secret failure'), findsNothing);
   });

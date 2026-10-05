@@ -31,6 +31,7 @@ void main() {
       'stopLoss': null,
       'takeProfit': null,
       'status': 'pending',
+      'executionReason': 'manual',
       'createdAt': '2026-08-13T07:30:00Z',
       'version': 2,
       'rowVersion': 'rv-2',
@@ -47,6 +48,7 @@ void main() {
     expect(uiPending.id, 'order-1');
     expect(uiPending.type, 'Sell Limit');
     expect(uiPending.price, 3400);
+    expect(order.executionReason, 'manual');
   });
 
   test('maps history position aliases without inventing finance values', () {
@@ -105,6 +107,38 @@ void main() {
       'createdAt': '2026-08-13T08:00:00Z',
     });
 
+    expect(deal.entry, 'out');
+  });
+
+  test('preserves stop-out reason and the exact closed lot', () {
+    final order = ExV2DemoMapper.historyOrder({
+      'id': 'stop-out-order-1',
+      'symbol': 'XAUUSD+',
+      'side': 'sell',
+      'volume': 7.9,
+      'openPrice': 4194.132,
+      'status': 'filled',
+      'executionReason': 'stop-out',
+      'openedAt': '2026-10-04T02:33:00Z',
+    });
+    final deal = ExV2DemoMapper.historyDeal({
+      'id': 'stop-out-deal-1',
+      'orderId': 'stop-out-order-1',
+      'positionId': 'position-1',
+      'symbol': 'XAUUSD+',
+      'side': 'sell',
+      'volume': 7.9,
+      'price': 4194.132,
+      'profit': -100000,
+      'dealType': 'out',
+      'executionReason': 'stop-out',
+      'createdAt': '2026-10-04T02:33:00Z',
+    });
+
+    expect(order.volume, 7.9);
+    expect(order.executionReason, 'stop-out');
+    expect(deal.volume, 7.9);
+    expect(deal.executionReason, 'stop-out');
     expect(deal.entry, 'out');
   });
 }

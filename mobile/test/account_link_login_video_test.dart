@@ -266,14 +266,9 @@ void main() {
     await tester.pump();
 
     expect(appRouter.state.uri.path, '/accounts/add/exness');
-    expect(
-      find.text(
-        'Thông tin đăng nhập không hợp lệ\n'
-        'Mã lỗi: invalid_credentials\n'
-        'Mã tra cứu: corr-safe-widget',
-      ),
-      findsOneWidget,
-    );
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.textContaining('invalid_credentials'), findsNothing);
+    expect(find.textContaining('corr-safe-widget'), findsNothing);
     expect(
       tester
           .widget<TextField>(
@@ -379,7 +374,7 @@ void main() {
   );
 
   testWidgets(
-    'initial server failure is visible and retries the real catalog',
+    'initial server failure stays silent and retries the real catalog',
     (tester) async {
       final repository = _LoginRepository(serverFailures: 1);
       await _openForm(tester, repository: repository);
@@ -388,7 +383,7 @@ void main() {
         find.byKey(const Key('existing-account-server-error')),
         findsOneWidget,
       );
-      expect(find.text('Unable to link this account'), findsOneWidget);
+      expect(find.text('Unable to link this account'), findsNothing);
       expect(repository.serverCalls, 1);
 
       await tester.tap(find.byKey(const Key('existing-account-server-retry')));
@@ -480,9 +475,7 @@ void main() {
     expect(appRouter.state.uri.path, '/trade');
   });
 
-  testWidgets('registration and forgot-password rows provide safe feedback', (
-    tester,
-  ) async {
+  testWidgets('registration, recovery and QR rows stay silent', (tester) async {
     await _openForm(tester, repository: _LoginRepository());
 
     for (final entry in const {
@@ -492,12 +485,9 @@ void main() {
     }.entries) {
       await tester.tap(find.byKey(Key(entry.key)));
       await tester.pump();
-      expect(find.text(entry.value), findsOneWidget);
+      expect(find.text(entry.value), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
       expect(appRouter.state.uri.path, '/accounts/add/exness');
-      ScaffoldMessenger.of(
-        tester.element(find.byKey(Key(entry.key))),
-      ).hideCurrentSnackBar();
-      await tester.pump();
     }
 
     appRouter.go('/register');
@@ -505,10 +495,8 @@ void main() {
     await tester.tap(find.byKey(const Key('account-link-qr-button')));
     await tester.pump();
 
-    expect(
-      find.text('Nhập tài khoản bằng QR chưa được hỗ trợ'),
-      findsOneWidget,
-    );
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.text('Nhập tài khoản bằng QR chưa được hỗ trợ'), findsNothing);
     expect(appRouter.state.uri.path, '/register');
   });
 }

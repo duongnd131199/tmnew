@@ -4,10 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
 import 'package:trading_mobile/core/theme/app_spacing.dart';
 import 'package:trading_mobile/core/theme/app_typography.dart';
-import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 import 'package:trading_mobile/features/account_sessions/application/account_removal_service.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
-import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
 
@@ -234,23 +232,13 @@ class _AccountDetailScreenState extends ConsumerState<AccountDetailScreen> {
       if (result == AccountRemovalResult.switched) {
         await Navigator.of(context).maybePop();
       }
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_safeAccountRemovalMessage(error))),
-      );
     } finally {
       if (mounted) setState(() => _removalInFlight = false);
     }
   }
 }
-
-String _safeAccountRemovalMessage(Object error) => switch (error) {
-  ExV2RequestFailure failure => failure.safeDisplayMessage,
-  ExV2ClientFailure failure => failure.message,
-  AccountActivationIdentityMismatch failure => failure.message,
-  _ => 'Không thể xóa tài khoản khỏi thiết bị. Thử lại.',
-};
 
 class _AccountHero extends StatelessWidget {
   const _AccountHero({required this.account});

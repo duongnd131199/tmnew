@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:trading_mobile/core/theme/app_colors.dart';
-import 'package:trading_mobile/features/account_link/application/account_activation_coordinator.dart';
 import 'package:trading_mobile/features/account_sync/application/ex_v2_account_provider.dart';
-import 'package:trading_mobile/features/account_sync/data/ex_v2_api_client.dart';
 import 'package:trading_mobile/features/profile/presentation/theme/account_list_reference_theme.dart';
 import 'package:trading_mobile/features/profile/presentation/widgets/account_visuals.dart';
 import 'package:trading_mobile/shared/providers/demo_data_provider.dart';
@@ -134,15 +132,8 @@ class ProfileScreen extends ConsumerWidget {
                               if (activated != null && context.mounted) {
                                 context.pop();
                               }
-                            } catch (error) {
+                            } catch (_) {
                               if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    _safeAccountSwitchMessage(error),
-                                  ),
-                                ),
-                              );
                             }
                           },
                   );
@@ -155,13 +146,6 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 }
-
-String _safeAccountSwitchMessage(Object error) => switch (error) {
-  ExV2RequestFailure failure => failure.safeDisplayMessage,
-  ExV2ClientFailure failure => failure.message,
-  AccountActivationIdentityMismatch failure => failure.message,
-  _ => 'Không thể chuyển tài khoản. Thử lại.',
-};
 
 class _AccountRow extends StatelessWidget {
   const _AccountRow({

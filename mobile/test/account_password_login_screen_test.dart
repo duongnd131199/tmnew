@@ -80,8 +80,9 @@ void main() {
     );
     expect(loginField.controller!.text, '109740422');
     expect(passwordField.controller!.text, isEmpty);
-    expect(find.textContaining('invalid_credentials'), findsOneWidget);
-    expect(find.textContaining('corr-safe-widget'), findsOneWidget);
+    expect(find.byKey(const Key('account-login-error')), findsNothing);
+    expect(find.textContaining('invalid_credentials'), findsNothing);
+    expect(find.textContaining('corr-safe-widget'), findsNothing);
   });
 }
 

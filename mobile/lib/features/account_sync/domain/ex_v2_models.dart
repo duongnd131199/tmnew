@@ -586,6 +586,7 @@ final class ExV2Order {
     this.stopLoss,
     this.takeProfit,
     this.rowVersion,
+    this.executionReason,
   });
 
   factory ExV2Order.fromJson(JsonMap json) => ExV2Order(
@@ -603,6 +604,7 @@ final class ExV2Order {
     createdAt: _date(json, 'createdAt'),
     version: _integer(json, 'version'),
     rowVersion: _nullableString(json, 'rowVersion'),
+    executionReason: _nullableString(json, 'executionReason'),
   );
 
   final String id;
@@ -619,6 +621,7 @@ final class ExV2Order {
   final DateTime createdAt;
   final int version;
   final String? rowVersion;
+  final String? executionReason;
 }
 
 final class ExV2Deal {
@@ -633,6 +636,7 @@ final class ExV2Deal {
     required this.price,
     required this.profit,
     required this.createdAt,
+    this.executionReason,
   });
 
   factory ExV2Deal.fromJson(JsonMap json) => ExV2Deal(
@@ -646,6 +650,7 @@ final class ExV2Deal {
     price: _double(json, 'price'),
     profit: _double(json, 'profit'),
     createdAt: _date(json, 'createdAtUtc'),
+    executionReason: _nullableString(json, 'executionReason'),
   );
 
   final String id;
@@ -658,6 +663,7 @@ final class ExV2Deal {
   final double price;
   final double profit;
   final DateTime createdAt;
+  final String? executionReason;
 }
 
 final class ExV2Wallet {

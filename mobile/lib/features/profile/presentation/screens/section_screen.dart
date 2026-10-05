@@ -311,7 +311,7 @@ class _DepthOfMarketScreenState extends ConsumerState<_DepthOfMarketScreen> {
       liveQuote?.ask ?? fallbackQuote.$2,
     );
     final step = widget.symbol.startsWith('XAUUSD') ? .05 : .0001;
-    final maximalVolume = widget.symbol.startsWith('XAUUSD') ? 100.0 : 10.0;
+    final maximalVolume = widget.symbol.startsWith('XAUUSD') ? 1000.0 : 100.0;
     return Scaffold(
       appBar: AppBar(title: Text(displayTradingSymbolText(widget.title))),
       body: Column(

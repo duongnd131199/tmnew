@@ -93,7 +93,6 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
               child: switch ((failed, loading, brokers.isEmpty)) {
                 (true, _, _) => _CatalogFailure(
                   key: const Key('broker-catalog-error'),
-                  message: state?.errorMessage ?? 'Unable to link this account',
                   retryKey: const Key('broker-catalog-retry'),
                   onRetry: _retry,
                 ),
@@ -289,11 +288,6 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
       callback(broker);
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(broker.description ?? broker.companyName ?? broker.name),
-      ),
-    );
   }
 
   void _handleQr() {
@@ -302,9 +296,6 @@ class _BrokerListScreenState extends ConsumerState<BrokerListScreen> {
       callback();
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Nhập tài khoản bằng QR chưa được hỗ trợ')),
-    );
   }
 }
 
@@ -405,13 +396,11 @@ Widget _semanticKeyed({
 
 class _CatalogFailure extends StatelessWidget {
   const _CatalogFailure({
-    required this.message,
     required this.retryKey,
     required this.onRetry,
     super.key,
   });
 
-  final String message;
   final Key retryKey;
   final VoidCallback onRetry;
 
@@ -422,14 +411,6 @@ class _CatalogFailure extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
           OutlinedButton(
             key: retryKey,
             onPressed: onRetry,
